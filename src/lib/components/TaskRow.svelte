@@ -146,6 +146,14 @@
     cursor: pointer;
     color: var(--text-primary);
     transition: background 0.1s;
+    /* Hit target: pseudo-element extends the tap surface to ~36px without
+       changing visual size, hitting WCAG 2.5.5 territory on mobile. */
+    position: relative;
+  }
+  .task-checkbox::after {
+    content: '';
+    position: absolute;
+    inset: -10px;
   }
   .task-checkbox:hover { background: var(--surface-active); }
   .task-row.completed .task-checkbox {

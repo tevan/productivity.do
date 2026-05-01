@@ -6,11 +6,22 @@
   import { getNotesView } from '../stores/notesView.svelte.js';
   import { getPrefs } from '../stores/prefs.svelte.js';
   import { renderMarkdown } from '../utils/markdown.js';
+  import NotesSidebarSection from '../components/sidebar/NotesSidebarSection.svelte';
 
   const notesStore = getNotes();
   const notesView = getNotesView();
   const prefs = getPrefs();
   const app = getContext('app');
+
+  // Mobile: when the app sidebar is hidden the user has no path to the
+  // notes list, so render an inline list (until they pick one).
+  let isMobile = $state(typeof window !== 'undefined' && window.innerWidth < 768);
+  $effect(() => {
+    if (typeof window === 'undefined') return;
+    const onResize = () => { isMobile = window.innerWidth < 768; };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  });
 
   // Selection lifted into notesView store so the sidebar's Notes section
   // can drive it (and reflect it) when in Notes appView.
@@ -115,6 +126,12 @@
           </div>
         {/if}
         <div class="reader-body markdown-body">{@html selectedHtml}</div>
+      {:else if isMobile}
+        <!-- Mobile: app sidebar is hidden by default and the toggle is a
+             40px target up top, so render the list inline instead. -->
+        <div class="mobile-list">
+          <NotesSidebarSection />
+        </div>
       {:else}
         <div class="reader-empty">Select a note from the sidebar to read.</div>
       {/if}
@@ -272,6 +289,12 @@
     font-size: 13px;
     text-align: center;
     margin-top: 80px;
+  }
+  .mobile-list {
+    /* Reuse the sidebar's NotesSection inline. Reset the negative margin
+       and surface tint that NotesSidebarSection assumes (it normally lives
+       inside a tinted sidebar). */
+    margin: -8px -8px 0;
   }
 
   @media (max-width: 768px) {

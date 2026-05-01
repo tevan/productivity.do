@@ -129,6 +129,22 @@
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   });
+
+  // Force Day view on phones. 5/7-day grids at <640px squeeze chips to ~57px
+  // wide — titles become unreadable. Day view gives one column the full
+  // width. Per-form-factor view persistence (see view_persistence_pattern
+  // memory) keeps the desktop default intact.
+  $effect(() => {
+    if (typeof window === 'undefined') return;
+    const enforce = () => {
+      if (window.innerWidth < 640 && view.currentView !== 'day' && view.currentView !== 'month') {
+        setView('day');
+      }
+    };
+    enforce();
+    window.addEventListener('resize', enforce);
+    return () => window.removeEventListener('resize', enforce);
+  });
   function toggleSidebar() {
     sidebarHidden = !sidebarHidden;
     try { localStorage.setItem('productivity_sidebar_hidden', sidebarHidden ? '1' : '0'); } catch {}

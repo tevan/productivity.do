@@ -342,12 +342,23 @@
     transform: translate(-50%, -50%);
     z-index: 1001;
     width: 560px;
+    max-width: calc(100vw - 16px);
     max-height: 90vh;
     overflow-y: auto;
     background: var(--surface-elevated);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-lg);
+  }
+  @media (max-width: 600px) {
+    .editor-modal {
+      width: calc(100vw - 16px);
+      max-height: calc(100vh - 32px);
+      top: 16px;
+      left: 8px;
+      right: 8px;
+      transform: none;
+    }
   }
 
   .editor-header {

@@ -126,4 +126,15 @@
     color: var(--text-primary);
     font-weight: 600;
   }
+  /* On phones the 7-cell week strip has ~50px per cell, which is too narrow
+     for "67°/48°" + icon side-by-side (~64px). Stack vertically instead. */
+  @media (max-width: 480px) {
+    .weather-cell {
+      flex-direction: column;
+      gap: 0;
+      padding: 2px 0;
+    }
+    .weather-icon { font-size: 12px; line-height: 1; }
+    .weather-temp { font-size: 10px; }
+  }
 </style>

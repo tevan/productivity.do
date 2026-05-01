@@ -3,9 +3,24 @@
 
   let { slug = '', typeSlug = null, inviteToken = null } = $props();
 
+  // WCAG-aware foreground for buttons/badges painted with --brand. Hosts
+  // can pick any hex (preset or custom); white-on-amber and white-on-emerald
+  // both fail AA, so we compute readable text per brand color.
+  function readableText(hex) {
+    if (!hex || hex[0] !== '#' || hex.length !== 7) return '#ffffff';
+    const r = parseInt(hex.slice(1, 3), 16) / 255;
+    const g = parseInt(hex.slice(3, 5), 16) / 255;
+    const b = parseInt(hex.slice(5, 7), 16) / 255;
+    const lin = (c) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+    const L = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+    return L < 0.5 ? '#ffffff' : '#1a1a1a';
+  }
+
   let page = $state(null);
   let loading = $state(true);
   let loadError = $state('');
+  const brandColor = $derived(page?.brandColor || page?.color || '#6366f1');
+  const brandText = $derived(readableText(brandColor));
 
   // Selected event type (when page has multiple)
   let selectedType = $state(null);
@@ -246,7 +261,7 @@
 {:else}
   <div class="layout">
     <!-- Left: page summary -->
-    <aside class="summary" style="--brand: {page.brandColor || page.color || '#6366f1'}">
+    <aside class="summary" style="--brand: {brandColor}; --brand-text: {brandText}">
       {#if page.coverImageUrl}
         <img class="cover" src={page.coverImageUrl} alt="" />
       {:else if page.brandColor || page.color}
@@ -303,7 +318,7 @@
     </aside>
 
     <!-- Middle: calendar -->
-    <section class="calendar" style="--brand: {page.brandColor || page.color || '#6366f1'}">
+    <section class="calendar" style="--brand: {brandColor}; --brand-text: {brandText}">
       <div class="cal-header">
         <button class="cal-nav" onclick={prevMonth} aria-label="Previous month">‹</button>
         <span class="cal-title">{viewMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
@@ -351,7 +366,7 @@
     </section>
 
     <!-- Right: slots / form -->
-    <section class="right" style="--brand: {page.brandColor || page.color || '#6366f1'}">
+    <section class="right" style="--brand: {brandColor}; --brand-text: {brandText}">
       {#if page.hasEventTypes && !selectedType}
         <h2 class="slots-heading">What kind of meeting?</h2>
         <div class="slots">
@@ -666,7 +681,7 @@
   .cal-cell.today { box-shadow: inset 0 0 0 1px var(--brand, #6366f1); }
   .cal-cell.selected {
     background: var(--brand, #6366f1);
-    color: white;
+    color: var(--brand-text, #ffffff);
   }
   .cal-cell.disabled {
     cursor: not-allowed;
@@ -798,7 +813,7 @@
   }
   .btn-primary {
     background: var(--brand, #6366f1);
-    color: white;
+    color: var(--brand-text, #ffffff);
   }
   .btn-primary:hover { filter: brightness(0.92); }
   .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }

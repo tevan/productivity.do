@@ -394,26 +394,34 @@
      The toolbar becomes: sidebar / date / today / +. Threshold matches
      MobileBottomNav (768px). */
   @media (max-width: 768px) {
+    /* Drop the symmetric 1fr|auto|1fr grid: with .toolbar-center hidden,
+       the symmetric outer 1fr columns squeeze the title to ~45px. Use
+       1fr auto so the left column claims the empty right side's space. */
+    .toolbar { grid-template-columns: 1fr auto; }
     .toolbar-center { display: none; }
     .view-label {
       font-size: 13px;
-      /* Allow the long date range to ellipsize so the +button on the right
-         keeps its space. min-width: 0 makes flex actually shrink the button. */
       min-width: 0;
-      flex-shrink: 1;
-      max-width: 60vw;
+      flex: 1 1 auto;
+      /* No max-width cap: the parent toolbar-nav and 1fr-auto grid already
+         constrain the title; an explicit 60vw cap forces premature ellipsis. */
     }
     .toolbar-nav { min-width: 0; }
-    .toolbar { gap: 4px; padding: 0 6px; }
-    .nav-btn { width: 26px; height: 26px; }
-    .today-btn { padding: 4px 8px; font-size: 12px; }
-    .new-main { padding: 0 6px; }
-    .new-chev { padding: 0 6px; }
-    /* Sidebar toggle: on mobile the sidebar takes the whole viewport when
-       open and the bottom-nav handles workspace switching. The toggle is
-       still useful for revealing the sidebar (mini-cal, calendars list)
-       so we keep it, just smaller. */
-    .sidebar-toggle { width: 26px; height: 26px; }
+    .toolbar { gap: 4px; padding: 0 8px; }
+    /* Tap-target sizing: 40×40 is the practical mobile minimum (we can't
+       hit a clean 44 without making the toolbar taller, which would eat
+       calendar real estate). flex-shrink:0 prevents these icon buttons
+       from being squashed by the title's flex:1. */
+    .nav-btn,
+    .sidebar-toggle,
+    .new-main,
+    .new-chev,
+    .today-btn { flex-shrink: 0; }
+    .nav-btn { width: 40px; height: 40px; }
+    .sidebar-toggle { width: 40px; height: 40px; }
+    .today-btn { min-height: 36px; padding: 4px 10px; font-size: 12px; }
+    .new-main { min-height: 36px; padding: 0 10px; }
+    .new-chev { min-height: 36px; padding: 0 8px; }
     .mobile-hide { display: none !important; }
   }
 

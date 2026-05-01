@@ -1730,8 +1730,18 @@
       border-bottom: 1px solid var(--border-light);
       padding: 6px 8px;
       gap: 4px;
+      /* Right-edge fade tells the user content scrolls — without this the
+         half-clipped tab pill at the right just looks broken. */
+      mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
+      -webkit-mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
+      scroll-snap-type: x proximity;
     }
-    .settings-nav .nav-item { white-space: nowrap; flex-shrink: 0; padding: 6px 10px; }
+    .settings-nav .nav-item {
+      white-space: nowrap;
+      flex-shrink: 0;
+      padding: 6px 10px;
+      scroll-snap-align: start;
+    }
     .settings-content { padding: 16px; }
   }
 </style>
