@@ -11,4 +11,6 @@ uploads/
 backend/db/db.sqlite
 
 # Reference library — copyrighted PDFs we own personally for reference; not for distribution.
+# Plus the curated reading list (kept local — reveals stack/roadmap details we don't need in the public repo).
 docs/reference-library/*.pdf
+docs/reference-library/productivity_do_reading_list.md
