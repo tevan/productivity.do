@@ -422,13 +422,14 @@
 
   .filter-bar {
     display: flex;
-    gap: 12px;
+    gap: 8px;
     align-items: center;
     flex-wrap: wrap;
   }
   .filter-bar .search {
-    flex: 1;
-    min-width: 200px;
+    flex: 0 1 280px;
+    min-width: 180px;
+    max-width: 320px;
     padding: 6px 10px;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
@@ -436,6 +437,10 @@
     color: var(--text-primary);
     font-size: 13px;
   }
+  /* Compact the two filter dropdowns — they were eating horizontal space
+     because Dropdown's inner button is width:100% of its flex slot. */
+  .filter-bar :global(.dropdown) { width: auto; flex: 0 0 auto; }
+  .filter-bar :global(.dropdown > button) { width: auto; min-width: 120px; }
   .status-toggle {
     display: inline-flex;
     border: 1px solid var(--border);

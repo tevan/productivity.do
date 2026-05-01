@@ -40,6 +40,8 @@ import templatesRoutes from './routes/templates.js';
 import subscriptionsRoutes, { startSubscriptionRefresher } from './routes/subscriptions.js';
 import hiddenEventsRoutes from './routes/hidden-events.js';
 import { quickSlotsAdmin, quickSlotsPublic } from './routes/quick-slots.js';
+import operationsRoutes from './routes/operations.js';
+import { startOperationsSweeper } from './lib/operations.js';
 import { startWeeklyDigest } from './lib/digest.js';
 import { startRetryLoop } from './lib/webhooks.js';
 import { startCalendarSyncRetry } from './lib/calendarSyncRetry.js';
@@ -284,6 +286,7 @@ app.use(billingRoutes);
 app.use(icsAdmin);
 app.use(notificationsRoutes);
 app.use(focusBlocksRoutes);
+app.use(operationsRoutes);
 app.use(notesRoutes);
 app.use(linksRoutes);
 app.use(inboxAdmin);
@@ -345,6 +348,8 @@ app.listen(PORT, '127.0.0.1', () => {
   startCalendarSyncRetry({ intervalMs: 60_000 });
   // Sweep stale Idempotency-Key entries from /api/v1 once an hour (24h TTL).
   startIdempotencySweeper();
+  // Sweep completed (non-error) operations older than 7 days.
+  startOperationsSweeper();
   // Periodic refresh of inbound ICS subscription feeds.
   startSubscriptionRefresher();
   // Background sync of connected provider integrations.

@@ -347,6 +347,32 @@ function applyMigrations(database) {
     );
     CREATE INDEX IF NOT EXISTS idx_v1_idemp_created ON api_v1_idempotency_keys(created_at);
   `);
+
+  // ---- long-running operations (LROs) ----
+  // Geewax Ch 10. Endpoints whose work duration can exceed ~3s should
+  // return 202 + an Operation handle that the caller can poll. Currently
+  // used by the AI prep flow (5–15s Anthropic call); will expand to manual
+  // integration sync next. `kind` namespaces the operation type so callers
+  // / dashboards can filter (e.g. 'event.prep', 'integration.sync').
+  // `result_json` holds the final response when done=1; `error_json` holds
+  // the error if it failed. `metadata_json` is opaque caller-supplied
+  // progress data (e.g. {step: 'fetching_event'} mid-flight).
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS operations (
+      id          TEXT PRIMARY KEY,
+      user_id     INTEGER NOT NULL,
+      kind        TEXT NOT NULL,
+      done        INTEGER NOT NULL DEFAULT 0,
+      result_json TEXT,
+      error_json  TEXT,
+      metadata_json TEXT,
+      created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+      completed_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_operations_user ON operations(user_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_operations_kind ON operations(kind, done);
+  `);
+
   database.exec(`
     CREATE TABLE IF NOT EXISTS booking_page_views (
       page_id TEXT NOT NULL,

@@ -900,12 +900,23 @@ function buildOpenApi(req) {
         delete: { summary: 'Delete event', parameters: [pathParam('calendarId'), pathParam('eventId')], responses: { '200': okJson() } },
       },
       '/events/bulk': {
-        post: { summary: 'Bulk-create events (max 100/request)', requestBody: jsonBody({ items: 'array of event objects (same fields as POST /events)' }), responses: { '200': okJson() } },
+        post: {
+          summary: 'Bulk-create events (max 100/request)',
+          description: 'NOT ATOMIC. Items are processed serially; some may succeed while others fail. The top-level `ok:true` indicates the batch was processed; per-item success is in `results[i].ok`. Callers MUST iterate `results` and handle per-item errors. See /help/api/bulk for the full contract.',
+          requestBody: jsonBody({ items: 'array of event objects (same fields as POST /events)' }),
+          responses: { '200': okJson() },
+        },
       },
       '/tasks/bulk': {
-        post: { summary: 'Bulk-create tasks (max 100/request)', requestBody: jsonBody({ items: 'array of task objects (same fields as POST /tasks)' }), responses: { '200': okJson() } },
+        post: {
+          summary: 'Bulk-create tasks (max 100/request)',
+          description: 'NOT ATOMIC. Items are processed serially; some may succeed while others fail. The top-level `ok:true` indicates the batch was processed; per-item success is in `results[i].ok`. Callers MUST iterate `results` and handle per-item errors. See /help/api/bulk for the full contract.',
+          requestBody: jsonBody({ items: 'array of task objects (same fields as POST /tasks)' }),
+          responses: { '200': okJson() },
+        },
         put: {
           summary: 'Bulk-update tasks. Each item is `{ id, ...patch }` and may include `projectId` to move.',
+          description: 'NOT ATOMIC. Per-item results in `results[]`. See /help/api/bulk.',
           requestBody: jsonBody({ items: 'array of { id, ...patch } (max 100 per request)' }),
           responses: { '200': okJson() },
         },

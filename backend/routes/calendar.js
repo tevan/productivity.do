@@ -12,6 +12,7 @@ import {
   extractConferenceUrl,
 } from '../lib/google.js';
 import { generatePrep, inputHash, isConfigured as isPrepConfigured } from '../lib/prep.js';
+import { createOperation, runOperation } from '../lib/operations.js';
 import { findFreeSlots, expandFocusBlocks } from '../lib/autoSchedule.js';
 
 const router = Router();
@@ -1238,12 +1239,17 @@ router.post('/api/events/:calId/:eventId/rsvp', async (req, res) => {
 // ---------------------------------------------------------------------------
 // POST /api/events/:calId/:eventId/prep — generate (or return cached) AI prep.
 // Body: { force?: boolean }
+// Query: ?async=1 returns 202 + an Operation handle instead of blocking on
+//   the Anthropic call. Caller polls GET /api/operations/:id (or :wait) to
+//   collect the result. Geewax Ch 10. Default remains synchronous so
+//   existing SPA callers keep working unchanged.
 // ---------------------------------------------------------------------------
 router.post('/api/events/:calId/:eventId/prep', async (req, res) => {
   try {
     const userId = req.user.id;
     const { calId, eventId } = req.params;
     const force = !!req.body?.force;
+    const asyncMode = req.query.async === '1' || req.query.async === 'true';
 
     if (!isPrepConfigured()) {
       return res.status(503).json({ ok: false, error: 'AI prep not configured (set ANTHROPIC_API_KEY).' });
@@ -1253,6 +1259,9 @@ router.post('/api/events/:calId/:eventId/prep', async (req, res) => {
     }
 
     // Pull live event from Google so attendees + recent edits are current.
+    // Done in the request thread (fast: ~200ms) before deciding async vs
+    // sync — failures here should be visible to the caller, not buried in
+    // an Operation row.
     let ev;
     try {
       ev = await gcalGetEvent(userId, calId, eventId);
@@ -1273,6 +1282,9 @@ router.post('/api/events/:calId/:eventId/prep', async (req, res) => {
     const cached = db.prepare(
       'SELECT prep_summary, prep_generated_at, prep_input_hash FROM events_cache WHERE google_event_id = ? AND user_id = ?'
     ).get(eventId, userId);
+    // Cache hit: return synchronously even in async mode — there's nothing
+    // to wait for. The caller can still treat the response uniformly by
+    // checking for `summary` directly.
     if (!force && cached?.prep_summary && cached.prep_input_hash === hash) {
       return res.json({
         ok: true,
@@ -1282,6 +1294,33 @@ router.post('/api/events/:calId/:eventId/prep', async (req, res) => {
       });
     }
 
+    // The Anthropic call is the slow part (5–15s). In async mode we return
+    // the Operation handle and run generatePrep in the background.
+    if (asyncMode) {
+      const opId = createOperation({
+        userId,
+        kind: 'event.prep',
+        metadata: { calId, eventId },
+      });
+      runOperation(opId, async () => {
+        const summary = await generatePrep({ ...inputs, userId });
+        const generatedAt = new Date().toISOString();
+        db.prepare(`
+          UPDATE events_cache
+          SET prep_summary = ?, prep_generated_at = ?, prep_input_hash = ?
+          WHERE google_event_id = ? AND user_id = ?
+        `).run(summary, generatedAt, hash, eventId, userId);
+        return { cached: false, summary, generatedAt };
+      });
+      return res.status(202).json({
+        ok: true,
+        operation: { id: opId, kind: 'event.prep', done: false },
+        pollUrl: `/api/operations/${opId}`,
+        waitUrl: `/api/operations/${opId}:wait`,
+      });
+    }
+
+    // Sync path (default — preserves existing SPA behavior).
     let summary;
     try {
       summary = await generatePrep({ ...inputs, userId: req.user.id });
