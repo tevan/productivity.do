@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="auto">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Changelog — Productivity</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/marketing/assets/marketing.css" />
+  <script src="/marketing/assets/marketing.js" defer></script>
+  <style>
+    .release { padding: 32px 0; border-bottom: 1px solid var(--border-light); }
+    .release:last-child { border-bottom: none; }
+    .release-date { font-size: 13px; color: var(--text-tertiary); font-weight: 500; }
+    .release h3 { font-size: 22px; margin: 4px 0 18px; letter-spacing: -0.01em; }
+    .change-tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; margin-right: 8px; vertical-align: middle; text-transform: uppercase; letter-spacing: 0.04em; }
+    .tag-new { background: var(--accent-soft); color: var(--accent); }
+    .tag-fix { background: rgba(34, 197, 94, 0.15); color: rgb(22, 163, 74); }
+    .tag-improve { background: rgba(245, 158, 11, 0.15); color: rgb(217, 119, 6); }
+    .tag-security { background: rgba(239, 68, 68, 0.15); color: rgb(220, 38, 38); }
+    .change-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+    .change-list li { color: var(--text-secondary); line-height: 1.55; padding-left: 0; }
+    .change-list li strong { color: var(--text); }
+  </style>
+</head>
+<body>
+  <nav class="nav"><div class="nav-inner">
+    <a href="/home.html" class="nav-brand"><span class="nav-brand-dot"></span>Productivity</a>
+    <div class="nav-links">
+      <a href="/features.html">Features</a><a href="/pricing.html">Pricing</a>
+      <a href="/changelog.html" class="active">Changelog</a><a href="/developers">Developers</a><a href="/security.html">Security</a>
+      <a href="/login" class="nav-cta">Log in</a><a href="/signup.html" class="nav-cta" style="background: var(--accent-hover)">Sign up</a>
+    </div>
+    <button class="nav-toggle" aria-label="Menu">Menu</button>
+  </div></nav>
+
+  <section class="hero" style="padding: 80px 0 32px;">
+    <div class="container-prose">
+      <h1 style="text-align: center;">Changelog</h1>
+      <p class="hero-sub">What's new. Every release we ship.</p>
+    </div>
+  </section>
+
+  <section style="padding-top: 24px;">
+    <div class="container-prose">
+
+      <div class="release">
+        <span class="release-date">April 29, 2026</span>
+        <h3>Calendly parity + public developer API</h3>
+        <ul class="change-list">
+          <li><span class="change-tag tag-new">New</span><strong>Booking pages → full Calendly parity.</strong> Multiple meeting types per page, custom invitee questions, group events, single-use invites, time polls, routing forms, branded pages, ICS download + add-to-calendar buttons, embed snippets.</li>
+          <li><span class="change-tag tag-new">New</span><strong>Public developer API at <code>/api/v1</code>.</strong> Bearer API keys with scoped permissions, OpenAPI 3.1 spec, persisted rate limiting, signed outbound webhooks with replay protection, full developer docs page.</li>
+          <li><span class="change-tag tag-new">New</span><strong>Workflow webhooks.</strong> Fire Slack DMs, n8n flows, or your own endpoint on booking events. Templated bodies with <code>{{name}}</code>, <code>{{start}}</code>, etc.</li>
+          <li><span class="change-tag tag-security">Security</span>Atomic transaction-wrapped booking writes (eliminates double-booking + double-redeem races). CSPRNG for all tokens. Timing-safe API key comparison. SSRF guards on user-supplied webhook URLs. Replay-safe HMAC with timestamp.</li>
+          <li><span class="change-tag tag-improve">Improved</span>DST-safe timezone math. ICS line folding handles UTF-8 multi-byte characters. Booking page list is one query instead of N+1.</li>
+        </ul>
+      </div>
+
+      <div class="release">
+        <span class="release-date">April 28, 2026</span>
+        <h3>Drag-to-move, day view, group-by, booking pages v1</h3>
+        <ul class="change-list">
+          <li><span class="change-tag tag-new">New</span>Drag-to-move events (vertical = retime, horizontal = day-shift). Resize via bottom edge. 15-min snap; Shift disables.</li>
+          <li><span class="change-tag tag-new">New</span>Day view as a single-column option, configurable per user.</li>
+          <li><span class="change-tag tag-new">New</span>Sidebar task grouping by date / project / label / priority.</li>
+          <li><span class="change-tag tag-new">New</span>Booking pages v1 (single meeting type, basic availability, confirmation emails).</li>
+          <li><span class="change-tag tag-improve">Improved</span>Inline title editing (double-click event chip), right-click context menu, multi-select tasks with bulk actions.</li>
+        </ul>
+      </div>
+
+      <div class="release">
+        <span class="release-date">April 24, 2026</span>
+        <h3>Light theme, settings panel, Todoist v1 migration</h3>
+        <ul class="change-list">
+          <li><span class="change-tag tag-new">New</span>Light theme that follows OS preference, with manual override.</li>
+          <li><span class="change-tag tag-new">New</span>Full Settings panel with tabs: General, Calendar, Sidebar, Bookings, Weather, Time Zones, Notifications, Shortcuts.</li>
+          <li><span class="change-tag tag-fix">Fix</span>Migrated to Todoist API v1 (project change now uses dedicated <code>/move</code> endpoint).</li>
+          <li><span class="change-tag tag-improve">Improved</span>Calendar visibility persists to server (cross-device sync).</li>
+        </ul>
+      </div>
+
+      <div class="release">
+        <span class="release-date">April 12, 2026</span>
+        <h3>Initial release</h3>
+        <ul class="change-list">
+          <li>Google Calendar two-way sync, Todoist two-way sync, Day / Next-N / Week / Month views, calendar sets, keyboard shortcuts, basic event CRUD.</li>
+        </ul>
+      </div>
+
+    </div>
+  </section>
+
+  <footer class="footer"><div class="container">
+    <div class="footer-grid">
+      <div><a href="/home.html" class="nav-brand"><span class="nav-brand-dot"></span>Productivity</a></div>
+      <div><h4>Product</h4><ul><li><a href="/features.html">Features</a></li><li><a href="/pricing.html">Pricing</a></li></ul></div>
+      <div><h4>Resources</h4><ul><li><a href="/developers">API docs</a></li><li><a href="/security.html">Security</a></li></ul></div>
+      <div><h4>Legal</h4><ul><li><a href="/terms.html">Terms</a></li><li><a href="/privacy.html">Privacy</a></li></ul></div>
+    </div>
+    <div class="footer-bottom"><span>© <span class="year">2026</span> Productivity</span></div>
+  </div></footer>
+</body>
+</html>

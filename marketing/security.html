@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="auto">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Security — Productivity</title>
+  <meta name="description" content="How we protect your calendar data: encryption, isolation, audit trails, and compliance." />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/marketing/assets/marketing.css" />
+  <script src="/marketing/assets/marketing.js" defer></script>
+</head>
+<body>
+  <nav class="nav"><div class="nav-inner">
+    <a href="/home.html" class="nav-brand"><span class="nav-brand-dot"></span>Productivity</a>
+    <div class="nav-links">
+      <a href="/features.html">Features</a><a href="/pricing.html">Pricing</a><a href="/changelog.html">Changelog</a>
+      <a href="/developers">Developers</a><a href="/security.html" class="active">Security</a>
+      <a href="/login" class="nav-cta">Log in</a><a href="/signup.html" class="nav-cta" style="background: var(--accent-hover)">Sign up</a>
+    </div>
+    <button class="nav-toggle" aria-label="Menu">Menu</button>
+  </div></nav>
+
+  <section class="hero" style="padding: 80px 0 24px;">
+    <div class="container-prose">
+      <h1 style="text-align: center;">Security &amp; Privacy</h1>
+      <p class="hero-sub">Your calendar is some of your most personal data. Here's exactly how we protect it.</p>
+    </div>
+  </section>
+
+  <section class="prose" style="padding-top: 24px;">
+    <div class="container-prose">
+      <h2>Data isolation</h2>
+      <p>Every user's data is tagged with a <code>user_id</code> at the database level. Every query is scoped to the authenticated user. Cross-tenant access is impossible by API design — there is no endpoint that lets you reference another user's data.</p>
+
+      <h2>Authentication</h2>
+      <ul>
+        <li><strong>Passwords</strong> are stored as bcrypt hashes (cost factor 10). Plaintext passwords are never logged or persisted.</li>
+        <li><strong>API keys</strong> are stored as SHA-256 hashes. The plaintext secret is shown exactly once at creation; we cannot recover it. Comparison is timing-safe (<code>crypto.timingSafeEqual</code>).</li>
+        <li><strong>Sessions</strong> use signed HTTP-only cookies with <code>SameSite=lax</code>. Sessions expire after 30 days of inactivity.</li>
+        <li><strong>OAuth tokens</strong> for Google Calendar are stored encrypted at rest (AES-256-GCM with per-row IV).</li>
+      </ul>
+
+      <h2>Transport security</h2>
+      <ul>
+        <li>All connections require TLS 1.2+ via Cloudflare-issued origin certs.</li>
+        <li>HSTS headers enforce HTTPS for one year.</li>
+        <li>Strong-cipher suite only (ECDHE + AES-GCM / CHACHA20-POLY1305).</li>
+      </ul>
+
+      <h2>Webhook signing</h2>
+      <p>Outbound webhooks are signed with HMAC-SHA256 over <code>${'{ts}'}.${'{body}'}</code> and delivered with the timestamp in <code>X-Productivity-Signature</code>. Receivers should reject deliveries older than 5 minutes (replay protection). Secrets can be rotated without downtime via the <code>POST /api/webhooks/:id/rotate-secret</code> endpoint.</p>
+
+      <h2>Server-side request forgery (SSRF) protection</h2>
+      <p>User-supplied webhook URLs are validated before persistence and again at delivery. We allow HTTPS only and reject URLs targeting loopback, RFC1918, CGNAT, and IPv6 internal ranges.</p>
+
+      <h2>Race-condition hardening</h2>
+      <p>Booking creation is atomic — slot availability re-check, single-use invite redemption, and the booking insert all run inside one SQLite transaction. Concurrent requests for the same slot cannot both succeed.</p>
+
+      <h2>Backups &amp; durability</h2>
+      <ul>
+        <li>SQLite WAL mode for crash safety.</li>
+        <li>Three-tier backup: hourly off-site (encrypted), every-15-minute local, plus daily long-term.</li>
+        <li>Restore drills run quarterly.</li>
+      </ul>
+
+      <h2>What we don't do</h2>
+      <ul>
+        <li>We don't sell your data, ever.</li>
+        <li>We don't train machine-learning models on your calendar content.</li>
+        <li>We don't share your data with third parties (other than the integrations you explicitly authorize, like Google Calendar).</li>
+        <li>We don't use third-party analytics or trackers on signed-in pages.</li>
+      </ul>
+
+      <h2>Compliance</h2>
+      <ul>
+        <li><strong>GDPR</strong>: data export and deletion via <code>/account/export</code> and <code>/account/delete</code>. EU customers can request a Data Processing Agreement.</li>
+        <li><strong>CCPA</strong>: California residents have the same rights via the same flows.</li>
+        <li><strong>SOC2 Type II</strong>: in progress for Team customers (target 2026 Q4).</li>
+      </ul>
+
+      <h2>Reporting a vulnerability</h2>
+      <p>Found a security issue? Email <a href="mailto:security@productivity.do">security@productivity.do</a>. We respond within 24 hours and disclose responsibly. Bug bounty program coming soon.</p>
+
+      <h2>Open-source security</h2>
+      <p>Our code review process surfaces security findings publicly via signed commits. Recent hardening passes are documented in our <a href="/changelog.html">changelog</a>. The backend will be open-sourced under a source-available license.</p>
+    </div>
+  </section>
+
+  <footer class="footer"><div class="container">
+    <div class="footer-grid">
+      <div><a href="/home.html" class="nav-brand"><span class="nav-brand-dot"></span>Productivity</a></div>
+      <div><h4>Product</h4><ul><li><a href="/features.html">Features</a></li><li><a href="/pricing.html">Pricing</a></li></ul></div>
+      <div><h4>Resources</h4><ul><li><a href="/developers">API docs</a></li><li><a href="/security.html">Security</a></li></ul></div>
+      <div><h4>Legal</h4><ul><li><a href="/terms.html">Terms</a></li><li><a href="/privacy.html">Privacy</a></li></ul></div>
+    </div>
+    <div class="footer-bottom"><span>© <span class="year">2026</span> Productivity</span><button onclick="toggleTheme()" style="background: none; border: 1px solid var(--border); padding: 6px 12px; border-radius: 6px; color: var(--text-secondary); font-size: 12px; cursor: pointer;">Theme</button></div>
+  </div></footer>
+</body>
+</html>

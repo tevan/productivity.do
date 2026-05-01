@@ -1,0 +1,172 @@
+/* ============================================================
+   Productivity — Global Styles & Design System
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* ---------- CSS Reset ---------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+img, svg {
+  display: block;
+  max-width: 100%;
+}
+
+button, input, select, textarea {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+ul, ol {
+  list-style: none;
+}
+
+/* ---------- Custom Properties — Light Mode ---------- */
+:root {
+  /* Accent */
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --accent-light: #dbeafe;
+
+  /* Neutral */
+  --bg: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-tertiary: #f1f3f5;
+  --border: #e2e5e9;
+  --border-light: #eef0f2;
+  --text-primary: #1a1a1a;
+  --text-secondary: #6b7280;
+  --text-tertiary: #9ca3af;
+  --text-inverse: #ffffff;
+
+  /* Surfaces */
+  --surface: #ffffff;
+  --surface-hover: #f8f9fa;
+  --surface-active: #f1f3f5;
+  --surface-elevated: #ffffff;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+
+  /* Calendar pastel palette */
+  --color-sky: #dbeafe;
+  --color-lavender: #e8e0f0;
+  --color-rose: #fce4ec;
+  --color-peach: #fff0e0;
+  --color-mint: #d4edda;
+  --color-sage: #e0ede4;
+  --color-butter: #fff9c4;
+  --color-coral: #ffe0d6;
+  --color-lilac: #f0e6ff;
+  --color-cloud: #e8eaed;
+  --color-powder: #e0f2fe;
+  --color-blush: #fde2e8;
+
+  /* Semantic */
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
+
+  /* Layout */
+  --sidebar-width: 240px;
+  --toolbar-height: 48px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+}
+
+/* ---------- Dark Mode ---------- */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --accent: #60a5fa;
+    --accent-hover: #93bbfd;
+    --accent-light: #1e3a5f;
+
+    --bg: #0f1115;
+    --bg-secondary: #1a1d23;
+    --bg-tertiary: #23272e;
+    --border: #2d3139;
+    --border-light: #23272e;
+    --text-primary: #e8eaed;
+    --text-secondary: #9ca3af;
+    --text-tertiary: #6b7280;
+    --text-inverse: #1a1a1a;
+
+    --surface: #1a1d23;
+    --surface-hover: #23272e;
+    --surface-active: #2d3139;
+    --surface-elevated: #23272e;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+
+    /* Calendar pastel palette — dark variants */
+    --color-sky: #1e3a5f;
+    --color-lavender: #3b2d5e;
+    --color-rose: #5e2d3d;
+    --color-peach: #5e3d1e;
+    --color-mint: #1e4d2e;
+    --color-sage: #2d4e3b;
+    --color-butter: #4e4a1e;
+    --color-coral: #5e3028;
+    --color-lilac: #3e2d5e;
+    --color-cloud: #3a3d42;
+    --color-powder: #1e3d5e;
+    --color-blush: #5e2d38;
+  }
+}
+
+/* ---------- Base ---------- */
+body {
+  background: var(--bg);
+  color: var(--text-primary);
+}
+
+#app {
+  height: 100%;
+}
+
+/* ---------- Form-control baseline ----------
+   CLAUDE.md mandates custom-styled form controls. We can't fully restyle
+   native checkboxes/radios without replacing them with custom widgets, but
+   we can guarantee the brand accent + pointer cursor everywhere they appear,
+   so the dozens of inline declarations across Settings/Editors share one
+   source of truth. Per-component styles still win when they override these.
+*/
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+input[type='checkbox']:disabled,
+input[type='radio']:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}

@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="auto">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sign up — Productivity</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/marketing/assets/marketing.css" />
+  <script src="/marketing/assets/marketing.js" defer></script>
+  <style>
+    .signup-wrap {
+      min-height: calc(100vh - 80px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 24px;
+    }
+    .signup-card {
+      width: 100%;
+      max-width: 440px;
+      background: var(--surface-elevated);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-lg);
+      padding: 40px 36px;
+      box-shadow: var(--shadow-lg);
+    }
+    .signup-card h1 {
+      font-size: 26px;
+      letter-spacing: -0.01em;
+      margin: 0 0 8px;
+    }
+    .signup-card .sub {
+      color: var(--text-secondary);
+      font-size: 14px;
+      margin: 0 0 28px;
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 18px;
+    }
+    .field label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+    .field input {
+      font-family: inherit;
+      font-size: 15px;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .field input:focus { border-color: var(--accent); }
+    .submit-btn {
+      width: 100%;
+      padding: 12px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      margin-top: 8px;
+      font-family: inherit;
+    }
+    .submit-btn:hover { background: var(--accent-hover); }
+    .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .alt-link {
+      text-align: center;
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-top: 24px;
+    }
+    .legal-note {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      text-align: center;
+      margin-top: 20px;
+      line-height: 1.5;
+    }
+    .form-error {
+      background: rgba(239, 68, 68, 0.08);
+      border: 1px solid rgba(239, 68, 68, 0.25);
+      color: rgb(220, 38, 38);
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      margin-bottom: 18px;
+    }
+    .plan-pill {
+      display: inline-block;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 999px;
+      margin-bottom: 12px;
+    }
+  </style>
+</head>
+<body>
+  <nav class="nav"><div class="nav-inner">
+    <a href="/home.html" class="nav-brand"><span class="nav-brand-dot"></span>Productivity</a>
+    <div class="nav-links">
+      <a href="/features.html">Features</a><a href="/pricing.html">Pricing</a>
+      <a href="/login" class="nav-cta">Log in</a>
+    </div>
+    <button class="nav-toggle" aria-label="Menu">Menu</button>
+  </div></nav>
+
+  <div class="signup-wrap">
+    <div class="signup-card">
+      <span class="plan-pill" id="planPill">Free plan</span>
+      <h1>Create your account</h1>
+      <p class="sub">14-day Pro trial included. No card required.</p>
+
+      <div id="formError" class="form-error" style="display: none;"></div>
+
+      <form id="signupForm">
+        <div class="field">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" autocomplete="email" required placeholder="you@example.com" />
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" autocomplete="new-password" required minlength="8" placeholder="At least 8 characters" />
+        </div>
+        <button class="submit-btn" type="submit" id="submitBtn">Create account</button>
+      </form>
+
+      <p class="alt-link">Already have an account? <a href="/login">Log in</a></p>
+      <p class="legal-note">By signing up you agree to our <a href="/terms.html">Terms</a> and <a href="/privacy.html">Privacy Policy</a>.</p>
+    </div>
+  </div>
+
+  <script>
+    // Reflect ?plan= in the pill
+    const params = new URLSearchParams(window.location.search);
+    const plan = params.get('plan');
+    const pill = document.getElementById('planPill');
+    if (plan === 'pro') { pill.textContent = 'Pro plan · 14-day free trial'; }
+    else if (plan === 'team') { pill.textContent = 'Team plan · 14-day free trial'; }
+    else { pill.textContent = 'Free plan · upgrade anytime'; }
+
+    document.getElementById('signupForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const errBox = document.getElementById('formError');
+      const btn = document.getElementById('submitBtn');
+      errBox.style.display = 'none';
+      btn.disabled = true;
+      btn.textContent = 'Creating account…';
+      try {
+        const res = await fetch('/api/signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password, plan: plan || 'free' }),
+        });
+        const j = await res.json();
+        if (j.ok) {
+          // After signup the user is auto-logged-in; redirect.
+          // If they picked a paid plan, send them to the Stripe checkout flow.
+          if (plan === 'pro' || plan === 'team') {
+            window.location.href = `/api/billing/checkout?plan=${plan}`;
+          } else {
+            window.location.href = '/';
+          }
+        } else {
+          errBox.textContent = j.error || 'Signup failed';
+          errBox.style.display = 'block';
+        }
+      } catch (err) {
+        errBox.textContent = err.message;
+        errBox.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Create account';
+      }
+    });
+  </script>
+</body>
+</html>

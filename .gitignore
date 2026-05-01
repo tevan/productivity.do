@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.env
+*.db
+*.db-wal
+*.db-shm
+*.db.bak*
+data/
+uploads/
+.DS_Store
+backend/db/db.sqlite
+
+# Reference library — copyrighted PDFs we own personally for reference; not for distribution.
+docs/reference-library/*.pdf

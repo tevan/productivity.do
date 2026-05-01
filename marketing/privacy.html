@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="auto">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Privacy Policy — Productivity</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/marketing/assets/marketing.css" />
+  <script src="/marketing/assets/marketing.js" defer></script>
+</head>
+<body>
+  <nav class="nav"><div class="nav-inner">
+    <a href="/home.html" class="nav-brand"><span class="nav-brand-dot"></span>Productivity</a>
+    <div class="nav-links">
+      <a href="/features.html">Features</a><a href="/pricing.html">Pricing</a><a href="/changelog.html">Changelog</a>
+      <a href="/developers">Developers</a><a href="/security.html">Security</a>
+      <a href="/login" class="nav-cta">Log in</a>
+    </div>
+    <button class="nav-toggle" aria-label="Menu">Menu</button>
+  </div></nav>
+
+  <section class="prose" style="padding: 64px 0 48px;">
+    <div class="container-prose">
+      <h1>Privacy Policy</h1>
+      <p class="updated">Last updated: April 29, 2026</p>
+
+      <p>This policy explains what data we collect, how we use it, and your rights. We aim for plain language. Email <a href="mailto:privacy@productivity.do">privacy@productivity.do</a> if anything is unclear.</p>
+
+      <h2>What we collect</h2>
+      <ul>
+        <li><strong>Account data</strong>: email, password hash, plan, billing info (handled by Stripe — we don't see card numbers).</li>
+        <li><strong>Calendar data</strong>: events synced from Google Calendar, including titles, descriptions, attendees, locations.</li>
+        <li><strong>Tasks</strong>: synced from Todoist (title, description, due date, project, labels).</li>
+        <li><strong>Booking data</strong>: bookings made on your booking pages, including invitee name, email, phone (if required), and answers to custom questions.</li>
+        <li><strong>Usage logs</strong>: timestamps, IP addresses (for rate limiting), API request paths. Retained 30 days.</li>
+        <li><strong>Cookies</strong>: a single signed session cookie. No tracking pixels, no third-party analytics.</li>
+      </ul>
+
+      <h2>How we use it</h2>
+      <ul>
+        <li>To provide the Service (sync your calendar, deliver booking confirmations, etc.).</li>
+        <li>To communicate with you about service issues, updates, and product changes.</li>
+        <li>To investigate abuse or security incidents.</li>
+        <li>To bill you for paid plans (via Stripe).</li>
+      </ul>
+
+      <h2>What we don't do</h2>
+      <ul>
+        <li>We don't sell, rent, or trade your data.</li>
+        <li>We don't use your calendar or task content to train AI models.</li>
+        <li>We don't run third-party advertising or behavioral tracking.</li>
+        <li>We don't share data with third parties except the integrations you explicitly enable (Google, Todoist, Stripe).</li>
+      </ul>
+
+      <h2>Third-party processors</h2>
+      <p>We use these vendors strictly to deliver the Service:</p>
+      <ul>
+        <li><strong>Stripe</strong> — billing and subscription management.</li>
+        <li><strong>Resend</strong> — transactional emails (confirmations, reminders).</li>
+        <li><strong>Cloudflare</strong> — DNS, CDN, DDoS protection.</li>
+        <li><strong>Google</strong> — only for users who connect Google Calendar; we use the standard OAuth2 flow with read/write scopes.</li>
+        <li><strong>Todoist</strong> — only for users who connect Todoist.</li>
+      </ul>
+
+      <h2>Data retention</h2>
+      <ul>
+        <li>Active account data: retained for the life of your account.</li>
+        <li>Deleted accounts: data permanently removed within 30 days.</li>
+        <li>Backups: 90 days, encrypted, used only for disaster recovery.</li>
+        <li>Logs: 30 days.</li>
+        <li>Webhook delivery records: 30 days.</li>
+      </ul>
+
+      <h2>Your rights</h2>
+      <p>Regardless of jurisdiction, you can:</p>
+      <ul>
+        <li><strong>Access</strong>: export all your data via the account settings page.</li>
+        <li><strong>Correct</strong>: edit any of your data through the app.</li>
+        <li><strong>Delete</strong>: permanently remove your account from settings.</li>
+        <li><strong>Object</strong>: opt out of non-essential communications.</li>
+        <li><strong>Port</strong>: download your data as JSON, ICS, or CSV.</li>
+      </ul>
+
+      <h2>EU/UK customers (GDPR)</h2>
+      <p>You have all the rights above plus the right to file a complaint with your supervisory authority. Our lawful basis for processing is contract performance (delivering the Service you signed up for).</p>
+
+      <h2>California customers (CCPA)</h2>
+      <p>You have the same rights as listed above. We do not sell personal information as defined by CCPA.</p>
+
+      <h2>Children's privacy</h2>
+      <p>The Service is not directed at children under 16. If we learn we've collected data from someone under 16, we'll delete it promptly.</p>
+
+      <h2>Security</h2>
+      <p>See <a href="/security.html">our security overview</a> for technical detail. Encryption in transit (TLS 1.2+), bcrypt password hashes, sha256 API key hashes, encrypted OAuth tokens at rest.</p>
+
+      <h2>Changes to this policy</h2>
+      <p>Material changes are announced with 30 days' notice via email and on this page.</p>
+
+      <h2>Contact</h2>
+      <p>Privacy questions: <a href="mailto:privacy@productivity.do">privacy@productivity.do</a>. Security disclosures: <a href="mailto:security@productivity.do">security@productivity.do</a>.</p>
+    </div>
+  </section>
+
+  <footer class="footer"><div class="container">
+    <div class="footer-grid">
+      <div><a href="/home.html" class="nav-brand"><span class="nav-brand-dot"></span>Productivity</a></div>
+      <div><h4>Product</h4><ul><li><a href="/features.html">Features</a></li><li><a href="/pricing.html">Pricing</a></li></ul></div>
+      <div><h4>Resources</h4><ul><li><a href="/developers">API docs</a></li><li><a href="/security.html">Security</a></li></ul></div>
+      <div><h4>Legal</h4><ul><li><a href="/terms.html">Terms</a></li><li><a href="/privacy.html">Privacy</a></li></ul></div>
+    </div>
+    <div class="footer-bottom"><span>© <span class="year">2026</span> Productivity</span></div>
+  </div></footer>
+</body>
+</html>

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Productivity</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <style>
+      /* Default html bg via the system preference media query. This rule
+         applies on the very first paint — even before the inline script
+         below runs — eliminating the user-agent default-white flash for
+         dark-mode users. The script then refines via class if the user
+         explicitly chose a non-system theme. */
+      html { background: #ffffff; color-scheme: light; }
+      @media (prefers-color-scheme: dark) {
+        html { background: #0f1115; color-scheme: dark; }
+      }
+      html.dark { background: #0f1115 !important; color-scheme: dark; }
+      html.light { background: #ffffff !important; color-scheme: light; }
+      html.dark body { background: #0f1115; }
+      html.light body { background: #ffffff; }
+      body { margin: 0; background: inherit; }
+      #app { min-height: 100vh; }
+    </style>
+    <script>
+      // Refine the theme class from the user's saved pref. The CSS above
+      // already painted the right bg from the @media rule; this only runs
+      // after to lock in the explicit light/dark choice when the user has
+      // chosen one (overriding system).
+      (function () {
+        try {
+          var stored = localStorage.getItem('productivity_theme');
+          var theme = stored;
+          if (!theme || theme === 'system') {
+            theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          }
+          document.documentElement.classList.add(theme);
+        } catch (_) {
+          document.documentElement.classList.add('light');
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

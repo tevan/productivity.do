@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="auto">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pricing — Productivity</title>
+  <meta name="description" content="Free for solo. Pro at $12/month. Team at $20/user/month. Unlimited booking pages, AI scheduling, and a developer API on every plan." />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/marketing/assets/marketing.css" />
+  <script src="/marketing/assets/marketing.js" defer></script>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="/home.html" class="nav-brand"><span class="nav-brand-dot"></span>Productivity</a>
+      <div class="nav-links">
+        <a href="/features.html">Features</a>
+        <a href="/pricing.html" class="active">Pricing</a>
+        <a href="/changelog.html">Changelog</a>
+        <a href="/developers">Developers</a>
+        <a href="/security.html">Security</a>
+        <a href="/login" class="nav-cta">Log in</a>
+        <a href="/signup.html" class="nav-cta" style="background: var(--accent-hover)">Sign up</a>
+      </div>
+      <button class="nav-toggle" aria-label="Menu">Menu</button>
+    </div>
+  </nav>
+
+  <section class="hero" style="padding: 80px 0 40px;">
+    <div class="container">
+      <h1>Simple pricing.<br/>One tool, no nickel-and-diming.</h1>
+      <p class="hero-sub">
+        Calendar + booking pages + tasks + AI + API. Everything's included in every plan.
+        Annual billing saves you ~17%.
+      </p>
+      <div class="pricing-toggle" style="margin-top: 32px;">
+        <button class="active" data-period="monthly" onclick="togglePricing('monthly')">Monthly</button>
+        <button data-period="annual" onclick="togglePricing('annual')">Annual <span style="opacity:0.7;">−17%</span></button>
+      </div>
+    </div>
+  </section>
+
+  <section style="padding-top: 0;">
+    <div class="container">
+      <div class="pricing-grid">
+        <!-- Free -->
+        <div class="plan">
+          <h3>Free</h3>
+          <div class="plan-price">
+            <span class="amount">$0</span>
+            <span class="period">forever</span>
+          </div>
+          <p class="plan-tagline">Everything a solo professional needs to replace Google Calendar.</p>
+          <div class="plan-cta">
+            <a href="/signup.html" class="btn btn-ghost">Get started</a>
+          </div>
+          <ul class="plan-features">
+            <li>Google Calendar + Todoist sync</li>
+            <li>All calendar views (Day, Week, Month, Next-N-Days)</li>
+            <li>Calendar sets &amp; keyboard shortcuts</li>
+            <li>1 booking page · 50 bookings/month</li>
+            <li>Email confirmations</li>
+            <li>API access (read-only, 60 req/min)</li>
+            <li class="muted">No AI scheduling</li>
+            <li class="muted">No custom branding</li>
+          </ul>
+        </div>
+
+        <!-- Pro -->
+        <div class="plan featured">
+          <span class="plan-badge">Most popular</span>
+          <h3>Pro</h3>
+          <div class="plan-price">
+            <span class="amount" data-amount-monthly="$12" data-amount-annual="$10">$12</span>
+            <span class="period" data-period-text>/mo</span>
+          </div>
+          <p class="plan-tagline">Replace Calendly + Reclaim + Todoist Pro for less than the price of one of them.</p>
+          <div class="plan-cta">
+            <a href="/signup.html?plan=pro" class="btn btn-primary">Start 14-day trial</a>
+          </div>
+          <ul class="plan-features">
+            <li>Everything in Free</li>
+            <li><strong>Unlimited</strong> booking pages &amp; bookings</li>
+            <li>Multiple meeting types per page</li>
+            <li>Custom questions, group events, time polls</li>
+            <li>Branded pages (logo, cover, brand color)</li>
+            <li><strong>AI auto-scheduling</strong> for tasks</li>
+            <li>Outbound webhooks &amp; workflow automation</li>
+            <li>Single-use invite links</li>
+            <li>Routing forms (multi-page funnels)</li>
+            <li>Full API access (write, 120 req/min)</li>
+            <li>Priority email support</li>
+          </ul>
+        </div>
+
+        <!-- Team -->
+        <div class="plan">
+          <h3>Team</h3>
+          <div class="plan-price">
+            <span class="amount" data-amount-monthly="$20" data-amount-annual="$17">$20</span>
+            <span class="period" data-period-text>/mo</span>
+            <span style="font-size: 13px; color: var(--text-tertiary); margin-left: 4px;">/user</span>
+          </div>
+          <p class="plan-tagline">For agencies, consultancies, and ops teams that book on each other's behalf.</p>
+          <div class="plan-cta">
+            <a href="/signup.html?plan=team" class="btn btn-ghost">Start free trial</a>
+          </div>
+          <ul class="plan-features">
+            <li>Everything in Pro</li>
+            <li><strong>Round-robin</strong> &amp; collective availability</li>
+            <li>Team admin dashboard</li>
+            <li>Shared calendars &amp; calendar sets</li>
+            <li>Booking analytics &amp; reporting</li>
+            <li>Custom domains for booking pages</li>
+            <li>SAML SSO (coming soon)</li>
+            <li>SOC2 compliance docs</li>
+            <li>Higher API limits (600 req/min)</li>
+            <li>Slack &amp; phone support</li>
+          </ul>
+        </div>
+      </div>
+
+      <p class="text-center text-secondary" style="margin-top: 40px; font-size: 14px;">
+        Need 50+ seats or self-hosting? <a href="mailto:hello@productivity.do">Talk to us</a> about Enterprise.
+      </p>
+    </div>
+  </section>
+
+  <section style="background: var(--bg-secondary);">
+    <div class="container">
+      <div class="section-h">
+        <h2>Compare every feature</h2>
+        <p>What you get on each plan, line by line.</p>
+      </div>
+      <table class="compare-table">
+        <thead>
+          <tr>
+            <th style="width: 40%;">Feature</th>
+            <th class="col">Free</th>
+            <th class="col">Pro</th>
+            <th class="col">Team</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="section-row"><td colspan="4">Calendar</td></tr>
+          <tr><td>Google Calendar sync</td><td class="col"><span class="check">✓</span></td><td class="col"><span class="check">✓</span></td><td class="col"><span class="check">✓</span></td></tr>
+          <tr><td>Todoist sync</td><td class="col"><span class="check">✓</span></td><td class="col"><span class="check">✓</span></td><td class="col"><span class="check">✓</span></td></tr>
+          <tr><td>All calendar views</td><td class="col"><span class="check">✓</span></td><td class="col"><span class="check">✓</span></td><td class="col"><span class="check">✓</span></td></tr>
+          <tr><td>Calendar sets</td><td class="col">3</td><td class="col">unlimited</td><td class="col">unlimited (shared)</td></tr>
+          <tr><td>Drag-to-move, inline edit, shortcuts</td><td class="col"><span class="check">✓</span></td><td class="col"><span class="check">✓</span></td><td class="col"><span class="check">✓</span></td></tr>
+
+          <tr class="section-row"><td colspan="4">Booking pages</td></tr>
+          <tr><td>Booking pages</td><td class="col">1</td><td class="col">unlimited</td><td class="col">unlimited</td></tr>
+          <tr><td>Bookings/month</td><td class="col">50</td><td class="col">unlimited</td><td class="col">unlimited</td></tr>
+          <tr><td>Multiple meeting types</td><td class="col"><span class="dash">—</span></td><td class="col"><span class="check">✓</span></td><td class="col"><span class="check">✓</span></td></tr>
+          <tr><td>Custom questions</td><td class="col"><span class="dash">—</span></td><td class="col"><span class="check">✓</span></td><td class="col"><span class="check">✓</span></td></tr>
+          <tr><td>Group events &amp; time polls</td><td class="col"><span class="dash">—</span></td><td class="col"><span class="check">✓</span></td><td class="col"><span class="check">✓</span></td></tr>
+          <tr><td>Branded pages (logo, color)</td><td class="col"><span class="dash">—</span></td><td class="col"><span class="check">✓</span></td><td class="col"><span class="check">✓</span></td></tr>
+          <tr><td>Custom domains</td><td class="col"><span class="dash">—</span></td><td class="col"><span class="dash">—</span></td><td class="col"><span class="check">✓</span></td></tr>
+          <tr><td>Round-robin &amp; collective</td><td class="col"><span class="dash">—</span></td><td class="col"><span class="dash">—</span></td><td class="col"><span class="check">✓</span></td></tr>
+          <tr><td>Booking analytics</td><td class="col"><span class="dash">—</span></td><td class="col">Basic</td><td class="col">Advanced</td></tr>
+          <tr><td>Stripe payments at booking</td><td class="col"><span class="dash">—</span></td><td class="col"><span class="check">✓</span></td><td class="col"><span class="check">✓</span></td></tr>
+
+          <tr class="section-row"><td colspan="4">AI &amp; automation</td></tr>
+          <tr><td>AI auto-scheduling for tasks</td><td class="col"><span class="dash">—</span></td><td class="col"><span class="check">✓</span></td><td class="col"><span class="check">✓</span></td></tr>
+          <tr><td>Workflow webhooks</td><td class="col"><span class="dash">—</span></td><td class="col"><span class="check">✓</span></td><td class="col"><span class="check">✓</span></td></tr>
+          <tr><td>Email automation (confirmations, reminders)</td><td class="col">Basic</td><td class="col"><span class="check">✓</span></td><td class="col"><span class="check">✓</span></td></tr>
+
+          <tr class="section-row"><td colspan="4">Developer API</td></tr>
+          <tr><td>API access</td><td class="col">Read-only</td><td class="col">Full</td><td class="col">Full</td></tr>
+          <tr><td>Rate limit</td><td class="col">60/min</td><td class="col">120/min</td><td class="col">600/min</td></tr>
+          <tr><td>Outbound webhooks</td><td class="col">1</td><td class="col">unlimited</td><td class="col">unlimited</td></tr>
+          <tr><td>OpenAPI spec</td><td class="col"><span class="check">✓</span></td><td class="col"><span class="check">✓</span></td><td class="col"><span class="check">✓</span></td></tr>
+
+          <tr class="section-row"><td colspan="4">Support &amp; security</td></tr>
+          <tr><td>Support</td><td class="col">Community</td><td class="col">Priority email</td><td class="col">Slack + phone</td></tr>
+          <tr><td>SAML SSO</td><td class="col"><span class="dash">—</span></td><td class="col"><span class="dash">—</span></td><td class="col">Coming soon</td></tr>
+          <tr><td>SOC2 compliance docs</td><td class="col"><span class="dash">—</span></td><td class="col"><span class="dash">—</span></td><td class="col"><span class="check">✓</span></td></tr>
+          <tr><td>Self-host license</td><td class="col"><span class="dash">—</span></td><td class="col">Add-on</td><td class="col">Included</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="container">
+      <div class="section-h">
+        <h2>Pricing FAQ</h2>
+      </div>
+      <div class="faq">
+        <details>
+          <summary>How does the free trial work?</summary>
+          <p>Pro and Team include a 14-day trial — full features, no credit card. After the trial, your account drops to Free if you haven't subscribed; your data stays.</p>
+        </details>
+        <details>
+          <summary>What happens to my data if I downgrade?</summary>
+          <p>Nothing is deleted. Booking pages beyond the Free limit become read-only and can be re-activated when you re-subscribe. Tasks and events are unaffected.</p>
+        </details>
+        <details>
+          <summary>Do you offer student or non-profit discounts?</summary>
+          <p>Yes — 50% off Pro for students with a valid .edu email and registered non-profits. Email <a href="mailto:hello@productivity.do">hello@productivity.do</a>.</p>
+        </details>
+        <details>
+          <summary>Can I cancel anytime?</summary>
+          <p>Yes. Cancel from your account settings — no support ticket needed. Your subscription stays active through the end of the billing period.</p>
+        </details>
+        <details>
+          <summary>What payment methods do you accept?</summary>
+          <p>All major credit cards via Stripe. Annual plans can be paid via invoice / ACH for Team customers (50+ seats).</p>
+        </details>
+        <details>
+          <summary>Is there a refund policy?</summary>
+          <p>30-day money-back guarantee on annual plans, no questions asked. Monthly plans aren't refunded but you can cancel anytime to stop future charges.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <div class="cta-band">
+    <h2>Ready to consolidate your stack?</h2>
+    <p>Free forever for solo use. 14-day Pro trial, no card required.</p>
+    <a href="/signup.html" class="btn btn-primary btn-lg">Start free</a>
+  </div>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <a href="/home.html" class="nav-brand"><span class="nav-brand-dot"></span>Productivity</a>
+          <p class="text-secondary" style="margin-top: 12px; font-size: 14px;">The calendar that does the work for you.</p>
+        </div>
+        <div><h4>Product</h4><ul><li><a href="/features.html">Features</a></li><li><a href="/pricing.html">Pricing</a></li><li><a href="/changelog.html">Changelog</a></li></ul></div>
+        <div><h4>Resources</h4><ul><li><a href="/developers">API docs</a></li><li><a href="/security.html">Security</a></li><li><a href="/about.html">About</a></li></ul></div>
+        <div><h4>Legal</h4><ul><li><a href="/terms.html">Terms</a></li><li><a href="/privacy.html">Privacy</a></li></ul></div>
+      </div>
+      <div class="footer-bottom">
+        <span>© <span class="year">2026</span> Productivity</span>
+        <button onclick="toggleTheme()" style="background: none; border: 1px solid var(--border); padding: 6px 12px; border-radius: 6px; color: var(--text-secondary); font-size: 12px; cursor: pointer;">Theme</button>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,98 @@
+{
+  "name": "productivity-do",
+  "label": "productivity.do",
+  "description": "Tasks, events, bookings — productivity.do for Make.",
+  "language": "en",
+  "version": 1,
+  "theme": "#3b82f6",
+  "countries": ["us", "gb", "ca", "au"],
+  "audience": "global",
+  "auth": {
+    "type": "api-key",
+    "label": "API key",
+    "fields": [
+      { "name": "apiKey", "type": "password", "required": true,
+        "label": "API key",
+        "help": "Generate in productivity.do → Settings → Developer." }
+    ],
+    "verify": {
+      "url": "https://productivity.do/api/v1/me",
+      "method": "GET",
+      "headers": { "Authorization": "Bearer {{connection.apiKey}}" },
+      "valid": "{{statusCode === 200}}"
+    }
+  },
+  "modules": [
+    {
+      "name": "watchEvents",
+      "label": "Watch events",
+      "type": "trigger",
+      "polling": { "interval": 60 },
+      "fetch": {
+        "url": "https://productivity.do/api/v1/events?from={{since}}&to={{now}}",
+        "headers": { "Authorization": "Bearer {{connection.apiKey}}" },
+        "iterate": "{{events}}",
+        "checkpoint": { "key": "id", "max": 200 }
+      }
+    },
+    {
+      "name": "watchTasks",
+      "label": "Watch tasks",
+      "type": "trigger",
+      "polling": { "interval": 60 },
+      "fetch": {
+        "url": "https://productivity.do/api/v1/tasks",
+        "headers": { "Authorization": "Bearer {{connection.apiKey}}" },
+        "iterate": "{{tasks}}",
+        "checkpoint": { "key": "id" }
+      }
+    },
+    {
+      "name": "watchBookings",
+      "label": "Watch new bookings",
+      "type": "trigger",
+      "polling": { "interval": 60 },
+      "fetch": {
+        "url": "https://productivity.do/api/v1/booking-pages/{{params.pageId}}/bookings",
+        "headers": { "Authorization": "Bearer {{connection.apiKey}}" },
+        "iterate": "{{bookings}}",
+        "checkpoint": { "key": "id" }
+      }
+    },
+    {
+      "name": "createTask",
+      "label": "Create task",
+      "type": "action",
+      "fetch": {
+        "url": "https://productivity.do/api/v1/tasks",
+        "method": "POST",
+        "headers": { "Authorization": "Bearer {{connection.apiKey}}" },
+        "body": {
+          "title": "{{params.title}}",
+          "dueDate": "{{params.dueDate}}",
+          "priority": "{{params.priority}}",
+          "projectId": "{{params.projectId}}",
+          "labels": "{{params.labels}}"
+        }
+      }
+    },
+    {
+      "name": "createEvent",
+      "label": "Create event",
+      "type": "action",
+      "fetch": {
+        "url": "https://productivity.do/api/v1/events",
+        "method": "POST",
+        "headers": { "Authorization": "Bearer {{connection.apiKey}}" },
+        "body": {
+          "summary": "{{params.summary}}",
+          "start": "{{params.start}}",
+          "end": "{{params.end}}",
+          "location": "{{params.location}}",
+          "description": "{{params.description}}",
+          "calendarId": "{{params.calendarId}}"
+        }
+      }
+    }
+  ]
+}

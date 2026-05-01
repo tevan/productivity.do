@@ -1,0 +1,879 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Developer API · productivity.do</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --fg: #1a1a1a;
+    --fg-muted: #6b7280;
+    --fg-faint: #9ca3af;
+    --bg: #fff;
+    --bg-soft: #f8f7f5;
+    --bg-code: #0f1115;
+    --bg-code-fg: #e8eaed;
+    --border: #e5e7eb;
+    --accent: #6366f1;
+    --accent-hover: #4f46e5;
+    --green: #059669;
+    --orange: #d97706;
+    --red: #b91c1c;
+  }
+  html, body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'Inter', system-ui, sans-serif;
+    line-height: 1.6;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, pre { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+  pre {
+    background: var(--bg-code);
+    color: var(--bg-code-fg);
+    padding: 16px 18px;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.5;
+    margin: 12px 0;
+  }
+  code:not(pre code) {
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    color: #444;
+  }
+  pre code { background: none; border: none; padding: 0; color: inherit; }
+
+  /* Layout */
+  .wrap {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    min-height: 100vh;
+  }
+  @media (max-width: 880px) {
+    .wrap { grid-template-columns: 1fr; }
+    nav.side { position: static !important; height: auto !important; border-right: none; border-bottom: 1px solid var(--border); }
+  }
+
+  nav.side {
+    background: var(--bg-soft);
+    border-right: 1px solid var(--border);
+    padding: 24px 18px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+  nav.side h1 {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  nav.side .ver { font-size: 11px; color: var(--fg-faint); margin-bottom: 18px; }
+  nav.side .group {
+    font-size: 11px;
+    text-transform: uppercase;
+    color: var(--fg-faint);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    margin-top: 18px;
+    margin-bottom: 6px;
+  }
+  nav.side a {
+    display: block;
+    padding: 4px 0;
+    font-size: 13px;
+    color: var(--fg-muted);
+    text-decoration: none;
+  }
+  nav.side a:hover { color: var(--fg); }
+  .brand-link { padding: 0; margin-bottom: 4px; }
+  .brand-link:hover h1 { color: var(--accent, #2563eb); }
+  .back-bar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 12px;
+    font-size: 13px;
+    color: var(--fg-muted);
+  }
+  .back-bar a { color: var(--fg-muted); text-decoration: none; }
+  .back-bar a:hover { color: var(--accent, #2563eb); }
+  .back-sep { color: var(--fg-faint); }
+  .nav-footer {
+    margin-top: 32px;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--accent, #2563eb) 6%, transparent);
+  }
+  .nav-footer-help {
+    font-size: 12px;
+    color: var(--fg-muted);
+    margin: 0 0 8px;
+    line-height: 1.4;
+  }
+  .nav-footer-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--accent, #2563eb);
+    text-decoration: none;
+  }
+  .nav-footer-cta:hover { text-decoration: underline; }
+  .nav-footer-meta {
+    font-size: 11px;
+    color: var(--fg-faint);
+    margin: 8px 0 0;
+    line-height: 1.4;
+  }
+
+  main {
+    padding: 48px 56px;
+    max-width: 920px;
+  }
+  @media (max-width: 880px) {
+    main { padding: 32px 20px; }
+  }
+
+  h1.page-title {
+    font-size: 32px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .lede {
+    font-size: 17px;
+    color: var(--fg-muted);
+    margin-bottom: 32px;
+    max-width: 64ch;
+  }
+
+  section { margin-top: 56px; scroll-margin-top: 24px; }
+  section h2 {
+    font-size: 22px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+  }
+  section h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-top: 24px;
+    margin-bottom: 8px;
+  }
+  section p { margin-bottom: 10px; max-width: 70ch; }
+  section ul { padding-left: 20px; margin-bottom: 12px; }
+  section li { margin: 4px 0; }
+
+  /* Endpoint block */
+  .endpoint {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin: 16px 0;
+    background: white;
+  }
+  .endpoint-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+  .method {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    color: white;
+    letter-spacing: 0.02em;
+  }
+  .method.GET { background: var(--green); }
+  .method.POST { background: var(--accent); }
+  .method.PUT { background: var(--orange); }
+  .method.DELETE { background: var(--red); }
+  .path {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    color: var(--fg);
+  }
+  .scope {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--fg-muted);
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+  .desc { color: var(--fg-muted); font-size: 14px; margin-bottom: 8px; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8px 0;
+    font-size: 13px;
+  }
+  th, td {
+    border-bottom: 1px solid var(--border);
+    padding: 6px 8px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { font-weight: 600; color: var(--fg-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+  .callout {
+    background: #eef2ff;
+    border-left: 3px solid var(--accent);
+    padding: 12px 16px;
+    border-radius: 4px;
+    font-size: 14px;
+    color: #3730a3;
+    margin: 14px 0;
+  }
+  .callout strong { color: #312e81; }
+  .callout.warn { background: #fffbeb; border-color: var(--orange); color: #92400e; }
+  .callout.warn strong { color: #78350f; }
+
+  footer {
+    margin-top: 80px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    color: var(--fg-faint);
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="side">
+    <a class="brand-link" href="/home.html" title="Back to productivity.do">
+      <h1>productivity.do</h1>
+    </a>
+    <div class="ver">Developer API · v1</div>
+
+    <div class="group">Getting started</div>
+    <a href="#overview">Overview</a>
+    <a href="#auth">Authentication</a>
+    <a href="#scopes">Scopes</a>
+    <a href="#errors">Errors</a>
+    <a href="#rate-limits">Rate limits</a>
+    <a href="#openapi">OpenAPI spec</a>
+
+    <div class="group">Resources</div>
+    <a href="#calendars">Calendars</a>
+    <a href="#events">Events</a>
+    <a href="#tasks">Tasks</a>
+    <a href="#task-columns">Task columns</a>
+    <a href="#projects">Projects</a>
+    <a href="#sections">Sections</a>
+    <a href="#labels">Labels</a>
+    <a href="#comments">Comments</a>
+    <a href="#quick-add">Quick add</a>
+    <a href="#bookings">Bookings</a>
+    <a href="#booking-pages">Booking pages</a>
+    <a href="#webhooks">Webhooks</a>
+
+    <div class="group">Public booking widget</div>
+    <a href="#widget-embed">Embed snippets</a>
+    <a href="#widget-api">Widget API</a>
+
+    <div class="group">Webhooks</div>
+    <a href="#wh-events">Event types</a>
+    <a href="#wh-payload">Payload format</a>
+    <a href="#wh-signature">Signature verification</a>
+    <a href="#wh-retry">Retry policy</a>
+
+    <div class="nav-footer">
+      <p class="nav-footer-help">Need an endpoint we don't have yet?</p>
+      <a class="nav-footer-cta" href="mailto:hello@productivity.do?subject=API%20feature%20request">
+        Request an endpoint
+        <span aria-hidden="true">→</span>
+      </a>
+      <p class="nav-footer-meta">Or open an issue on GitHub if you've got a use case in mind.</p>
+    </div>
+  </nav>
+
+  <main>
+    <div class="back-bar">
+      <a href="/home.html">← productivity.do</a>
+      <span class="back-sep">·</span>
+      <a href="/">Open the app</a>
+    </div>
+    <h1 class="page-title">Developer API</h1>
+    <p class="lede">Build integrations on top of productivity.do — read and write tasks, events, bookings, and subscribe to real-time webhook events.</p>
+
+    <section id="overview">
+      <h2>Overview</h2>
+      <p>The API is REST-style, JSON-bodied, and versioned. All v1 endpoints live under <code>https://productivity.do/api/v1/</code>.</p>
+      <p>Use it to:</p>
+      <ul>
+        <li>Pull a calendar of upcoming bookings into your CRM.</li>
+        <li>Sync tasks with another to-do system.</li>
+        <li>Create events on a Google Calendar from a third-party app.</li>
+        <li>Receive a webhook the moment someone books a meeting.</li>
+      </ul>
+      <pre>curl https://productivity.do/api/v1/ping
+# {"ok":true,"time":"2026-04-29T15:00:00.000Z","version":"v1"}</pre>
+    </section>
+
+    <section id="auth">
+      <h2>Authentication</h2>
+      <p>All endpoints require a <strong>Bearer API key</strong>. Generate one in the productivity.do app under <em>Settings → Developer → API keys</em>.</p>
+      <pre>Authorization: Bearer pk_live_xxxxxxxx.yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy</pre>
+      <p>The full secret part is shown <strong>once</strong> at creation time. Store it securely. The visible <code>pk_live_xxxxxxxx</code> prefix is non-secret and used to identify the key in logs.</p>
+      <div class="callout warn"><strong>Don't ship API keys in client-side code.</strong> Treat them like passwords. Use the per-page public booking endpoints (<code>/api/public/booking/...</code>) for client-side widgets — those are explicitly safe to call from a browser.</div>
+    </section>
+
+    <section id="scopes">
+      <h2>Scopes</h2>
+      <p>Each API key carries a list of scopes. Endpoints declare which scope(s) they need.</p>
+      <table>
+        <tr><th>Scope</th><th>What it grants</th></tr>
+        <tr><td><code>admin</code></td><td>Wildcard — all scopes</td></tr>
+        <tr><td><code>read:tasks</code> / <code>write:tasks</code></td><td>List and mutate Todoist-backed tasks</td></tr>
+        <tr><td><code>read:events</code> / <code>write:events</code></td><td>Read and mutate Google Calendar events</td></tr>
+        <tr><td><code>read:calendars</code></td><td>List the connected Google calendars</td></tr>
+        <tr><td><code>read:bookings</code> / <code>write:bookings</code></td><td>Read booking pages and confirmed bookings</td></tr>
+        <tr><td><code>read:webhooks</code> / <code>write:webhooks</code></td><td>Manage outbound webhook subscriptions</td></tr>
+      </table>
+    </section>
+
+    <section id="errors">
+      <h2>Errors</h2>
+      <p>Errors return a JSON body with <code>ok: false</code> and a human-readable <code>error</code> string. HTTP status maps roughly:</p>
+      <table>
+        <tr><th>Status</th><th>Meaning</th></tr>
+        <tr><td>400</td><td>Bad request (validation)</td></tr>
+        <tr><td>401</td><td>Missing or invalid API key</td></tr>
+        <tr><td>403</td><td>Key lacks the required scope</td></tr>
+        <tr><td>404</td><td>Resource not found</td></tr>
+        <tr><td>409</td><td>Conflict (e.g. slot no longer available)</td></tr>
+        <tr><td>429</td><td>Rate limit exceeded</td></tr>
+        <tr><td>502</td><td>Upstream (Google / Todoist) error</td></tr>
+      </table>
+    </section>
+
+    <section id="rate-limits">
+      <h2>Rate limits</h2>
+      <p>Default: <strong>120 requests per minute per API key</strong>. Anonymous traffic (e.g. the public booking widget hitting <code>/api/public/...</code>) is limited per IP. <code>X-RateLimit-Limit</code> and <code>X-RateLimit-Window</code> headers are returned on every response.</p>
+      <p>If you need higher limits for a partner integration, get in touch.</p>
+    </section>
+
+    <section id="openapi">
+      <h2>OpenAPI spec</h2>
+      <p>Machine-readable spec at <a href="/api/v1/openapi.json"><code>/api/v1/openapi.json</code></a>. Drop it into Postman, Insomnia, Stainless, or your codegen of choice.</p>
+    </section>
+
+    <section id="tasks">
+      <h2>Tasks</h2>
+      <p>Tasks are backed by Todoist on the server side. You read and write them through the same shape as the in-app SPA. Each task carries Todoist-owned fields (<code>content</code>, <code>priority</code>, <code>dueDate</code>, …) plus <em>productivity.do-only</em> fields that don't sync to Todoist:</p>
+      <ul>
+        <li><code>estimatedMinutes</code> — per-task time estimate. Used by auto-scheduling.</li>
+        <li><code>localStatus</code> — kanban board column. One of <code>todo</code>, <code>in_progress</code>, a <code>custom_&lt;n&gt;</code> key, or <code>null</code> (defaults to To&nbsp;Do). <strong>Done is NOT a writable status</strong> — to mark a task done, use <code>POST /tasks/{id}/complete</code>. Done&nbsp;= Todoist&nbsp;completed.</li>
+        <li><code>localPosition</code> — manual sort order within a column.</li>
+      </ul>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method GET">GET</span>
+          <span class="path">/api/v1/tasks</span>
+          <span class="scope">read:tasks</span>
+        </div>
+        <div class="desc">List active tasks. Response merges Todoist and local-only fields.</div>
+        <pre>curl -H "Authorization: Bearer $TOKEN" https://productivity.do/api/v1/tasks</pre>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method POST">POST</span>
+          <span class="path">/api/v1/tasks</span>
+          <span class="scope">write:tasks</span>
+        </div>
+        <div class="desc">Create a task. Optional <code>estimatedMinutes</code> and <code>localStatus</code> persist locally.</div>
+        <pre>curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"content":"Pay invoice","priority":3,"dueDate":"2026-05-15","labels":["work"],"estimatedMinutes":15,"localStatus":"in_progress"}' \
+  https://productivity.do/api/v1/tasks</pre>
+        <p>Body fields: <code>content</code> (required), <code>description</code>, <code>priority</code> (1–4, where 4 is urgent), <code>dueDate</code> (YYYY-MM-DD), <code>dueDatetime</code> (ISO), <code>labels[]</code>, <code>projectId</code>, <code>estimatedMinutes</code>, <code>localStatus</code>.</p>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method PUT">PUT</span>
+          <span class="path">/api/v1/tasks/{id}</span>
+          <span class="scope">write:tasks</span>
+        </div>
+        <div class="desc">Update task fields. Pass <code>projectId</code> to move the task to a different project. Pass <code>localStatus</code> to move the card on the kanban board (no Todoist call). Set <code>localStatus</code> to <code>null</code> to clear it.</div>
+        <pre>curl -X PUT -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"localStatus":"in_progress"}' \
+  https://productivity.do/api/v1/tasks/$TASK_ID</pre>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method POST">POST</span>
+          <span class="path">/api/v1/tasks/{id}/complete</span>
+          <span class="scope">write:tasks</span>
+        </div>
+        <div class="desc">Mark a task done. This is the canonical way to move a card to the Done column — Done reflects Todoist's completion flag, not a writable <code>localStatus</code>.</div>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method POST">POST</span>
+          <span class="path">/api/v1/tasks/{id}/reopen</span>
+          <span class="scope">write:tasks</span>
+        </div>
+        <div class="desc">Reopen a completed task. The task returns to whichever <code>localStatus</code> it last had (or To&nbsp;Do if none).</div>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method DELETE">DELETE</span>
+          <span class="path">/api/v1/tasks/{id}</span>
+          <span class="scope">write:tasks</span>
+        </div>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method POST">POST</span>
+          <span class="path">/api/v1/tasks/bulk</span>
+          <span class="scope">write:tasks</span>
+        </div>
+        <div class="desc">Bulk-create up to 100 tasks per request. Body: <code>{"items":[{...},{...}]}</code>. Returns per-item results so partial failures don't block the rest.</div>
+      </div>
+    </section>
+
+    <section id="task-columns">
+      <h2>Task columns (kanban)</h2>
+      <p>Each user has a customizable kanban board with up to five columns. Columns map to stable status keys; tasks reference those keys via <code>localStatus</code>. The default columns are To&nbsp;Do (<code>todo</code>), In&nbsp;Progress (<code>in_progress</code>), and Done (<code>done</code>). Users can rename columns and add up to two custom columns (<code>custom_&lt;n&gt;</code>) — but management is in-app only; the public API is read-only here.</p>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method GET">GET</span>
+          <span class="path">/api/v1/task-columns</span>
+          <span class="scope">read:tasks</span>
+        </div>
+        <div class="desc">List the calling user's columns, ordered left-to-right.</div>
+        <pre>curl -H "Authorization: Bearer $TOKEN" https://productivity.do/api/v1/task-columns</pre>
+      </div>
+
+      <p>Response shape:</p>
+      <pre>{
+  "ok": true,
+  "columns": [
+    { "id": 1, "position": 0, "name": "To Do",       "statusKey": "todo" },
+    { "id": 2, "position": 1, "name": "In Progress", "statusKey": "in_progress" },
+    { "id": 3, "position": 2, "name": "Done",        "statusKey": "done" }
+  ]
+}</pre>
+      <p>Use <code>statusKey</code> when writing <code>localStatus</code> on a task. Don't depend on <code>name</code> being stable — users can rename columns at will.</p>
+    </section>
+
+    <section id="projects">
+      <h2>Projects</h2>
+      <p>Todoist projects. Create / rename / recolor / delete from the API.</p>
+
+      <div class="endpoint">
+        <div class="endpoint-head"><span class="method GET">GET</span><span class="path">/api/v1/projects</span><span class="scope">read:tasks</span></div>
+        <div class="desc">List projects.</div>
+      </div>
+      <div class="endpoint">
+        <div class="endpoint-head"><span class="method POST">POST</span><span class="path">/api/v1/projects</span><span class="scope">write:tasks</span></div>
+        <div class="desc">Create a project.</div>
+        <pre>curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"name":"New project","color":"berry_red","isFavorite":true}' \
+  https://productivity.do/api/v1/projects</pre>
+        <p>Body fields: <code>name</code> (required), <code>color</code> (Todoist color name like <code>berry_red</code>, <code>blue</code>, <code>charcoal</code>; see Todoist docs), <code>parentId</code>, <code>isFavorite</code>.</p>
+      </div>
+      <div class="endpoint">
+        <div class="endpoint-head"><span class="method PUT">PUT</span><span class="path">/api/v1/projects/{id}</span><span class="scope">write:tasks</span></div>
+        <div class="desc">Rename / recolor / favorite a project. Body: <code>{ name, color, isFavorite }</code> (any subset).</div>
+      </div>
+      <div class="endpoint">
+        <div class="endpoint-head"><span class="method DELETE">DELETE</span><span class="path">/api/v1/projects/{id}</span><span class="scope">write:tasks</span></div>
+        <div class="desc">Delete a project. Tasks in it are deleted by Todoist; you may want to move them first.</div>
+      </div>
+    </section>
+
+    <section id="sections">
+      <h2>Sections</h2>
+      <p>Sections are columns within a Todoist project (e.g. "Backlog / This week / Doing"). Tasks reference them via <code>sectionId</code>.</p>
+
+      <div class="endpoint">
+        <div class="endpoint-head"><span class="method GET">GET</span><span class="path">/api/v1/sections?projectId=…</span><span class="scope">read:tasks</span></div>
+        <div class="desc">List sections, optionally scoped to a single project.</div>
+      </div>
+      <div class="endpoint">
+        <div class="endpoint-head"><span class="method POST">POST</span><span class="path">/api/v1/sections</span><span class="scope">write:tasks</span></div>
+        <div class="desc">Create a section. Body: <code>{ name, projectId, order? }</code>.</div>
+      </div>
+      <div class="endpoint">
+        <div class="endpoint-head"><span class="method PUT">PUT</span><span class="path">/api/v1/sections/{id}</span><span class="scope">write:tasks</span></div>
+        <div class="desc">Rename a section.</div>
+      </div>
+      <div class="endpoint">
+        <div class="endpoint-head"><span class="method DELETE">DELETE</span><span class="path">/api/v1/sections/{id}</span><span class="scope">write:tasks</span></div>
+        <div class="desc">Delete a section. Its tasks remain in the project but lose their section assignment.</div>
+      </div>
+    </section>
+
+    <section id="labels">
+      <h2>Labels</h2>
+      <p>Manage the label registry (rename, recolor, delete). Tasks reference labels by name in their <code>labels[]</code> array.</p>
+
+      <div class="endpoint">
+        <div class="endpoint-head"><span class="method GET">GET</span><span class="path">/api/v1/labels</span><span class="scope">read:tasks</span></div>
+        <div class="desc">List labels.</div>
+      </div>
+      <div class="endpoint">
+        <div class="endpoint-head"><span class="method POST">POST</span><span class="path">/api/v1/labels</span><span class="scope">write:tasks</span></div>
+        <div class="desc">Create a label. Body: <code>{ name, color?, isFavorite? }</code>.</div>
+      </div>
+      <div class="endpoint">
+        <div class="endpoint-head"><span class="method PUT">PUT</span><span class="path">/api/v1/labels/{id}</span><span class="scope">write:tasks</span></div>
+        <div class="desc">Rename / recolor / favorite a label. <strong>Renaming a label here renames it on every task that uses it</strong>, since Todoist labels are referenced by name.</div>
+      </div>
+      <div class="endpoint">
+        <div class="endpoint-head"><span class="method DELETE">DELETE</span><span class="path">/api/v1/labels/{id}</span><span class="scope">write:tasks</span></div>
+        <div class="desc">Delete a label. Removes it from every task.</div>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-head"><span class="method GET">GET</span><span class="path">/api/v1/filters</span><span class="scope">read:tasks</span></div>
+        <div class="desc">List Todoist saved filters ("today | overdue", etc). <strong>Pro feature</strong> — returns an empty array on free accounts.</div>
+      </div>
+    </section>
+
+    <section id="comments">
+      <h2>Comments</h2>
+      <p>Per-task threaded comments. Markdown is supported.</p>
+
+      <div class="endpoint">
+        <div class="endpoint-head"><span class="method GET">GET</span><span class="path">/api/v1/tasks/{id}/comments</span><span class="scope">read:tasks</span></div>
+        <div class="desc">List comments on a task.</div>
+      </div>
+      <div class="endpoint">
+        <div class="endpoint-head"><span class="method POST">POST</span><span class="path">/api/v1/tasks/{id}/comments</span><span class="scope">write:tasks</span></div>
+        <div class="desc">Add a comment. Body: <code>{ content }</code>.</div>
+      </div>
+      <div class="endpoint">
+        <div class="endpoint-head"><span class="method PUT">PUT</span><span class="path">/api/v1/comments/{id}</span><span class="scope">write:tasks</span></div>
+        <div class="desc">Edit a comment.</div>
+      </div>
+      <div class="endpoint">
+        <div class="endpoint-head"><span class="method DELETE">DELETE</span><span class="path">/api/v1/comments/{id}</span><span class="scope">write:tasks</span></div>
+      </div>
+    </section>
+
+    <section id="quick-add">
+      <h2>Quick add</h2>
+      <p>Send a single string and let Todoist parse the date, label, priority, and project.</p>
+
+      <div class="endpoint">
+        <div class="endpoint-head"><span class="method POST">POST</span><span class="path">/api/v1/tasks/quick</span><span class="scope">write:tasks</span></div>
+        <div class="desc">Create a task from natural-language text.</div>
+        <pre>curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"text":"Buy milk tomorrow at 5pm @errands p1"}' \
+  https://productivity.do/api/v1/tasks/quick</pre>
+        <p>Returns the fully-parsed task. The <code>p1</code> sets priority to urgent (Todoist's <code>4</code>); <code>@errands</code> attaches that label; <code>tomorrow at 5pm</code> sets <code>dueDatetime</code>.</p>
+      </div>
+
+      <h3 style="margin-top:24px">Bulk update</h3>
+      <div class="endpoint">
+        <div class="endpoint-head"><span class="method PUT">PUT</span><span class="path">/api/v1/tasks/bulk</span><span class="scope">write:tasks</span></div>
+        <div class="desc">Apply patches to up to 100 tasks per request. Body: <code>{ items: [{ id, ...patch }] }</code>. Each item may include <code>projectId</code> to move. Returns per-id results so partial failures don't block the rest.</div>
+      </div>
+
+      <h3 style="margin-top:24px">Reminders</h3>
+      <div class="endpoint">
+        <div class="endpoint-head"><span class="method GET">GET</span><span class="path">/api/v1/reminders</span><span class="scope">read:tasks</span></div>
+        <div class="desc">List reminders. <strong>Pro feature</strong> — returns an empty array on free accounts.</div>
+      </div>
+    </section>
+
+    <section id="calendars">
+      <h2>Calendars</h2>
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method GET">GET</span>
+          <span class="path">/api/v1/calendars</span>
+          <span class="scope">read:calendars</span>
+        </div>
+        <div class="desc">List the connected Google calendars (id, summary, primary flag, timezone, colors).</div>
+      </div>
+    </section>
+
+    <section id="events">
+      <h2>Events</h2>
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method GET">GET</span>
+          <span class="path">/api/v1/events</span>
+          <span class="scope">read:events</span>
+        </div>
+        <div class="desc">List events on a calendar between two ISO timestamps.</div>
+        <pre>curl -H "Authorization: Bearer $TOKEN" \
+  "https://productivity.do/api/v1/events?calendarId=primary&timeMin=2026-05-01T00:00:00Z&timeMax=2026-05-08T00:00:00Z"</pre>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method POST">POST</span>
+          <span class="path">/api/v1/events</span>
+          <span class="scope">write:events</span>
+        </div>
+        <div class="desc">Create an event.</div>
+        <pre>{
+  "calendarId": "primary",
+  "summary": "1:1 with Sam",
+  "start": "2026-05-12T14:00:00",
+  "end":   "2026-05-12T14:30:00",
+  "timezone": "America/Denver",
+  "attendees": [{ "email": "sam@example.com" }]
+}</pre>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method PUT">PUT</span>
+          <span class="path">/api/v1/events/{calendarId}/{eventId}</span>
+          <span class="scope">write:events</span>
+        </div>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method DELETE">DELETE</span>
+          <span class="path">/api/v1/events/{calendarId}/{eventId}</span>
+          <span class="scope">write:events</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="booking-pages">
+      <h2>Booking pages</h2>
+      <p>Read booking pages and the confirmed bookings on them. Public-facing slot lookups and reservations live under <code>/api/public/booking/...</code> (no auth required) — see the <a href="#widget-api">Widget API</a> below.</p>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method GET">GET</span>
+          <span class="path">/api/v1/booking-pages</span>
+          <span class="scope">read:bookings</span>
+        </div>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method GET">GET</span>
+          <span class="path">/api/v1/booking-pages/{id}</span>
+          <span class="scope">read:bookings</span>
+        </div>
+        <div class="desc"><code>{id}</code> may be the UUID or the URL slug.</div>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method GET">GET</span>
+          <span class="path">/api/v1/booking-pages/{id}/bookings</span>
+          <span class="scope">read:bookings</span>
+        </div>
+        <div class="desc">List confirmed bookings for the page (most recent first). Use <code>?limit=&lt;n&gt;</code> up to 500.</div>
+      </div>
+    </section>
+
+    <section id="bookings">
+      <h2>Bookings</h2>
+      <p>The owner-facing endpoints for managing booking pages (creating pages, defining availability, etc.) live under <code>/api/booking-pages/...</code> and require a logged-in session today. They will be promoted to /api/v1 in a future release; until then, prefer the public widget endpoints below for write flows.</p>
+    </section>
+
+    <section id="webhooks">
+      <h2>Webhooks</h2>
+      <p>Subscribe to events to be notified when bookings are made or tasks change.</p>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method GET">GET</span>
+          <span class="path">/api/v1/webhooks</span>
+          <span class="scope">read:webhooks</span>
+        </div>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method POST">POST</span>
+          <span class="path">/api/v1/webhooks</span>
+          <span class="scope">write:webhooks</span>
+        </div>
+        <div class="desc">Subscribe a URL to one or more event names.</div>
+        <pre>{
+  "url": "https://your-server.example.com/hooks/productivity",
+  "events": ["booking.created", "booking.cancelled"]
+}</pre>
+        <p>Response includes a freshly-minted <code>secret</code>. Store it — you'll need it to verify signatures.</p>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method POST">POST</span>
+          <span class="path">/api/v1/webhooks/{id}/rotate-secret</span>
+          <span class="scope">write:webhooks</span>
+        </div>
+        <div class="desc">Rotate the signing secret. Subsequent deliveries are signed with the new value.</div>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method DELETE">DELETE</span>
+          <span class="path">/api/v1/webhooks/{id}</span>
+          <span class="scope">write:webhooks</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="widget-embed">
+      <h2>Embed the booking widget</h2>
+      <p>Three ways to drop a booking flow into your own site.</p>
+      <h3>Inline iframe</h3>
+      <pre>&lt;iframe src="https://productivity.do/book/&lt;your-slug&gt;"
+        width="920" height="640" frameborder="0"&gt;&lt;/iframe&gt;</pre>
+      <h3>Popup button (vanilla JS)</h3>
+      <pre>&lt;script src="https://productivity.do/embed.js"&gt;&lt;/script&gt;
+&lt;button data-productivity-book="your-slug"&gt;Book a meeting&lt;/button&gt;</pre>
+      <h3>Direct link</h3>
+      <pre>&lt;a href="https://productivity.do/book/&lt;your-slug&gt;"&gt;Book a meeting&lt;/a&gt;</pre>
+    </section>
+
+    <section id="widget-api">
+      <h2>Widget API (no auth)</h2>
+      <p>Browser-safe endpoints used by the public widget. Use these to build a custom UI on top of the same data.</p>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method GET">GET</span>
+          <span class="path">/api/public/booking/{slug}</span>
+        </div>
+        <div class="desc">Public metadata for a booking page (title, host name, branding, event types, custom questions).</div>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method GET">GET</span>
+          <span class="path">/api/public/booking/{slug}/slots?date=YYYY-MM-DD&type=&lt;type-slug&gt;</span>
+        </div>
+        <div class="desc">Available slots for a host-local date.</div>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method POST">POST</span>
+          <span class="path">/api/public/booking/{slug}</span>
+        </div>
+        <div class="desc">Create a booking. Body:</div>
+        <pre>{
+  "name": "Avery Patel",
+  "email": "avery@example.com",
+  "phone": "(555) 123-4567",
+  "message": "Looking forward!",
+  "startIso": "2026-05-12T20:00:00.000Z",
+  "endIso":   "2026-05-12T20:30:00.000Z",
+  "timezone": "America/Denver",
+  "typeSlug": "30-min-intro",
+  "answers": { "question_id_1": "I want to talk about X" },
+  "inviteToken": "optional, for single-use links"
+}</pre>
+      </div>
+    </section>
+
+    <section id="wh-events">
+      <h2>Webhook event types</h2>
+      <table>
+        <tr><th>Event</th><th>When it fires</th></tr>
+        <tr><td><code>booking.created</code></td><td>A new booking is confirmed.</td></tr>
+        <tr><td><code>booking.cancelled</code></td><td>A booking is cancelled (by host or invitee).</td></tr>
+        <tr><td><code>booking.rescheduled</code></td><td>A booking's time changes.</td></tr>
+        <tr><td><code>task.created</code></td><td>A task is created via the API.</td></tr>
+        <tr><td><code>task.updated</code></td><td>A task is updated.</td></tr>
+        <tr><td><code>task.completed</code></td><td>A task is marked complete.</td></tr>
+        <tr><td><code>task.moved</code></td><td>A task's <code>localStatus</code> changes (kanban board move). Payload: <code>{ id, fromStatus, toStatus }</code>.</td></tr>
+        <tr><td><code>*</code></td><td>Wildcard — receive every event.</td></tr>
+      </table>
+    </section>
+
+    <section id="wh-payload">
+      <h2>Webhook payload format</h2>
+      <p>Every delivery is a JSON POST with these top-level fields:</p>
+      <pre>{
+  "event": "booking.created",
+  "deliveredAt": "2026-04-29T15:30:00.000Z",
+  "data": {
+    "page": { "slug": "30min", "title": "30-minute intro" },
+    "booking": {
+      "id": "...",
+      "name": "Avery Patel",
+      "email": "avery@example.com",
+      "startIso": "2026-05-12T20:00:00.000Z",
+      "endIso":   "2026-05-12T20:30:00.000Z",
+      "timezone": "America/Denver"
+    }
+  }
+}</pre>
+      <p>HTTP headers on each delivery:</p>
+      <table>
+        <tr><td><code>X-Productivity-Event</code></td><td>The event name.</td></tr>
+        <tr><td><code>X-Productivity-Timestamp</code></td><td>Unix milliseconds when the signature was generated.</td></tr>
+        <tr><td><code>X-Productivity-Signature</code></td><td><code>t=&lt;ts&gt;,v1=&lt;hex&gt;</code>. The hex is HMAC-SHA256 over <code>${ts}.${rawBody}</code> using your subscription secret.</td></tr>
+        <tr><td><code>X-Productivity-Delivery</code></td><td>Unique id for this delivery (idempotency).</td></tr>
+      </table>
+    </section>
+
+    <section id="wh-signature">
+      <h2>Verifying signatures</h2>
+      <pre>// Node.js example
+import { createHmac, timingSafeEqual } from 'crypto';
+
+function verify(req, secret) {
+  const header = req.headers['x-productivity-signature'] || '';
+  const parts = Object.fromEntries(header.split(',').map(p => p.split('=')));
+  const ts = parts.t, sig = parts.v1;
+  if (!ts || !sig) return false;
+
+  // Reject deliveries older than 5 minutes (replay protection).
+  if (Math.abs(Date.now() - Number(ts)) > 5 * 60 * 1000) return false;
+
+  const expected = createHmac('sha256', secret)
+    .update(`${ts}.${req.rawBody}`)  // raw bytes, not parsed JSON
+    .digest('hex');
+  const a = Buffer.from(sig, 'hex');
+  const b = Buffer.from(expected, 'hex');
+  return a.length === b.length && timingSafeEqual(a, b);
+}</pre>
+      <div class="callout"><strong>Tip:</strong> Use the raw request body for the HMAC. If your framework parses JSON before you can see the bytes, capture the raw body in middleware first. The timestamp prevents replay attacks — reject any delivery with a stale <code>t=</code>.</div>
+    </section>
+
+    <section id="wh-retry">
+      <h2>Retry policy</h2>
+      <p>If your endpoint doesn't return a 2xx within 8 seconds, we retry with exponential backoff: <strong>1m → 5m → 30m → 2h → 12h</strong>. After five failed attempts the delivery is abandoned. You can inspect failed deliveries via <code>GET /api/webhooks/{id}/deliveries</code> in the admin app.</p>
+    </section>
+
+    <footer>
+      <p>productivity.do · API v1 · last updated 2026-04-29</p>
+    </footer>
+  </main>
+</div>
+</body>
+</html>

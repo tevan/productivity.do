@@ -1,0 +1,369 @@
+# productivity.do (Productivity Calendar)
+Status: Active — preparing for public SaaS launch
+See: /srv/www/CLAUDE.md for server patterns, workflow preferences, UI rules, and shortcuts
+
+## Overview
+
+Fantastical-inspired web calendar with Google Calendar + Todoist sync. Svelte 5 SPA + Express 5 backend. Currently IP-restricted during dev; multi-tenant SaaS is now wired up (users table, signup/login, Stripe billing, plan gates) and waiting on Stripe Price IDs to launch. Hosts Calendly-style booking pages at `/book/:slug` plus a public developer API at `/api/v1`.
+
+## Marketing site
+
+`/marketing/` directory holds 9 hand-styled HTML pages (`home`, `features`, `pricing`, `security`, `about`, `changelog`, `terms`, `privacy`, `signup`) served by Express. Shared `marketing/assets/{marketing.css,marketing.js}`. Pricing tiers: Free / Pro $12/mo / Team $20/user/mo with annual discount. The home page lives at `/home.html` (not `index.html` — that's the Svelte SPA).
+
+**Stack:** Svelte 5 + Vite (multi-entry SPA), Express 5, better-sqlite3 (WAL, cache + booking data), PM2 (port 3020)
+**App directory:** /srv/www/productivity.do/
+**Fonts:** Inter (Google Fonts)
+
+## Auth
+
+- **Layer 1 (dev only):** nginx IP allowlist (69.131.127.243). Will be removed for public launch.
+- **Layer 2:** `users` table with bcrypt password hashes, cookie-session with `req.session.userId`. Legacy sessions (`authenticated=true` with no userId) bridge to seed user id=1.
+- **Signup:** `POST /api/signup` with email + password + plan. Auto-login on success, best-effort verification email via Resend (`GET /api/verify/:token`).
+- **Login:** `POST /api/auth` with `{email, password}`. Falls back to seed user `SEED_USER_EMAIL` (env, defaults to `owner@productivity.do`) if no email supplied — preserves the legacy single-password login during the transition.
+- **Google OAuth:** Calendar read/write scopes, per-user tokens in `google_tokens` (PK = user_id), auto-refresh.
+- **Todoist:** API token in `.env` (still single-user shared — needs per-user column for true multi-tenancy; flagged in `routes/tasks.js`).
+- **Public bypass list:** `/api/auth/*`, `/api/signup`, `/api/verify/*`, `/api/stripe/webhook`, `/assets/*`, `/book.html`, `/book/*`, `/api/public/booking/*`, `/developers`, `/embed.js`, `/api/v1/openapi.json`, `/api/v1/ping`, `/home.html`, `/features.html`, `/pricing.html`, `/security.html`, `/about.html`, `/changelog.html`, `/terms.html`, `/privacy.html`, `/signup.html`.
+
+## Views
+
+| View | Letter | Number | Description |
+|------|--------|--------|-------------|
+| Day | D | 1‑4 (slot-order) | Single column |
+| Next N Days | X | — | Rolling window, configurable 3‑7 (default 5) |
+| Week | W | — | Mon‑Sun or Sun‑Sat |
+| Month | M | — | Grid with event bars |
+
+Available views are configurable in Settings → General → Available Views (`enabledViews` pref). Numeric `1‑4` shortcuts map to the user's enabled-view order.
+
+## Keyboard Shortcuts
+
+`T`=today, `N`/`C`=new event (uses hovered hour slot if any), `1‑4`=views in tab order, `D`/`X`/`W`/`M`=specific view, `J`/`K` or arrows=next/prev, `G`=go-to-date, `?`=help, `/`=focus input, `Cmd+K`=toggle event/task, `Cmd+1‑3`=calendar sets, `Esc`=close.
+
+## API Routes
+
+```
+Auth (unprotected):
+  POST /api/auth, GET /api/auth/status, GET /api/auth/google,
+  GET /api/auth/google/callback, GET /api/auth/google/status,
+  POST /api/auth/google/disconnect
+
+Calendar (protected):
+  GET /api/calendars, GET /api/events, POST /api/events,
+  PUT /api/events/:calId/:eventId, DEL /api/events/:calId/:eventId,
+  GET /api/events/sync
+
+Tasks (protected):
+  GET /api/tasks, POST /api/tasks,
+  PUT /api/tasks/:id (supports projectId via Todoist /move + estimatedMinutes/localStatus/localPosition locally),
+  POST /api/tasks/:id/complete, POST /api/tasks/:id/reopen,
+  POST /api/tasks/:id/auto-schedule,
+  DEL /api/tasks/:id, GET /api/tasks/projects,
+  GET/POST/DELETE /api/tasks/integration       (per-user Todoist token)
+  GET /api/task-columns,                       (kanban columns; auto-seeds defaults)
+  POST /api/task-columns,                      (add custom column; capped at 5)
+  PUT /api/task-columns/:id,                   (rename)
+  PUT /api/task-columns/order,                 (reorder; Done forced rightmost)
+  DELETE /api/task-columns/:id,                (only custom; tasks revert to To Do)
+  GET /api/tasks/projects,                     (list)
+  POST /api/tasks/projects,                    (create)
+  PUT /api/tasks/projects/:id,                 (rename / recolor / favorite)
+  DELETE /api/tasks/projects/:id,
+  GET /api/tasks/sections?projectId=,          (CRUD on Todoist sections)
+  POST/PUT/DELETE /api/tasks/sections[/:id],
+  GET /api/tasks/labels,                       (CRUD on Todoist labels)
+  POST/PUT/DELETE /api/tasks/labels[/:id],
+  GET /api/tasks/filters,                      (read-only; Pro feature, [] for free)
+  GET /api/tasks/:id/comments,                 (per-task comments)
+  POST /api/tasks/:id/comments,
+  PUT /api/tasks/comments/:id,
+  DELETE /api/tasks/comments/:id,
+  POST /api/tasks/quick,                       (Todoist NL parser: "buy milk tomorrow @errands p1")
+  GET /api/tasks/reminders,                    (Pro feature)
+  PUT /api/tasks/bulk                          (apply patches to up to 100 tasks)
+
+Focus blocks (protected):
+  GET /api/focus-blocks, POST /api/focus-blocks,
+  PUT/DELETE /api/focus-blocks/:id
+
+Email-to-task (mixed):
+  POST /api/email-inbox/inbound                (PUBLIC, provider webhook)
+  GET  /api/email-inbox/me                     (auth — returns the user's address)
+  POST /api/email-inbox/regenerate             (auth — rotates the token)
+
+AI prep (protected):
+  POST /api/events/:calId/:eventId/prep        (Body: {force?:boolean})
+
+Booking pages (protected, owner CRUD):
+  GET/POST /api/booking-pages,
+  GET/PUT/DELETE /api/booking-pages/:id,
+  GET /api/booking-pages/:id/bookings,
+  GET /api/booking-pages/:id/bookings.csv    (CSV export)
+  GET /api/booking-pages/:id/analytics?days  (views/conversion/no-show/revenue)
+  POST/PUT/DELETE /api/booking-pages/:id/event-types[/:typeId],
+  PUT /api/booking-pages/:id/questions,
+  PUT /api/booking-pages/:id/workflows,
+  GET/POST/DELETE /api/booking-pages/:id/invites[/:token],
+  GET/PUT/DELETE /api/booking-pages/:id/polls[/:pollId],
+  PUT /api/bookings/:id                      (toggle no_show flag)
+  GET/POST/PUT/DELETE /api/routing-forms[/:id]
+
+Calendar / events (protected):
+  GET /api/events.csv?from&to                (CSV export)
+  GET /api/events/search?q                   (LIKE match across summary/description/location)
+  POST /api/events/find-time                 (find N free slots across calendars)
+  + recurrence on POST/PUT (preset, RRULE, or {freq,interval,count,until,byDay,byMonthDay});
+    PUT accepts scope: 'instance' | 'series' | 'following'
+
+Event templates / subscriptions / hide / quick slots (protected):
+  CRUD /api/event-templates
+  CRUD /api/subscriptions[/:id], POST /api/subscriptions/:id/refresh  (read-only ICS feeds)
+  GET/POST /api/hidden-events, DELETE /api/hidden-events/:calId/:eventId
+  GET/POST /api/quick-slots, DELETE /api/quick-slots/:id              (one-off appointment links)
+
+Quick-slots public (unprotected):
+  GET /q/:id                                 (self-contained HTML widget)
+  GET /api/public/quick-slots/:id, POST /api/public/quick-slots/:id/book
+
+ICS feeds + notifications + billing (protected):
+  GET  /api/ics/me, POST /api/ics/regenerate
+  GET  /api/notifications, POST /api/notifications/read,
+       POST /api/notifications/:id/read, DELETE /api/notifications/:id
+  GET  /api/billing/me, GET/POST /api/billing/checkout, GET /api/billing/portal
+
+Booking public (unprotected):
+  GET /book/cancel/:token                    (HTML widget)  ← register first
+  GET /book/reschedule/:token                (HTML widget)
+  GET /book/i/:token                         (HTML widget — single-use invites)
+  GET /book/form/:slug                       (HTML widget — routing forms)
+  GET /book/:slug[/:typeSlug]                (HTML widget)
+  GET /api/public/booking/:slug              (page metadata; bumps page-view counter)
+  GET /api/public/booking/:slug/slots?date   (available slots)
+  GET /api/public/booking/:slug/next-slot    (first available slot in next 14d)
+  POST /api/public/booking/:slug             (create booking — atomic tx)
+  POST /api/public/booking/:slug/poll        (Doodle-style time poll)
+  POST /api/public/booking/cancel/:token     (cancel)
+  GET  /api/public/booking/by-cancel-token/:token[/ics]
+  GET  /api/public/forms/:slug               (routing form metadata)
+  GET  /api/public/invite/:token             (validate single-use invite)
+  GET  /ics/u/:token                         (token-scoped read-only ICS feed)
+
+Public developer API (Bearer pk_live_<prefix>.<secret>, scoped):
+  GET  /api/v1/ping                          (no auth)
+  GET  /api/v1/openapi.json                  (no auth — full OpenAPI 3.1 spec)
+  GET  /api/v1/me                            (key info)
+  CRUD /api/v1/tasks, /api/v1/events, /api/v1/calendars,
+       /api/v1/booking-pages[/:id/bookings], /api/v1/webhooks
+  POST /api/v1/events/bulk, /api/v1/tasks/bulk  (max 100/req, per-item results)
+
+Admin developer (SPA-only, session auth):
+  CRUD /api/api-keys, /api/webhooks[/:id/{rotate-secret,deliveries}]
+
+Other (protected):
+  GET /api/weather, GET /api/travel-time,
+  GET/PUT /api/preferences, CRUD /api/calendar-sets
+```
+
+## Commands
+
+```bash
+pm2 restart productivity
+pm2 logs productivity
+cd /srv/www/productivity.do && npm run build
+cd /srv/www/productivity.do && npm run dev
+```
+
+## Vite multi-entry build
+
+Two HTML entries: `index.html` (main SPA) and `book.html` (public booking widget). Configured in `vite.config.js` via `build.rollupOptions.input`. Each entry produces its own JS+CSS bundle (`assets/main-*.{js,css}` and `assets/book-*.{js,css}`) plus a shared `assets/app-*.{js,css}` chunk.
+
+## Key Implementation Details
+
+- **Svelte 5 runes** ($state, $derived, $effect) — NOT Svelte 4 stores
+- **Theme reactivity:** isDark must be derived from `prefs.values.theme` + reactive matchMedia listener, NOT from `document.documentElement.classList`
+- **Todoist API v1:** `https://api.todoist.com/api/v1` — returns `{ results: [...] }` not flat arrays. Project change requires separate `POST /tasks/:id/move` call (see `backend/lib/todoist.js#moveTask`).
+- **AudioContext:** Created on user gesture (Enable Notifications click), reused in setTimeout for autoplay compliance
+- **TimezoneBar:** Supports half-hour offsets (Kolkata, Kathmandu) via minute-level Intl computation
+- **Calendar visibility:** localStorage by default, optional server sync (syncCalendarVisibility pref, default true)
+- **Sidebar sections:** Collapsible (localStorage key: productivity_sidebar_collapsed). Each section can be hidden via Settings → Sidebar (`sidebarSections` pref). Calendars individually hideable from list (`hiddenCalendarIds` pref).
+- **Sidebar task grouping:** `prefs.taskGroupBy` ∈ `'date' | 'project' | 'label' | 'priority'`. Logic lives in `src/lib/utils/taskGrouping.js`.
+- **View/date persistence:** `view.svelte.js` saves `currentView`, `currentDate`, and time-grid scroll position to localStorage; restored on reload.
+- **Booking availability:** computed in `backend/lib/booking.js#computeSlots`. Inputs: per-weekday windows + per-date overrides (in host tz), busy intervals from Google (multiple `check_calendar_ids`, with `transparency==='transparent'` excluded), existing confirmed bookings, plus `min_notice_min` / `max_advance_days` / `daily_max` / `slot_step_min` / `buffer_before_min` / `buffer_after_min`. Times stored as UTC ISO; conversion uses `Intl.DateTimeFormat` for tz wall→UTC mapping.
+- **Booking event creation:** Atomic SQLite transaction wraps slot recheck + invite-redeem (`UPDATE … WHERE used_by_booking_id IS NULL`, check `changes===0`) + INSERT. Google Calendar create runs *after* the booking is reserved (best-effort) and patches `google_event_id` on success. Cancel deletes the Google event if present.
+- **Booking widget tz:** Invitee picks their own timezone via dropdown; slot labels render in invitee tz, but slots are stored in UTC and computed against host tz windows.
+- **DST safety in `tzWallToUtc`:** Probes offsets at `naive ± 12h`; for fall-back ambiguity prefers earlier UTC; for spring-forward gap returns the gap-start instant.
+- **Booking rate-limiting:** Public booking POST is in-memory per-IP. `/api/v1/*` per-key (or per-IP) is **persisted in SQLite** (`api_v1_rate_buckets`), 120 req/min, survives PM2 restarts. Returns `X-RateLimit-{Limit,Window,Remaining}` + `Retry-After` on 429.
+- **Public asset access:** `requireAuth` middleware allow-lists `/assets/*`, `/book.html`, `/favicon.{svg,ico}`, `/developers`, `/embed.js`, `/api/v1/openapi.json`, `/api/v1/ping` so the unauthenticated widget + docs + ping can load.
+- **Calendly extras (per-page sub-resources):** Event types (multi-meeting), custom questions (text/textarea/select/checkbox, optionally per-type), workflows (webhook on_booked / on_canceled / on_rescheduled / reminder_24h with `{{name}}` template vars + 8s timeout + SSRF guard), single-use invite tokens, time polls (Doodle-style), routing forms (rules evaluated server-side via POST /api/public/forms/:slug/route — never returned to clients), branding (logo/cover/brand_color), pacing (min_gap_min/weekly_max), Stripe price stub, ICS download + Google/Outlook add-to-calendar.
+- **Public developer API (`/api/v1`):** Bearer `pk_live_<prefix>.<secret>` (sha256-hashed, `crypto.timingSafeEqual` compare). Scopes: read/write × tasks/events/booking-pages, read calendars/webhooks, write webhooks, plus admin wildcard. CORS `origin: '*'` (non-reflected). Session-cookie fallback only honored for same-origin requests. OpenAPI 3.1 spec auto-generated at `/api/v1/openapi.json`.
+- **Outbound webhooks:** HMAC-SHA256 over `${ts}.${body}`, sent via `X-Productivity-Signature: t=<ts>,v1=<sig>` (replay-safe — receivers should reject >5min stale). 8s timeout, retry queue 1m/5m/30m/2h/12h. URLs validated by `isSafeWebhookUrl` (https + non-loopback/RFC1918/CGNAT/IPv6-internal) at persist time and at delivery time.
+- **Confirm modal:** `confirmAction()` from `src/lib/utils/confirmModal.svelte.js` returns `Promise<boolean>` and renders via `<ConfirmRoot>` mounted in `App.svelte`. Replaces `window.confirm()` throughout per CLAUDE.md UI rules.
+- **Upgrade modal:** `showUpgrade({feature, requiredPlan, detail})` from `src/lib/utils/upgradeModal.svelte.js`. The `api()` wrapper in `src/lib/api.js` auto-triggers it whenever the backend returns `{code:'plan_required', requiredPlan, feature}`. Backend helpers (`requireFeature` and `checkCountLimit` in `backend/lib/plans.js`) emit that shape on 402.
+- **Auto-scheduling tasks:** `backend/lib/autoSchedule.js` finds the next free slot inside `prefs.workHours` honoring busy events from all visible calendars + buffer. POST `/api/tasks/:id/auto-schedule` creates a Google Calendar event AND patches Todoist `due_datetime` so the task lands on the calendar at the right moment without re-sync. Per-task duration estimate stored locally on `tasks_cache.estimated_minutes` (Todoist has no field for it).
+- **Team booking pages:** `assignment_strategy` ∈ `single|round_robin|collective` plus `host_user_ids` JSON array. Slot computation: collective → union of all hosts' busy intervals; round-robin → intersection (slot is bookable if any host is free). `pickRoundRobinHost` is load-balanced (fewest upcoming confirmed bookings). For round-robin the GCal event lands on the *assigned* host's primary calendar via `assigned_user_id` on bookings. Team-plan gated; route returns `code:'plan_required'`.
+- **Recurring events:** `expandRecurrence()` in `backend/routes/calendar.js` translates `'daily'|'weekdays'|'weekly'|'biweekly'|'monthly'|'yearly'` presets, raw `RRULE:` strings, or `{freq,interval,count,until,byDay,byMonthDay}` objects into Google's `recurrence[]`. PUT accepts `scope`: `instance` (default), `series` (resolves `recurringEventId`, patches parent), or `following` (terminates parent series with `UNTIL=instance-1s` then creates a fresh series from the instance forward).
+- **ICS subscription feeds:** `routes/ics.js` exports two routers — `icsPublic` (mounted before `requireAuth` for `/ics/u/:token`) and `icsAdmin` (mounted after for `/api/ics/{me,regenerate}`). Token is 16-byte hex on `users.ics_feed_token`; lookup uses indexed match plus `crypto.timingSafeEqual`. Feed window is -30d/+90d, all visible calendars, 60s `Cache-Control`, `webcal://` URL returned to the SPA.
+- **Booking analytics:** `booking_page_views(page_id, day, views)` upserted on every public page-fetch. `bookings.no_show` flag toggled by owner via `PUT /api/bookings/:id`. `/analytics?days=30` returns views/bookings counts, conversion (confirmed/views), no-show rate (no-show/past confirmed), and per-currency revenue grouped from paid bookings.
+- **In-app notifications:** `notifications` table (user-scoped, with `kind`, `title`, `body`, `data_json`, `read_at`). `emitEvent()` in `lib/webhooks.js` calls `renderNotification(eventName, data)` to derive a title/body for booking.created|canceled|rescheduled and inserts a row before delivering webhooks. Frontend `NotificationBell.svelte` polls every 60s, marks all as read on dropdown open.
+- **Per-user Todoist:** `users.todoist_token` column. `lib/todoist.js#getToken(userId)` looks up the per-user token first, falls back to `process.env.TODOIST_API_TOKEN`. All wrapper functions take an optional `userId` (back-compat: callers without userId still work via env). `validateToken()` does a probe GET against `/projects` before the token is saved.
+- **Sub-tasks:** `tasks_cache.parent_id` mirrored from Todoist on every list. `withSubtaskOrder()` in `src/lib/utils/taskGrouping.js` returns `[{task, indent}]` interleaving children directly after parents. `TaskRow.svelte` accepts `indent` prop for left-padding.
+- **Bundle splitting:** `App.svelte` lazy-loads `TasksView`, `NotesView`, `Settings`, `GotoDate`, `ShortcutsHelp`, and `BookingPageEditor` via dynamic `import()` gated on `$state` refs (e.g. `let TasksView = $state(null); function loadTasksView() { import('...').then(m => TasksView = m.default); }`). `$effect` blocks fire the loaders the moment the user navigates to the view / opens the modal. Each chunk is its own asset (e.g. `Settings-BdMJ-_IQ.js` 84 KB) so the main bundle dropped from 341 KB → 197 KB. **When adding new heavy modals/views, follow this same pattern** rather than a static import.
+- **Compression:** `compression` middleware mounted in `server.js` with `threshold: 512`. `/api/tasks` response went from 109 KB → 13.5 KB on the wire. nginx in front also has gzip enabled, but the Express layer ensures non-nginx callers (origin probes, MCP tools, internal scripts) also get compressed responses.
+- **Task list refactor:** Sidebar's task rendering and the holistic Tasks view's list mode both use `<TaskListPanel>` (`src/lib/components/TaskListPanel.svelte`). Group-by tabs, multi-select, bulk actions (complete / today / tomorrow / no-date / delete), and grouped+sub-grouped rendering live in one place. Sidebar passes `compact draggable`; Tasks view passes `compact={false}`. **Don't reimplement task list UI** — extend the panel.
+- **Tasks board (kanban):** `tasks_cache.local_status` ∈ `'todo'|'in_progress'|'custom_<n>'|NULL` and `tasks_cache.local_position` (manual sort within column) are productivity.do-only — Todoist never sees them. Done is NOT a writable status; "Done" column = Todoist `is_completed=true` (the canonical action is `POST /api/tasks/:id/complete`). Per-user `task_columns` table holds up to 5 columns with stable `status_key` separate from user-renamable `name`. Default columns (To Do / In Progress / Done) are seeded on first GET. Backend route file: `backend/routes/task-columns.js`. Frontend store: `src/lib/stores/taskColumns.svelte.js`. UI: `src/lib/views/TasksView.svelte` (drag-to-move, per-column sort modes manual/due/priority/created, inline-rename column header, `+` add-column button) + `src/lib/components/BoardColumnsEditor.svelte` (Settings → Tasks; supports drag-to-reorder via `PUT /api/task-columns/order`). Done is forced rightmost server-side. `task.moved` webhook event fires on `localStatus` changes with `{id, fromStatus, toStatus}`. Public API exposes the new fields on `/api/v1/tasks` and a read-only `/api/v1/task-columns`. Full design rationale: `docs/internal/tasks-board.md`.
+- **View persistence (general):** Any user-selectable view in the app (top-level Calendar/Tasks/Notes via `appView`, Tasks list/board via `tasksView`, Calendar Day/Week/Month via `calendarView`, …) persists per form-factor on the server. Pref keys follow `${viewName}_${formFactor}` where formFactor ∈ `desktop|mobile` (breakpoint 768px). Helper: `src/lib/utils/viewPersistence.js` (`readLocalView`, `reconcileFromPrefs`, `writeView`, `getFormFactor`). localStorage mirrors give first-paint hydration; the server pref is authoritative and reconciled after `fetchPrefs()` (see `reconcileAppViewFromPrefs` in `appView.svelte.js`, `reconcileViewFromPrefs` in `view.svelte.js`). Don't fall back to localStorage-only when adding a new view toggle.
+- **CSV export:** `/api/booking-pages/:id/bookings.csv` and `/api/events.csv?from&to`. Local `csvEscape` helper handles quotes/newlines.
+- **Bulk public API:** `/api/v1/{events,tasks}/bulk` accepts `{items: [...]}` (max 100), iterates serially per-user, returns `{ok:true, results:[{index, ok, ...resource|error}]}` so partial failures don't block the rest.
+- **Mobile booking widget:** `<640px` breakpoint in `BookingWidget.svelte` and `CancelWidget.svelte` — single-column slot grid, 44px tap targets, edge-to-edge layout.
+- **Focus blocks:** `focus_blocks(user_id, label, weekday 0-6, start_time HH:MM, end_time HH:MM)`. `expandFocusBlocks(blocks, tz, numDays)` in `lib/autoSchedule.js` materializes them into UTC intervals; `findNextFreeSlot` accepts `extraBusy[]` to merge them in. Frontend `getFocusBlocks()` store fetched at boot, `focusBlocksForDate(date)` filters by weekday, rendered as a striped band with `top:(min/60)*48px; height:(min/60)*48px;` (matches the 48px hour-row).
+- **Email-to-task:** Address shape is `u<userId>+<token>@${INBOX_DOMAIN}` (env, default `inbox.productivity.do`). `users.inbox_token` is 12-byte hex; lookup compares with `crypto.timingSafeEqual`. Provider-agnostic inbound handler accepts `{to: string|string[], from?, subject?, text?, html?}`. Token is the credential — anyone who can forge mail to it can create tasks. The mail receiver itself (SES/Postmark/CF Email Routing) isn't wired yet; UI shows a "receiver not configured" banner until `INBOX_DOMAIN` is set.
+- **Event store cache (stale-while-revalidate):** `events.svelte.js` keeps a `Map` cached by `${start}|${end}` ISO key. Cached entries paint instantly on navigation; background refetch reconciles. TTL 5 min, max 24 entries (LRU). `invalidateRangesOverlapping(start,end)` runs after every create/update/delete on *both* old and new windows. In-flight requests deduped via `inFlight` map.
+- **Subscribed (inbound) ICS calendars:** `subscribed_calendars` + `subscribed_events`. Tiny RFC-5545 parser in `routes/subscriptions.js#parseIcs` (no RRULE expansion — first instance only). 6h cron via `startSubscriptionRefresher()` from server.js. Subscribed events are merged into `/api/events` with `calendarId` prefixed `sub-` and `readOnly:true`. SSRF-guarded URL validation rejects RFC1918/loopback/CGNAT.
+- **Event templates:** `event_templates` table; CRUD `/api/event-templates`. EventEditor shows a picker that prefills summary/description/location/duration when no event is loaded. Right-click → "Save as template" creates one from the clicked event.
+- **Quick slots (one-off appointment links):** `quick_slots` table. Backend has admin (`/api/quick-slots`) + public (`/api/public/quick-slots/*`) routers. Widget at `/q/:id` is server-rendered self-contained HTML using DOM methods (NOT innerHTML — security hook blocks). Atomic single-booking transaction: `UPDATE … WHERE booked_at IS NULL`.
+- **Hidden events:** `hidden_events(user_id, calendar_id, event_id)`. Right-click → "Hide event" inserts; `/api/events` filters by user_id. Use `events:invalidate` window CustomEvent to trigger refresh after hide (currently no listener wired).
+- **Combine duplicate events:** events with same `summary.toLowerCase()+start` across multiple cals collapse into one with `mergedFromCalendarIds[]`. Popover shows a small "On N calendars" badge.
+- **Working location / OOO:** `/api/events` returns `eventType` from Google. AllDayRow applies `class:ooo` (red diagonal stripes) and `class:working-location` (green) overrides on top of the base chip styling.
+- **Cmd+F event search:** `SearchOverlay.svelte` debounced search against `/api/events/search` (LIKE match on summary/description/location, capped at 50). Click result jumps to date.
+- **Tab badge:** `App.svelte` `$effect` sets `document.title = (N) Productivity` where N is timed events remaining today + tasks due today.
+- **Recurring task indicator:** TaskRow shows a small loop icon next to tasks where `task.isRecurring` is true. Backend exposes `dueString` and `isRecurring` from Todoist's `due` object.
+- **Weekly digest:** `lib/digest.js`, hourly cron, fires Mondays 8-9am server-local. Sends via Resend with this week's events + open tasks. Dedupes on `users.last_digest_at` >6 days old. Skipped if `RESEND_API_KEY` unset.
+- **Per-event timezone display:** EventPopover shows the event start time in up to 2 alternate timezones from `prefs.additionalTimezones` (collapsed to a small icon row).
+- **Attendee response display:** Popover renders accepted/declined/tentative/needsAction counts as colored chips. Backend now includes `attendees[]` (with `responseStatus`, `organizer`, `self`) and `attachments[]` on every event.
+- **AI meeting prep:** `lib/prep.js` calls Claude Haiku 4.5 (`claude-haiku-4-5-20251001`) via direct `fetch` to keep deps minimal. ~350 token cap, 15s timeout. Cached per event by `inputHash` (sha256 over title/desc/start/location/attendees → first 16 hex). Cache lives in `events_cache.prep_summary/prep_generated_at/prep_input_hash`. Click "Prep with AI" in EventPopover; "Regenerate" sends `{force:true}`. Returns 503 if `ANTHROPIC_API_KEY` is unset.
+- **Tokens:** All cancel/reschedule/invite/uuid generation uses `crypto.randomUUID`/`randomBytes` — no `Math.random`.
+- **SQLite migrations:** `applyMigrations()` in `backend/db/init.js` calls `ensureColumn(db, table, col, def)` which validates identifiers via `^[A-Za-z_][A-Za-z0-9_]*$` and double-quotes them.
+- **ICS line folding:** Counts UTF-8 octets via `TextEncoder` and slices on whole-codepoint boundaries (RFC 5545 §3.1 compliance for emoji/CJK).
+- **Drag-to-move events:** `createEventDragHandler` in `src/lib/utils/drag.js`. Move = vertical (retime) + horizontal (day-shift via `getDayAtX` mapper from TimeGrid). Resize = drag bottom edge. 15-min snap; Shift disables snap.
+- **All-day events drag horizontally** in `AllDayRow.svelte` to shift days while preserving span.
+- **All-day date parsing:** Google uses YYYY-MM-DD with EXCLUSIVE end (`end.date=2026-05-01` for an Apr 30 single-day event). `new Date("2026-04-30")` parses as UTC midnight, which in tz west of UTC shifts the event to the prior day. Use `parseAllDayDate()` from `src/lib/utils/dates.js` to parse as LOCAL midnight. Editor form shows INCLUSIVE end-date; backend POST/PUT bumps +1 day for Google; renderer's `getSpanForEvent` subtracts -1 from `event.end` for inclusive span.
+- **Show weekends toggle:** `prefs.showWeekends` (default true). When false, `WeekView` filters out Sat/Sun from the rendered dates array — TimeGrid auto-adapts. MonthView is unaffected (always 7 cols).
+- **Today button placement:** Lives at the *right* of the date-range label (toolbar-nav) with accent border + accent text — chosen for prominence over the prev/next chevrons (which are smaller and less primary).
+- **Overdue indicator on tasks:** Red circle-with-exclamation icon prefixes the title in `TaskRow.svelte`; the title text stays its normal color so the indicator stands out without making the row visually scream. `TaskEditor.svelte` shows a small "Overdue" pill next to the modal heading via the same `isOverdue` derivation.
+- **Booking page brand color presets:** 8 preset swatches (`#3b82f6`, `#6366f1`, `#8b5cf6`, `#ec4899`, `#ef4444`, `#f59e0b`, `#10b981`, `#0ea5e9`) plus the existing `<input type="color">` for fine-tuning. Active preset gets a 2-ring outline (border + shadow halo) so the current color reads at a glance.
+- **Task due-date parsing (TZ safety):** All `dueDate` strings (`YYYY-MM-DD`) are parsed via `parseTaskDue(task)` in `src/lib/utils/dates.js`, which uses local-midnight semantics. NEVER `new Date(t.dueDate)` directly — UTC midnight reads as the prior day in tz west of UTC, making "due today" tasks appear overdue right after local midnight. Audited and fixed in: `TaskRow`, `TaskEditor`, `AllDayRow`, `App.svelte` tab badge, `tasks.svelte.js#tasksByDate/overdueTasks`, `taskGrouping.js#groupByDate/byUrgencyThenDate`.
+- **Sidebar show/hide:** Toolbar has a sidebar-toggle button at the start of the nav row. State persists in `localStorage.productivity_sidebar_hidden`. App.svelte conditionally renders `<Sidebar />` based on `sidebarHidden`.
+- **MiniCalendar arrows hidden by default:** Prev/next month chevrons in the sidebar mini-cal fade in only on header hover (or focus-visible). Avoids visual collision with the toolbar's prev/next which are stacked top-left.
+- **Drag tasks horizontally on calendar:** `AllDayRow.svelte#handleTaskMouseDown` lets the user drag a dated task left/right between day columns. Same column-width math as event drags. Updates `dueDate` (or preserves time-of-day for `dueDatetime` tasks).
+- **Drag sidebar tasks to calendar day:** TaskRow now takes a `draggable` prop; Sidebar passes it. `AllDayRow` renders invisible per-column `.drop-zone` elements that highlight on `dragover` and call `updateTask` on `drop`. AllDayRow renders whenever `tasks.length > 0` (not only when there's a dated task) so empty days still accept drops.
+- **Project dropdown swatches + dedupe:** Todoist returns project colors as named tokens (`charcoal`, `blue`, etc.) which browsers don't recognize as CSS colors — `todoistColor()` in `dates.js` maps all 19 names → hex. Fallback dot is `var(--text-tertiary)` so every option has a swatch. The synthetic null-Inbox is suppressed when Todoist already returns its real Inbox project.
+- **RSVP states on event chips:** Declined events are filtered from `visibleEvents` by default (toggle via `prefs.showDeclinedEvents` to keep them visible with strikethrough). Tentative ("Maybe") events render with diagonal stripes + dashed left border + 0.85 opacity. Both `EventChip` (all-day row) and `TimeGrid` event blocks honor `attendees.find(a => a.self)?.responseStatus`.
+- **Per-cluster event layout:** TimeGrid's `layoutEvents()` groups events into overlap clusters and computes column count per cluster, NOT per day. Earlier `totalCols = columns.length` made every event in a day share width even when they didn't overlap each other.
+- **Scheme-aware overdue red:** Each color scheme defines `error` in its light AND dark blocks; `applyColorScheme` writes `--error` so overdue indicators (icon, banner, due-input border) tint to match the scheme. Monochrome's red is heavily desaturated (#A05A55 / #C68A87) but still recognizably red.
+- **Removed event-popover nudge buttons:** The −30m/+30m/−1d/+1d row was removed; drag-to-move handles this faster. Cleaned up `liveStart`/`liveEnd` state and the `nudge()` function.
+- **EventPopover nudge buttons** (`-30m / +30m / -1d / +1d`) for trackpad-friendly moves without dragging.
+- **Double-click event** opens the full EventEditor modal (was: inline title edit, removed). Single-click → popover.
+- **Click task in calendar** opens TaskEditor via `app.editTask` Svelte context exposed by App.svelte. Used by AllDayRow's task chips.
+- **Right-click context menu** on events: Edit, Duplicate, Move to calendar (re-create + delete), Change color, Save as template, Hide event, Delete.
+- **Travel-time blocks:** `lib/stores/travel.svelte.js` walks consecutive same-day events with `location` set, fetches durations via `/api/travel-time` (which silently returns null without `GOOGLE_MAPS_API_KEY`), renders striped pre-event blocks in TimeGrid. `prefs.showTravelBlocks` toggles. Without API key the band still renders with `~` placeholder.
+- **Find a time (multi-cal):** `findFreeSlots()` in `lib/autoSchedule.js` + `POST /api/events/find-time`. `FindTimeModal.svelte` lets user pick duration/days/calendars; click slot → opens EventEditor with start/end pre-filled. Bound to **F** key.
+- **Custom Dropdown component:** `Dropdown.svelte` replaces every native `<select>` (32 across the app). Keyboard nav (Enter/Space to open, Arrow keys, Esc, Enter to select), click-outside-to-close, hover states, color swatches, custom panel matching surface/border/shadow tokens. Per CLAUDE.md UI rules — no native selects in app or in the public booking widget. Apply via `<Dropdown bind:value options={[{value, label, color?, disabled?}]} />`.
+- **Color schemes:** `lib/utils/colorSchemes.js` defines 5 schemes (Classic, Vibrant Tones, Pastel, Forest, Monochrome). `prefs.colorScheme` is orthogonal to `prefs.theme` — light/dark controls bg, scheme controls accent + a `paletteOverride` that maps to all 12 `--color-*` event-chip vars. Each `PASTEL_COLORS` entry has a `varName` field; chips render via `style="background: var(--color-rose, fallback)"` so scheme overrides repaint without re-running `getEventColor()`. `applyColorScheme(id, isDark)` writes CSS vars to `<html>` with `!important` (beats App.svelte's `:global(html.dark)` rules). Settings → Appearance shows visual swatch-card picker only (no dropdown — redundant with the cards). Custom accent-color input only appears for the Classic scheme.
+- **Chip text contrast:** Text color uses `readableText()` (white on dark bg, near-black on light bg via WCAG luminance) computed against the resolved bg, NOT against `bgFallback`. `resolveCssVar()` reads the live `var(--color-X)` from `<html>` so saturated scheme overrides (Vibrant Tones red, Forest green) get readable foreground text. The chip's `$derived` text-color depends on `prefs.values.colorScheme` so it recomputes on scheme switch.
+- **Persistent event cache:** `events.svelte.js` writes the in-memory `rangeCache` Map to `localStorage.productivity_events_cache` on every successful fetch. On module load, hydrates the Map AND pre-populates the `events` $state with the union of all cached entries — so first paint after refresh shows last-known data instantly. 24h disk TTL; in-memory 5min TTL drives revalidation.
+- **Multi-select tasks** in sidebar: shift-click ranges, cmd/ctrl-click toggles. Bulk action bar: Complete / Today / Tomorrow / No date / Delete.
+
+## Integrations / sources abstraction (added 2026-05-01)
+
+Calendar and tasks are no longer hardcoded to Google + Todoist. Every event/task carries a `provider` column. `provider = 'native'` means the user created it in productivity.do (no third-party). Other providers register adapters.
+
+- **Adapter directory:** `backend/integrations/<provider>/adapter.js`. Each implements `{ provider, name, kind, authType, syncTasks, syncEvents, createTask/updateTask/deleteTask, createEvent/updateEvent/deleteEvent, disconnect }`. Providers that aren't fully wired use `_stub.js`'s `makeStub()` and surface 501-shaped errors.
+- **Registry:** `backend/integrations/registry.js` — list every adapter, ordered for the Settings UI.
+- **Persistence:** `integrations` table (`user_id`, `provider`, `status`, `access_token`, `refresh_token`, `expires_at`, `account_email`, `metadata_json`, `last_synced_at`, `last_error`). One row per user-provider pair. `metadata_json` carries provider-specific config (Notion db id, Trello board ids, Linear team ids, CalDAV server URL).
+- **Native storage:** `events_native`, `tasks_native`, `projects_native` — primary stores when no integration is connected. Survive disconnect.
+- **Read merge:** `/api/events` returns Google live + native + non-Google cached. `/api/tasks` returns Todoist live + native + non-Todoist cached. Native + non-Google rows are appended (no dedup across providers).
+- **Routes:** `/api/integrations` (list/connect/disconnect/sync), `/api/native/{events,tasks,projects}` (CRUD on native rows). PAT/OAuth/CalDAV auth flows handled per adapter.
+- **Provider front-end routing:** `events.svelte.js` and `tasks.svelte.js` inspect `provider` on each record and route mutations to `/api/native/...` (when native) or `/api/...` (everything else). Default for `createTask`/`createEvent` is **native** unless caller passes a provider.
+- **Connected providers (real impl):** Google Calendar, Google Tasks, Todoist, Notion, Linear, Trello, Microsoft 365 Calendar, Microsoft To Do, CalDAV (read-only for now).
+- **Stub providers** (surfaced as "Coming soon" in the marketplace): Asana, ClickUp, Jira, Evernote, Monday.com, plus Slack/Discord/Teams (comms), Zoom/Meet (meetings), Drive/Dropbox/OneDrive/Box (storage), Docs/Sheets/Slides/Office365 (docs), Gmail (email), Toggl/Harvest/Clockify (time), Typeform/Google Forms/Jotform (forms), Miro/Lucidchart (whiteboards), Figma/Canva (design), HubSpot/Salesforce (crm), Twilio (sms), and Zapier/Make/n8n/IFTTT/Pipedream/Workato/Activepieces (automation). 39 stubs total.
+- **Background sync:** `backend/integrations/syncRunner.js`. Runs every 5min, picks connected rows whose `last_synced_at` is older than 15min, calls `adapter.syncTasks(userId)` and/or `adapter.syncEvents(userId)` with a 60s per-call timeout. Updates `last_synced_at` and `last_error`. Manual "Sync now" reuses the same dispatch.
+- **Token encryption-at-rest:** `backend/lib/cryptoBox.js`. AES-256-GCM via `ENCRYPTION_KEY` env (64 hex chars / 32 bytes). `store.js` transparently encrypts `access_token`/`refresh_token` on write, decrypts on read. Lazy migration: plaintext rows stay readable until the next write re-encrypts them. Without `ENCRYPTION_KEY`, fields are stored plaintext (same behaviour as before).
+- **Marketplace UI:** category-grouped directory (16 categories) with search + status filter (All / Available / Connected / Coming soon). Adapter list exposes `category`, `status`, `recommended` from each adapter; Coming-soon cards render with a muted style and a "Learn more" link only.
+- **Adapter shape extras:** every adapter now declares `category` (one of the 16 in `_categories.js`), `status` ∈ `stable|beta|coming_soon|deprecated`, `recommended: bool`. Stub adapters use `makeStub()` which auto-fills these for "coming soon" providers.
+
+Full architecture rationale: `docs/internal/integrations.md`. Developer-platform integration scaffolds (Zapier/Make/n8n/IFTTT/Pipedream/Workato/Activepieces) live in `docs/integrations/`.
+
+## MCP server + Slack app (added 2026-05-01)
+
+- **MCP server** at `POST/GET /mcp`. Streamable HTTP transport via `@modelcontextprotocol/sdk`. Bearer `pk_live_…` auth (same scheme as `/api/v1`). Tools: `create_task`, `complete_task`, `list_tasks`, `create_event`, `list_events`, `list_booking_pages`. Resources: `productivity://tasks`, `productivity://today`. Server impl in `backend/mcp/server.js`; route in `backend/routes/mcp.js`. Sessions are in-memory, keyed by `mcp-session-id` header. Per-session McpServer instance is bound to one user. Mounted before `requireAuth` (Bearer-only).
+- **Slack app** at `POST /api/slack/command` (HMAC-signed slash command), `GET /api/slack/install` (OAuth install start), `GET /api/slack/oauth/callback`, `GET /slack/link?token=…` (session-auth user-linking). Tables: `slack_workspaces` (per-team bot tokens), `slack_user_links` (slack_user_id ↔ user_id mapping), `slack_link_tokens` (10-min single-use). Slash command: `/productivity new task: <title>` with optional trailing `today`/`tomorrow`/`YYYY-MM-DD` date hint. `/productivity link` and `/productivity help` also supported. Body parsing is custom (raw body needed for HMAC) — slack route mounts BEFORE `express.json()`. Env: `SLACK_SIGNING_SECRET`, `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `PUBLIC_ORIGIN`.
+
+## Brand icons
+
+`GET /api/icons/:provider.svg` — public, cache 24h. Returns simple-icons SVG (3429-icon library at `simple-icons` npm) when the provider has a brand match, otherwise a colored letter avatar from `getLetterIcon()`. Provider→slug map in `backend/lib/icons.js`. No client-side bundling of the icon library; the server pulls from the bundled package and ships SVG bytes.
+
+## Knowledgebase + AI support chat
+
+Help docs live at `docs/help/**/*.md` with `title:`/`description:` frontmatter. Loaded once on first request via `backend/lib/kb.js#getArticles()`. Three consumers from one source: public `/help` and `/help/:slug` pages (route: `routes/help.js`), AI chat context (`searchArticles` + `articlesAsContext`), and future marketing-site SEO. Slug derivation: `docs/help/api/auth.md` → `/help/api/auth`. Restart server (or `reloadKb()`) to pick up new articles.
+
+AI support chat at `POST /api/support-chat` (Settings → Help → AI assistant). **Sandbox is architectural, not filter-based**: the chat handler is a pure function `(userMessage, kbContext) → text`. The LLM never sees `process.env`, the source tree, the DB, our APIs, or other users' data. Inputs: user msg + retrieved KB articles + system prompt + ≤6 turns of caller-supplied history. Output: text only, capped 500 tokens. Daily budget: 25 msgs/UTC-day per user, soft warning at 20 — `support_chat_usage(user_id, day, msg_count)`. Trigger words (refund/cancel/legal/breach/etc.) short-circuit any LLM call and email transcript to `SUPPORT_EMAIL` (default `support@productivity.do`). Transcripts retained 90d in `support_chat_messages`. Don't give the LLM tools — the whole sandbox depends on it.
+
+## Account, sessions, soft-delete
+
+Profile management at `/api/account/*` (route: `routes/account.js`, UI: `ProfileTab.svelte` in Settings → Account → Profile). New columns on `users`: `avatar_path`, `pending_email`, `pending_email_token`, `pending_email_sent_at`, `deleted_at`, `permanently_purge_at`. New table `user_sessions` (one row per active sign-in; cookie carries `req.session.sessionId`). Sensitive ops (delete, change email, change password) require current password verified via `bcrypt.compare`.
+
+**Email change** sends confirmation to the NEW address (not old) — old address gets a security notice. **Soft-delete** sets `deleted_at` + 30-day `permanently_purge_at`, revokes all sessions, clears cookie. Signing in with old credentials within the window auto-recovers (`auth.js` clears the flags and returns `{ recovered: true }`). `mode: 'immediate'` skips the window. **Password change** auto-revokes all OTHER sessions (current device stays). **Avatars** uploaded via multer, hashed filename `${userId}-${sha256-16}.${ext}`, served from `/avatars/<file>` (public; on requireAuth bypass list since filenames are unguessable). Gravatar fallback when `avatar_path` is null.
+
+## Optimistic drag pattern
+
+Drag/drop and other instant-feedback mutations MUST optimistically patch the in-memory store BEFORE the network round-trip. Use `applyLocalPatch(eventId, patch)` from `events.svelte.js` for events; `tasks.svelte.js#updateTask` already does optimistic + rollback for tasks. **Do not** rely on a `dragPreview`-only solution to hide the lag — that masks the bug, doesn't fix it. The store is the source of truth; preview overlays are for in-flight gesture rendering only. Bug fixed 2026-05-01: chip flashed back to original position for one frame between dragPreview clear and server response. Wired in `TimeGrid.svelte#onCommit` (timed events) and `AllDayRow.svelte` mouse-up (all-day events).
+
+## App tabs (top-bar workspace switcher)
+
+User-reorderable + hideable via Settings → Tabs. Pref `appTabs = { order, hidden }`. Cap of 3 visible at a time (`MAX_VISIBLE_TABS` in `appView.svelte.js`); at least 1 must remain visible. Catalog `ALL_APP_TABS` is the single source of truth for tab id → label mapping. Both `Toolbar.svelte` and `MobileBottomNav.svelte` consume `getVisibleTabs(prefs.values)` — don't hard-code the tab list. App.svelte has a `$effect` that bounces `appView` to the first visible tab when the active one becomes hidden. Editor: `src/lib/components/AppTabsEditor.svelte` (drag-to-reorder + hide checkbox). Forward-looking: integration-driven tabs land here when we lift the cap.
+
+## Marketplace at `/integrations`
+
+Full-page route. SPA serves at `/` and `/integrations[/:provider]`. Routing is minimal client-side (`src/lib/stores/routeStore.svelte.js`) — `popstate` + `pushState`, no router dep. App.svelte renders `IntegrationsPage` (lazy chunk) when `route.isIntegrations`, otherwise the regular shell. Settings still has an "Integrations" entry but it's a link button to `/integrations`. Each adapter card shows its simple-icons logo; deep link `/integrations/:provider` scrolls + highlights that adapter on load.
+
+## Sentry (added 2026-05-01)
+
+Backend errors flow through Sentry when `SENTRY_DSN` is set. No-op otherwise. Init lives in `backend/lib/sentry.js`; called from `server.js` *before* any other import. Express error-handler middleware mounted after all routes. Request bodies are scrubbed in `beforeSend` to avoid leaking tokens.
+
+## DB Schema (additions)
+
+Core booking tables:
+- `booking_pages` — pages + availability + branding + pacing. Recent additions (via `applyMigrations`): `logo_url`, `cover_image_url`, `brand_color`, `min_gap_min`, `weekly_max`, `has_event_types`, `enable_ics`, `send_emails`, `reminder_24h`.
+- `bookings` — invitee + status. Recent additions: `type_id`, `invite_token`, `payment_status`, `payment_intent`, `answers_json`, `reminder_sent_at`, `assigned_user_id` (round-robin), `no_show`.
+- `booking_pages` (more recent): `host_user_ids`, `assignment_strategy` (single|round_robin|collective).
+- `booking_page_views(page_id, day, views)` — analytics counter.
+- `event_types` — multi-meeting (per page).
+- `custom_questions` — text/textarea/select/checkbox, page-scoped or type-scoped via `type_id`.
+- `booking_workflows` — webhook hooks per page (trigger ∈ on_booked|on_canceled|on_rescheduled|reminder_24h).
+- `booking_invites` — single-use tokens (unique `token`, `used_by_booking_id` set atomically on consumption).
+- `routing_forms` — questionnaire that maps answers → booking page (rules evaluated server-side only).
+- `time_polls` — Doodle-style multi-time proposals (status: pending|confirmed|declined).
+
+Tasks & integrations:
+- `tasks_cache` — recent additions: `estimated_minutes` (auto-schedule), `parent_id` (sub-tasks), `local_status` + `local_position` (kanban board, productivity.do-only).
+- `task_columns(user_id, position, name, status_key)` — per-user kanban configuration. `status_key` is the stable identifier (`todo|in_progress|done|custom_<n>`); `name` is user-customizable. UNIQUE(user_id, status_key). Up to 5 rows per user.
+- `users` — recent additions: `ics_feed_token` (calendar feed), `todoist_token` (per-user PAT).
+- `notifications` — in-app feed, user-scoped, `kind/title/body/data_json/read_at`.
+
+Public API tables:
+- `api_keys` — sha256(secret) only; never plaintext. Compared with `crypto.timingSafeEqual`.
+- `webhook_subscriptions` — outbound event subscriptions, signing secret, events[].
+- `webhook_deliveries` — delivery log + retry queue with `next_retry_at`.
+- `api_v1_rate_buckets` — persisted per-key/per-IP rate-limit buckets (sliding 60s window, max 120).
+
+Schema runs idempotently on `getDb()` via `CREATE TABLE/INDEX IF NOT EXISTS`. Column-level migrations go through `ensureColumn(db, table, col, def)` in `backend/db/init.js` (validates identifiers, no-op when already present).
+
+## Pending Setup
+
+- **Stripe Price IDs:** Set in `.env` to enable Pro/Team checkout flow:
+  - `STRIPE_SECRET_KEY=sk_...`, `STRIPE_WEBHOOK_SECRET=whsec_...`
+  - `STRIPE_PRICE_PRO_MONTHLY`, `STRIPE_PRICE_PRO_ANNUAL`, `STRIPE_PRICE_TEAM_MONTHLY`, `STRIPE_PRICE_TEAM_ANNUAL`
+  - `PUBLIC_ORIGIN=https://productivity.do`
+- **Cloudflare SSL mode:** Set to Full (strict) in dashboard (origin cert installed, API token lacks zone settings permission)
+- **Google OAuth:** App in testing mode (unverified), test user: tevan.alexander@gmail.com. For SaaS launch, Google verification + per-user OAuth grants are needed (the schema is already per-user).
+- **Resend API key:** Set `RESEND_API_KEY` in `.env` for booking confirmation/cancellation/24h reminder + signup verification emails. Without it all calls no-op silently.
+- **Postmark inbound — LIVE.** Server `Productivity-Inbound` (ID 19064779), domain `inbox.productivity.do`, webhook URL embeds `INBOX_WEBHOOK_USER:INBOX_WEBHOOK_PASS@` for HTTP Basic Auth. MX record `inbox.productivity.do → inbound.postmarkapp.com` priority 10 in Cloudflare (DNS-only, orange cloud off). Payload normalizer in handler maps Postmark's capitalized keys to our lowercase shape.
+- **Public launch checklist:**
+  - Remove nginx IP allowlist (`/etc/nginx/sites-available/productivity.do.conf`)
+  - Configure Stripe Price IDs + webhook in dashboard pointing at `/api/stripe/webhook`
+  - Verify Google OAuth (consent screen)
+- **Optional (if provisioned):**
+  - `GOOGLE_MAPS_API_KEY` for `/api/travel-time` to return real durations (otherwise it returns null silently). Travel-time chips on day view are deferred until this is set.
+  - `ANTHROPIC_API_KEY` for AI meeting prep summaries. Without it, the "Prep with AI" button returns 503.
+  - `INBOX_DOMAIN` for email-to-task. Without it the per-user address still generates but mail won't deliver. Pick a mail receiver provider (SES inbound, Postmark, Cloudflare Email Routing → Worker) and POST parsed mail to `/api/email-inbox/inbound`.
+- **Backlog:** see `docs/BACKLOG.md`. Tier 1 (5 items) and Tier 2 (6 items) shipped; Tier 3 has 3 items shipped (mobile polish, CSV export, bulk API) and 6 deferred (travel chips, email-to-task, focus blocks, Slack/Teams/Discord, Stripe Connect, AI prep summaries, OAuth registry).
+- **Project card on tevan.co/tools/projects:** ID `de34950e-533a-45da-a254-befd4e154e5f`. Status updates POST to `http://127.0.0.1:3010/tools/api/projects/<id>/status-claude`.
