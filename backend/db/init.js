@@ -318,6 +318,35 @@ function applyMigrations(database) {
 
   // Booking analytics: per-page view counter + no-show flag on bookings.
   ensureColumn(database, 'bookings', 'no_show', 'INTEGER NOT NULL DEFAULT 0');
+  // Calendar sync tracking. After a booking is reserved, GCal event create
+  // is best-effort — but we now persist its outcome so a sweep can retry
+  // failures and so the host can be notified. NULL = no sync attempted
+  // (host has no GCal connection); 'pending' = retry due; 'synced' = done;
+  // 'failed' = gave up after MAX_ATTEMPTS retries.
+  ensureColumn(database, 'bookings', 'calendar_sync_status',   'TEXT');
+  ensureColumn(database, 'bookings', 'calendar_sync_attempts', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn(database, 'bookings', 'calendar_sync_next_at',  'TEXT');
+  ensureColumn(database, 'bookings', 'calendar_sync_error',    'TEXT');
+
+  // ---- /api/v1 idempotency keys ----
+  // Stripe-style: if a client sends `Idempotency-Key: <opaque>` on a write,
+  // we record the response on first success. If the same key is replayed
+  // within TTL we return the cached response verbatim — preventing
+  // duplicate task/event/booking creates from network retries. Key is
+  // scoped per (user_id, key) so different API keys / users can't collide.
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS api_v1_idempotency_keys (
+      user_id INTEGER NOT NULL,
+      key TEXT NOT NULL,
+      method TEXT NOT NULL,
+      path TEXT NOT NULL,
+      status_code INTEGER NOT NULL,
+      response_body TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (user_id, key)
+    );
+    CREATE INDEX IF NOT EXISTS idx_v1_idemp_created ON api_v1_idempotency_keys(created_at);
+  `);
   database.exec(`
     CREATE TABLE IF NOT EXISTS booking_page_views (
       page_id TEXT NOT NULL,

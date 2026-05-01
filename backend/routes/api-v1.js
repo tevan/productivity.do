@@ -22,6 +22,7 @@ import {
 } from '../lib/webhooks.js';
 import { apiPage } from '../lib/bookingMappers.js';
 import { emitEvent } from '../lib/webhooks.js';
+import { idempotency } from '../middleware/idempotency.js';
 
 const router = Router();
 
@@ -118,6 +119,11 @@ router.use((req, res, next) => {
   }
   next();
 });
+
+// Idempotency-Key replay/cache for write requests. Runs after rate-limit so
+// replayed responses still count against the bucket (clients can't bypass
+// rate limits by retrying with the same key).
+router.use(idempotency);
 
 // ---------------------------------------------------------------------------
 // Meta
@@ -737,7 +743,16 @@ function buildOpenApi(req) {
     info: {
       title: 'productivity.do API',
       version: '1.0.0',
-      description: 'Calendar, tasks, and booking-pages API for third-party integrations.',
+      description: [
+        'Calendar, tasks, and booking-pages API for third-party integrations.',
+        '',
+        '**Idempotency:** all write requests (POST/PUT/PATCH/DELETE) accept an',
+        '`Idempotency-Key` header (8–128 chars). The first successful response',
+        'is cached per (user, key) for 24h; retries with the same key return',
+        'the same status + body without re-executing the side effect. The',
+        'replay carries an `Idempotent-Replayed: true` response header. Only',
+        '2xx responses are cached — validation errors are not.',
+      ].join('\n'),
     },
     servers: [{ url: `${origin}/api/v1` }],
     components: {

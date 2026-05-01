@@ -42,6 +42,8 @@ import hiddenEventsRoutes from './routes/hidden-events.js';
 import { quickSlotsAdmin, quickSlotsPublic } from './routes/quick-slots.js';
 import { startWeeklyDigest } from './lib/digest.js';
 import { startRetryLoop } from './lib/webhooks.js';
+import { startCalendarSyncRetry } from './lib/calendarSyncRetry.js';
+import { startIdempotencySweeper } from './middleware/idempotency.js';
 import { startSyncRunner } from './integrations/syncRunner.js';
 import { processReminderSweep, fireWorkflows, sendBookingConfirmation } from './lib/notify.js';
 import { finalizePaidBookings } from './lib/stripe.js';
@@ -338,6 +340,11 @@ app.listen(PORT, '127.0.0.1', () => {
   console.log(`Productivity server listening on 127.0.0.1:${PORT}`);
   // Process any failed webhook deliveries every minute
   startRetryLoop(60_000);
+  // Retry GCal create for bookings whose initial sync failed (best-effort
+  // create after booking commit). Notifies host on final failure.
+  startCalendarSyncRetry({ intervalMs: 60_000 });
+  // Sweep stale Idempotency-Key entries from /api/v1 once an hour (24h TTL).
+  startIdempotencySweeper();
   // Periodic refresh of inbound ICS subscription feeds.
   startSubscriptionRefresher();
   // Background sync of connected provider integrations.

@@ -552,9 +552,23 @@ router.post('/api/public/booking/:slug', async (req, res) => {
             : undefined,
         });
         googleEventId = ev.id;
-        db.prepare('UPDATE bookings SET google_event_id = ? WHERE id = ?').run(googleEventId, id);
+        db.prepare(
+          `UPDATE bookings SET google_event_id = ?, calendar_sync_status = 'synced' WHERE id = ?`
+        ).run(googleEventId, id);
       } catch (err) {
-        console.warn('Google event create failed:', err.message);
+        // Mark for retry. The sweep in lib/calendarSyncRetry.js picks these
+        // up and retries with exponential backoff. The booking itself is
+        // already committed; the host gets a notification on final failure.
+        const nextAt = new Date(Date.now() + 60_000).toISOString(); // first retry in 1 min
+        db.prepare(
+          `UPDATE bookings
+             SET calendar_sync_status = 'pending',
+                 calendar_sync_attempts = 1,
+                 calendar_sync_next_at = ?,
+                 calendar_sync_error = ?
+           WHERE id = ?`
+        ).run(nextAt, String(err.message || err).slice(0, 500), id);
+        console.warn('Google event create failed (queued for retry):', err.message);
       }
     }
 
