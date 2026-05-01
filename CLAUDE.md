@@ -347,6 +347,12 @@ Public API tables:
 
 Schema runs idempotently on `getDb()` via `CREATE TABLE/INDEX IF NOT EXISTS`. Column-level migrations go through `ensureColumn(db, table, col, def)` in `backend/db/init.js` (validates identifiers, no-op when already present).
 
+## Reference library
+
+`docs/reference-library/` holds 20 curated PDFs across UX, calendar/time/focus, GTD, engineering, API design, IA, product strategy, and timing/rhythms. **PDFs are gitignored** (`docs/reference-library/*.pdf`) — personally-owned copyrighted material. Only `INDEX.md` is committed.
+
+When planning a feature: read `docs/reference-library/INDEX.md` to pick the most-relevant book, then read the targeted chapter via the Read tool with `pages: "X-Y"` (PDFs over 10 pages need it). Cite specific sections in design discussions and commit messages so future-us can trace the reasoning.
+
 ## Pending Setup
 
 - **Stripe Price IDs:** Set in `.env` to enable Pro/Team checkout flow:
