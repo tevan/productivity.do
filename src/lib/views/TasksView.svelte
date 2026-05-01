@@ -14,6 +14,7 @@
   import { getPrefs, updatePref } from '../stores/prefs.svelte.js';
   import { readLocalView, reconcileFromPrefs, writeView, getFormFactor } from '../utils/viewPersistence.js';
   import { tooltip } from '../actions/tooltip.js';
+  import { marquee } from '../actions/marquee.js';
   import { confirmAction } from '../utils/confirmModal.svelte.js';
   import { renderInlineMarkdown } from '../utils/inlineMarkdown.js';
   import { parseTaskDue, addDays } from '../utils/dates.js';
@@ -103,6 +104,17 @@
   function clearSelection() {
     selectedIds = new Set();
     lastClickedId = null;
+  }
+
+  function onBoardMarquee(ids, append) {
+    if (ids.length === 0) {
+      if (!append) clearSelection();
+      return;
+    }
+    const next = append ? new Set(selectedIds) : new Set();
+    for (const id of ids) next.add(id);
+    selectedIds = next;
+    lastClickedId = ids[ids.length - 1];
   }
 
   // ---- Bulk actions (board) ----
@@ -331,7 +343,14 @@
       />
     </div>
   {:else}
-    <div class="board-pane">
+    <div
+      class="board-pane"
+      use:marquee={{
+        itemSelector: '.board-card',
+        getId: el => el.dataset.taskId,
+        onSelect: onBoardMarquee,
+      }}
+    >
       {#if selectedIds.size > 0}
         <div class="bulk-bar">
           <span class="bulk-count">{selectedIds.size} selected</span>
@@ -361,7 +380,9 @@
         <div
           class="board-col"
           class:drag-over={dragOverCol === col.statusKey}
+          class:has-color={!!col.color}
           data-status-key={col.statusKey}
+          style:--col-tint={col.color || 'transparent'}
           ondragover={(e) => onColDragOver(e, col)}
           ondragleave={onColDragLeave}
           ondrop={(e) => onColDrop(e, col)}
@@ -410,6 +431,7 @@
                 class="board-card"
                 class:dragging={draggingId === task.id}
                 class:selected={selectedIds.has(task.id)}
+                data-task-id={task.id}
                 draggable="true"
                 ondragstart={(e) => onCardDragStart(e, task.id)}
                 ondragend={onCardDragEnd}
@@ -557,6 +579,20 @@
   .board-col.drag-over {
     border-color: var(--accent);
     background: var(--accent-light);
+  }
+  /* User-picked pastel tint. Applied to the column header background as a
+     soft band rather than the whole column body — Notion-style: visible
+     identity, doesn't compete with task content. The CSS var is set inline
+     via `style:--col-tint` so the color is whatever hex the user chose. */
+  .board-col.has-color .board-col-header {
+    background: var(--col-tint);
+    margin: -10px -10px 4px;
+    padding: 8px 10px;
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--col-tint) 60%, var(--border));
+  }
+  .board-col.has-color .board-col-h {
+    color: var(--text-primary);
   }
   .board-col-header {
     display: flex;

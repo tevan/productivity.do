@@ -226,37 +226,31 @@
 </script>
 
 <div class="integrations">
-  <p class="help-text">
-    Connect external task and calendar tools to productivity.do. You can use
-    the app without any integrations — your native calendar, tasks, and notes
-    work standalone. Connect one or more sources to merge them in.
-  </p>
-
   {#if loading}
     <div class="loading">Loading…</div>
   {:else}
     <div class="filter-bar">
       <input class="search" type="search" placeholder="Search integrations…" bind:value={query} />
-      <div class="status-toggle" role="tablist">
-        {#each [
-          { id: 'all', label: 'All' },
-          { id: 'available', label: 'Available' },
-          { id: 'connected', label: 'Connected' },
-          { id: 'coming_soon', label: 'Coming soon' },
-        ] as s}
-          <button class:active={statusFilter === s.id} onclick={() => statusFilter = s.id}>{s.label}</button>
-        {/each}
-      </div>
-      <div class="status-toggle" role="tablist" use:tooltip={'Sync = two-way · Import = bring data in · Read = show data on calendar'}>
-        {#each [
-          { id: 'all',    label: 'Any' },
-          { id: 'sync',   label: 'Sync' },
-          { id: 'import', label: 'Import' },
-          { id: 'read',   label: 'Read-only' },
-        ] as s}
-          <button class:active={modeFilter === s.id} onclick={() => modeFilter = s.id}>{s.label}</button>
-        {/each}
-      </div>
+      <Dropdown
+        value={statusFilter}
+        onchange={(v) => statusFilter = v}
+        options={[
+          { value: 'all', label: 'All' },
+          { value: 'available', label: 'Available' },
+          { value: 'connected', label: 'Connected' },
+          { value: 'coming_soon', label: 'Coming soon' },
+        ]}
+      />
+      <Dropdown
+        value={modeFilter}
+        onchange={(v) => modeFilter = v}
+        options={[
+          { value: 'all',    label: 'All types' },
+          { value: 'sync',   label: 'Sync (two-way)' },
+          { value: 'import', label: 'Import (one-way)' },
+          { value: 'read',   label: 'Read-only' },
+        ]}
+      />
     </div>
 
     <div class="cat-row">
@@ -463,7 +457,18 @@
   .cat-row {
     display: flex;
     gap: 6px;
-    flex-wrap: wrap;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    /* Right-edge fade indicates more categories scroll into view. */
+    mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
+    -webkit-mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
+    scroll-snap-type: x proximity;
+  }
+  .cat-row::-webkit-scrollbar { display: none; }
+  .cat-row { scrollbar-width: none; }
+  .cat-row .cat-chip {
+    flex-shrink: 0;
+    scroll-snap-align: start;
   }
   .cat-chip {
     display: inline-flex;

@@ -10,6 +10,7 @@
 
   import { getContext } from 'svelte';
   import TaskRow from './TaskRow.svelte';
+  import { marquee } from '../actions/marquee.js';
   import { getTasks, completeTask, updateTask, deleteTask } from '../stores/tasks.svelte.js';
   import { getPrefs, updatePref } from '../stores/prefs.svelte.js';
   import { buildTaskGroups, withSubtaskOrder } from '../utils/taskGrouping.js';
@@ -125,6 +126,19 @@
     lastClickedId = null;
   }
 
+  // Marquee callback. `append` is true when the user held shift/cmd/ctrl
+  // on mousedown (extends current selection); otherwise replaces.
+  function onMarquee(ids, append) {
+    if (ids.length === 0) {
+      if (!append) clearSelection();
+      return;
+    }
+    const next = append ? new Set(selectedIds) : new Set();
+    for (const id of ids) next.add(id);
+    selectedIds = next;
+    lastClickedId = ids[ids.length - 1];
+  }
+
   async function bulkComplete() {
     const ids = [...selectedIds];
     clearSelection();
@@ -189,7 +203,14 @@
     </div>
   {/if}
 
-  <div class="task-list">
+  <div
+    class="task-list"
+    use:marquee={{
+      itemSelector: '.task-row',
+      getId: el => el.dataset.taskId,
+      onSelect: onMarquee,
+    }}
+  >
     {#if taskStore.loading && tasks.length === 0}
       <p class="empty-text">Loading tasks…</p>
     {:else if taskGroups.length === 0}

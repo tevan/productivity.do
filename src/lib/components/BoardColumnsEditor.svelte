@@ -9,8 +9,25 @@
   // if needed without changing the API.
 
   import { onMount } from 'svelte';
-  import { getTaskColumns, fetchTaskColumns, renameColumn, addColumn, removeColumn, reorderColumns } from '../stores/taskColumns.svelte.js';
+  import { getTaskColumns, fetchTaskColumns, renameColumn, recolorColumn, addColumn, removeColumn, reorderColumns } from '../stores/taskColumns.svelte.js';
   import { confirmAction } from '../utils/confirmModal.svelte.js';
+
+  // Notion-style pastel swatches. The first option clears the color
+  // (returns the column to the neutral surface). Hex chosen for ~AA
+  // contrast with var(--text-primary) on light + var(--text-on-pastel)
+  // on dark themes — see TasksView .board-col-header rules.
+  const PASTEL_PALETTE = [
+    { value: null,      label: 'Default' },
+    { value: '#fde2e2', label: 'Rose' },
+    { value: '#ffe7d6', label: 'Peach' },
+    { value: '#fef3c7', label: 'Yellow' },
+    { value: '#dcfce7', label: 'Green' },
+    { value: '#cffafe', label: 'Sky' },
+    { value: '#dbeafe', label: 'Blue' },
+    { value: '#e9d5ff', label: 'Purple' },
+    { value: '#f3e8ff', label: 'Lavender' },
+    { value: '#e5e7eb', label: 'Gray' },
+  ];
 
   const store = getTaskColumns();
   let errMsg = $state('');
@@ -136,6 +153,20 @@
           </button>
         {/if}
         <span class="col-key">{col.statusKey}</span>
+        <div class="color-picker" data-marquee-skip>
+          {#each PASTEL_PALETTE as p}
+            <button
+              type="button"
+              class="swatch"
+              class:active={(col.color || null) === p.value}
+              class:swatch-default={p.value === null}
+              style:background={p.value || 'transparent'}
+              title={p.label}
+              aria-label={`${p.label} color`}
+              onclick={() => recolorColumn(col.id, p.value)}
+            ></button>
+          {/each}
+        </div>
         {#if !isSystem(col.statusKey)}
           <button class="col-remove" onclick={() => remove(col)} aria-label="Remove column">×</button>
         {:else}
@@ -187,6 +218,31 @@
     flex-shrink: 0;
   }
   .drag-handle-locked { opacity: 0.25; }
+  .color-picker {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    flex-shrink: 0;
+  }
+  .swatch {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 1.5px solid var(--border);
+    padding: 0;
+    cursor: pointer;
+    transition: transform 0.08s, border-color 0.08s;
+  }
+  .swatch:hover { transform: scale(1.15); }
+  .swatch.active {
+    border-color: var(--text-primary);
+    box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--text-primary);
+  }
+  .swatch-default {
+    /* Diagonal slash through transparent so the "Default / no color" option
+       is visually distinct from a near-white swatch. */
+    background-image: linear-gradient(45deg, transparent 47%, var(--text-tertiary) 47%, var(--text-tertiary) 53%, transparent 53%) !important;
+  }
   .col-name {
     background: none;
     border: none;

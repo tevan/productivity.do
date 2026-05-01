@@ -44,7 +44,7 @@ function ensureSeeded(db, userId) {
 
 function listColumns(db, userId) {
   return db.prepare(
-    'SELECT id, position, name, status_key FROM task_columns WHERE user_id = ? ORDER BY position ASC'
+    'SELECT id, position, name, status_key, color FROM task_columns WHERE user_id = ? ORDER BY position ASC'
   ).all(userId);
 }
 
@@ -54,7 +54,16 @@ function shape(col) {
     position: col.position,
     name: col.name,
     statusKey: col.status_key,
+    color: col.color || null,
   };
+}
+
+// Allow null (clear) or a 7-char hex string. Reject anything else so
+// arbitrary CSS doesn't end up in the DB → DOM.
+function normalizeColor(v) {
+  if (v == null || v === '') return null;
+  if (typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v)) return v.toLowerCase();
+  return undefined; // sentinel — caller should 400
 }
 
 // ---------------------------------------------------------------------------
@@ -111,7 +120,7 @@ router.post('/api/task-columns', (req, res) => {
     });
     const id = tx();
     const row = db.prepare(
-      'SELECT id, position, name, status_key FROM task_columns WHERE id = ?'
+      'SELECT id, position, name, status_key, color FROM task_columns WHERE id = ?'
     ).get(id);
     res.json({ ok: true, column: shape(row) });
   } catch (err) {
@@ -128,18 +137,35 @@ router.put('/api/task-columns/:id', (req, res) => {
   try {
     const db = getDb();
     const id = Number(req.params.id);
-    const { name } = req.body || {};
-    if (typeof name !== 'string' || !name.trim()) {
-      return res.status(400).json({ ok: false, error: 'name required' });
+    const { name, color } = req.body || {};
+    // Build a partial update: name and/or color. At least one must be present.
+    const sets = [];
+    const args = [];
+    if (name !== undefined) {
+      if (typeof name !== 'string' || !name.trim()) {
+        return res.status(400).json({ ok: false, error: 'name required' });
+      }
+      sets.push('name = ?');
+      args.push(name.trim().slice(0, 40));
     }
+    if (color !== undefined) {
+      const c = normalizeColor(color);
+      if (c === undefined) return res.status(400).json({ ok: false, error: 'color must be #RRGGBB or null' });
+      sets.push('color = ?');
+      args.push(c);
+    }
+    if (sets.length === 0) {
+      return res.status(400).json({ ok: false, error: 'name or color required' });
+    }
+    args.push(id, req.user.id);
     const info = db.prepare(
-      'UPDATE task_columns SET name = ? WHERE id = ? AND user_id = ?'
-    ).run(name.trim().slice(0, 40), id, req.user.id);
+      `UPDATE task_columns SET ${sets.join(', ')} WHERE id = ? AND user_id = ?`
+    ).run(...args);
     if (info.changes === 0) {
       return res.status(404).json({ ok: false, error: 'Column not found' });
     }
     const row = db.prepare(
-      'SELECT id, position, name, status_key FROM task_columns WHERE id = ?'
+      'SELECT id, position, name, status_key, color FROM task_columns WHERE id = ?'
     ).get(id);
     res.json({ ok: true, column: shape(row) });
   } catch (err) {

@@ -66,6 +66,7 @@
   class:selected
   class:subtask={indent > 0}
   class:draggable
+  data-task-id={task.id}
   style:padding-left={indent > 0 ? `${6 + indent * 16}px` : null}
   draggable={draggable ? 'true' : undefined}
   ondragstart={handleDragStart}

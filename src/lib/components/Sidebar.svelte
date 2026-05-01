@@ -34,15 +34,15 @@
     const dayOf = new Date(d); dayOf.setHours(0,0,0,0);
     const dayDiff = Math.round((today - dayOf) / 86400000);
     let dayLabel;
-    if (dayDiff === 0) dayLabel = 'Today';
-    else if (dayDiff === 1) dayLabel = 'Yesterday';
+    if (dayDiff === 0) dayLabel = 'today';
+    else if (dayDiff === 1) dayLabel = 'yesterday';
     else {
       // M/D, with YYYY when before this year.
       const m = d.getMonth() + 1;
       const day = d.getDate();
       dayLabel = d.getFullYear() === now.getFullYear() ? `${m}/${day}` : `${m}/${day}/${d.getFullYear()}`;
     }
-    return { title: `Last sync ${dayLabel} at ${formatTime(d, is12h)}`, sub: 'Click to re-sync' };
+    return { title: `Last synced ${dayLabel} at ${formatTime(d, is12h)}`, sub: 'Click to re-sync' };
   }
   function syncLabel() {
     if (eventsStore.lastSyncFailed) return 'Sync failed';

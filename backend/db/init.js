@@ -451,6 +451,10 @@ function applyMigrations(database) {
     );
     CREATE INDEX IF NOT EXISTS idx_task_columns_user ON task_columns(user_id, position);
   `);
+  // Per-column color (Notion-style pastel tag). Hex string when set, NULL
+  // for the default neutral surface. Stored verbatim so the picker has full
+  // control over the palette without a server-side enum.
+  ensureColumn(database, 'task_columns', 'color', 'TEXT');
 
   // ---- Per-note color tag ----
   // Lightweight visual classification — stored as a CSS-ish hex string OR

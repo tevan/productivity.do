@@ -15,15 +15,14 @@
 
 <div class="page">
   <header class="page-head">
-    <button class="back-btn" onclick={back} aria-label="Back to app">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M19 12H5M12 19l-7-7 7-7"/>
-      </svg>
-      <span>Back</span>
-    </button>
-    <div class="title-block">
+    <div class="head-inner">
+      <button class="back-btn" onclick={back} aria-label="Back to app">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M19 12H5M12 19l-7-7 7-7"/>
+        </svg>
+        <span>Back</span>
+      </button>
       <h1>Integrations</h1>
-      <p class="subtitle">Connect external tools to bring tasks, events, and notes into productivity.do.</p>
     </div>
   </header>
 
@@ -34,19 +33,30 @@
 
 <style>
   .page {
-    min-height: 100vh;
+    /* The app shell uses flex: column with overflow:hidden on body, so
+       100vh + min-height pinned the page at viewport height with no scroll
+       container. Switch to height:100vh + overflow-y:auto so the body
+       scrolls within the page itself. */
+    height: 100vh;
+    overflow-y: auto;
     background: var(--bg-primary);
     color: var(--text-primary);
     display: flex;
     flex-direction: column;
   }
   .page-head {
-    padding: 20px 32px 12px;
     border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  /* Inner wrapper matches .page-body width so heading aligns with content. */
+  .head-inner {
+    max-width: 1280px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 20px 32px 16px;
     display: flex;
     flex-direction: column;
-    gap: 14px;
-    background: var(--surface);
+    gap: 12px;
   }
   .back-btn {
     display: inline-flex;

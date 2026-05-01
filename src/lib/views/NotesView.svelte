@@ -1,8 +1,8 @@
 <script>
   // Holistic Notes view — full-screen list of notes with a reading pane on
   // the right. Scaffold: split layout, click a note to read/edit it inline.
-  import { getContext } from 'svelte';
-  import { getNotes } from '../stores/notes.svelte.js';
+  import { getContext, tick } from 'svelte';
+  import { getNotes, updateNote } from '../stores/notes.svelte.js';
   import { getNotesView } from '../stores/notesView.svelte.js';
   import { getPrefs } from '../stores/prefs.svelte.js';
   import { renderMarkdown } from '../utils/markdown.js';
@@ -65,6 +65,76 @@
   async function newNote() {
     app?.editNote?.();
   }
+
+  // ---- Inline editing ----
+  // Click body / title to swap rendered view for a textarea. Save on blur.
+  // Escape exits without saving the in-flight buffer; the rendered view
+  // stays in sync with the store, so re-entering re-derives from store.
+  let editingBody = $state(false);
+  let editingTitle = $state(false);
+  let bodyBuffer = $state('');
+  let titleBuffer = $state('');
+  let bodyTextarea = $state(null);
+  let titleInput = $state(null);
+
+  // Reset buffers + edit mode whenever the selected note changes.
+  $effect(() => {
+    void notesView.selectedId;
+    editingBody = false;
+    editingTitle = false;
+  });
+
+  async function startEditBody() {
+    if (!selected) return;
+    bodyBuffer = selected.body || '';
+    editingBody = true;
+    await tick();
+    bodyTextarea?.focus();
+    // Auto-resize on first paint
+    autoResize();
+  }
+  function autoResize() {
+    if (!bodyTextarea) return;
+    bodyTextarea.style.height = 'auto';
+    bodyTextarea.style.height = bodyTextarea.scrollHeight + 'px';
+  }
+  async function saveBody() {
+    if (!selected || !editingBody) return;
+    const body = bodyBuffer;
+    editingBody = false;
+    if ((selected.body || '') !== body) {
+      await updateNote(selected.id, { body });
+    }
+  }
+  function cancelBody() {
+    editingBody = false;
+  }
+  function bodyKey(e) {
+    if (e.key === 'Escape') { cancelBody(); }
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); saveBody(); }
+  }
+
+  async function startEditTitle() {
+    if (!selected) return;
+    titleBuffer = selected.title || '';
+    editingTitle = true;
+    await tick();
+    titleInput?.focus();
+    titleInput?.select();
+  }
+  async function saveTitle() {
+    if (!selected || !editingTitle) return;
+    const title = titleBuffer.trim();
+    editingTitle = false;
+    if ((selected.title || '') !== title) {
+      await updateNote(selected.id, { title });
+    }
+  }
+  function cancelTitle() { editingTitle = false; }
+  function titleKey(e) {
+    if (e.key === 'Escape') { cancelTitle(); }
+    if (e.key === 'Enter') { e.preventDefault(); saveTitle(); }
+  }
 </script>
 
 <div class="notes-view">
@@ -82,50 +152,73 @@
     <main class="reader">
       {#if selected}
         <div class="reader-head">
-          <h2>
-            {#if selected.color}
-              <span class="color-dot" style="background: var(--color-{selected.color}, {selected.color});" aria-hidden="true"></span>
-            {/if}
-            {selected.title || 'Untitled'}
-          </h2>
-          <button class="btn-ghost" onclick={() => app?.editNote?.(selected)}>Edit</button>
+          {#if editingTitle}
+            <input
+              bind:this={titleInput}
+              class="title-input"
+              bind:value={titleBuffer}
+              onblur={saveTitle}
+              onkeydown={titleKey}
+              placeholder="Untitled"
+            />
+          {:else}
+            <h2 onclick={startEditTitle} title="Click to edit">
+              {#if selected.color}
+                <span class="color-dot" style="background: var(--color-{selected.color}, {selected.color});" aria-hidden="true"></span>
+              {/if}
+              {selected.title || 'Untitled'}
+            </h2>
+          {/if}
+          <button class="btn-ghost" onclick={() => app?.editNote?.(selected)} title="Color, pin, delete…">More</button>
         </div>
-        {@const showAny = prefs.values.notesShowUpdated || prefs.values.notesShowCreated || prefs.values.notesShowWords || prefs.values.notesShowChars || prefs.values.notesShowReadTime}
-        {#if showAny}
-          <div class="meta-bar">
-            {#if prefs.values.notesShowUpdated && selected.updatedAt}
-              <span class="meta-cell" title={absoluteTime(selected.updatedAt)}>
-                <span class="meta-key">Updated</span>
-                <span class="meta-val">{relativeTime(selected.updatedAt)}</span>
-              </span>
-            {/if}
-            {#if prefs.values.notesShowCreated && selected.createdAt}
-              <span class="meta-cell" title={absoluteTime(selected.createdAt)}>
-                <span class="meta-key">Created</span>
-                <span class="meta-val">{relativeTime(selected.createdAt)}</span>
-              </span>
-            {/if}
-            {#if prefs.values.notesShowWords}
-              <span class="meta-cell">
-                <span class="meta-val">{wordCount.toLocaleString()}</span>
-                <span class="meta-key">{wordCount === 1 ? 'word' : 'words'}</span>
-              </span>
-            {/if}
-            {#if prefs.values.notesShowChars}
-              <span class="meta-cell">
-                <span class="meta-val">{charCount.toLocaleString()}</span>
-                <span class="meta-key">{charCount === 1 ? 'char' : 'chars'}</span>
-              </span>
-            {/if}
-            {#if prefs.values.notesShowReadTime && readMinutes > 0}
-              <span class="meta-cell" title="At ~200 words/min">
-                <span class="meta-val">{readMinutes}</span>
-                <span class="meta-key">min read</span>
-              </span>
-            {/if}
-          </div>
+        {#if editingBody}
+          <textarea
+            bind:this={bodyTextarea}
+            class="body-textarea"
+            bind:value={bodyBuffer}
+            oninput={autoResize}
+            onblur={saveBody}
+            onkeydown={bodyKey}
+            placeholder="Write something… (markdown supported)"
+          ></textarea>
+        {:else if selected.body}
+          <div
+            class="reader-body markdown-body"
+            onclick={startEditBody}
+            onkeydown={(e) => e.key === 'Enter' && startEditBody()}
+            role="textbox"
+            tabindex="0"
+            title="Click to edit"
+          >{@html selectedHtml}</div>
+        {:else}
+          <div
+            class="reader-body empty-body"
+            onclick={startEditBody}
+            onkeydown={(e) => e.key === 'Enter' && startEditBody()}
+            role="textbox"
+            tabindex="0"
+          >Click to write something…</div>
         {/if}
-        <div class="reader-body markdown-body">{@html selectedHtml}</div>
+        <!-- Footer: secondary metadata. Created / Updated stay accessible
+             but de-emphasized; word/char/read-time only render when the
+             user has explicitly enabled them in Settings. -->
+        <footer class="reader-footer">
+          {#if selected.updatedAt}
+            <span class="footer-cell" title={absoluteTime(selected.updatedAt)}>Updated {relativeTime(selected.updatedAt)}</span>
+          {/if}
+          {#if selected.createdAt}
+            <span class="footer-cell" title={absoluteTime(selected.createdAt)}>· Created {relativeTime(selected.createdAt)}</span>
+          {/if}
+          {#if prefs.values.notesShowWords && wordCount > 0}
+            <span class="footer-cell">· {wordCount.toLocaleString()} {wordCount === 1 ? 'word' : 'words'}</span>
+          {/if}
+          {#if prefs.values.notesShowChars && charCount > 0}
+            <span class="footer-cell">· {charCount.toLocaleString()} {charCount === 1 ? 'char' : 'chars'}</span>
+          {/if}
+          {#if prefs.values.notesShowReadTime && readMinutes > 0}
+            <span class="footer-cell" title="At ~200 words/min">· {readMinutes} min read</span>
+          {/if}
+        </footer>
       {:else if isMobile}
         <!-- Mobile: app sidebar is hidden by default and the toggle is a
              40px target up top, so render the list inline instead. -->
@@ -208,35 +301,66 @@
     flex-shrink: 0;
     display: inline-block;
   }
-  .meta-bar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 14px;
-    padding: 0 0 12px;
-    margin-bottom: 14px;
-    border-bottom: 1px solid var(--border-light);
-    font-size: 11px;
-    color: var(--text-tertiary);
+  /* Title input mirrors the h2 visually so swap is seamless. */
+  .title-input {
+    font-size: 20px;
+    font-weight: 600;
+    border: none;
+    background: transparent;
+    color: var(--text-primary);
+    width: 100%;
+    padding: 0;
+    margin: 0;
+    letter-spacing: -0.01em;
+    outline: 1px solid var(--accent);
+    outline-offset: 4px;
+    border-radius: 2px;
   }
-  .meta-cell {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 4px;
-  }
-  .meta-key {
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    font-weight: 500;
-  }
-  .meta-val {
-    color: var(--text-secondary);
-    font-weight: 500;
-  }
+  .reader-head h2 { cursor: text; }
   .reader-body {
     font-size: 14px;
     line-height: 1.65;
     color: var(--text-primary);
     word-wrap: break-word;
+    cursor: text;
+    /* Subtle hover affordance — the body's clickable for edit. */
+    border-radius: 4px;
+    padding: 4px;
+    margin: -4px;
+    transition: background 0.1s;
+  }
+  .reader-body:hover { background: var(--surface-hover); }
+  .empty-body { color: var(--text-tertiary); font-style: italic; }
+  /* Textarea matches reader-body sizing so swap doesn't reflow. */
+  .body-textarea {
+    width: 100%;
+    min-height: 200px;
+    font-size: 14px;
+    line-height: 1.65;
+    color: var(--text-primary);
+    background: transparent;
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    padding: 8px;
+    margin: -4px;
+    font-family: inherit;
+    resize: vertical;
+    outline: none;
+    box-sizing: border-box;
+  }
+  /* Footer: secondary, accessible but never prominent. */
+  .reader-footer {
+    margin-top: 32px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-light);
+    font-size: 11px;
+    color: var(--text-tertiary);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .footer-cell {
+    display: inline-block;
   }
   .markdown-body :global(h1) { font-size: 22px; font-weight: 700; margin: 16px 0 12px; letter-spacing: -0.02em; }
   .markdown-body :global(h2) { font-size: 18px; font-weight: 600; margin: 16px 0 10px; }

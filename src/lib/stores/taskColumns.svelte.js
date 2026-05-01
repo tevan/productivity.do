@@ -34,6 +34,15 @@ export async function renameColumn(id, name) {
   }).catch(() => {});
 }
 
+export async function recolorColumn(id, color) {
+  // color: '#RRGGBB' or null to clear.
+  columns = columns.map(c => c.id === id ? { ...c, color } : c);
+  await api(`/api/task-columns/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify({ color }),
+  }).catch(() => {});
+}
+
 export async function addColumn(name) {
   const res = await api('/api/task-columns', {
     method: 'POST',
