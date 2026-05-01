@@ -7,7 +7,7 @@
   // via tasksView_<desktop|mobile> server pref.
 
   import { getContext, onMount } from 'svelte';
-  import { getTasks, moveTaskToColumn, reorderTasksInColumn } from '../stores/tasks.svelte.js';
+  import { getTasks, moveTaskToColumn, reorderTasksInColumn, completeTask, updateTask, deleteTask } from '../stores/tasks.svelte.js';
   import { getTaskColumns, fetchTaskColumns, renameColumn, addColumn, removeColumn } from '../stores/taskColumns.svelte.js';
   import TaskListPanel from '../components/TaskListPanel.svelte';
   import Dropdown from '../components/Dropdown.svelte';
@@ -16,7 +16,7 @@
   import { tooltip } from '../actions/tooltip.js';
   import { confirmAction } from '../utils/confirmModal.svelte.js';
   import { renderInlineMarkdown } from '../utils/inlineMarkdown.js';
-  import { parseTaskDue } from '../utils/dates.js';
+  import { parseTaskDue, addDays } from '../utils/dates.js';
 
   const taskStore = getTasks();
   const columnStore = getTaskColumns();
@@ -57,6 +57,98 @@
   const allTasks = $derived(
     taskStore.items.filter(t => !filterProjectId || t.projectId === filterProjectId)
   );
+  // ---- Board multi-select ----
+  // Mirrors TaskListPanel: shift-click extends, cmd/ctrl-click toggles, plain
+  // click opens the editor (and clears any selection). Selection survives a
+  // mode flip but is local to this view (the list inside TaskListPanel keeps
+  // its own selection — they don't share, intentionally).
+  let selectedIds = $state(new Set());
+  let lastClickedId = $state(null);
+
+  // Flat ordered list of task ids in DOM order (column-by-column, top-to-bottom)
+  // for shift-range computations.
+  const orderedBoardIds = $derived.by(() => {
+    const ids = [];
+    for (const col of columnStore.items) {
+      for (const t of tasksForColumn(col)) ids.push(t.id);
+    }
+    return ids;
+  });
+
+  function handleBoardCardClick(task, e) {
+    if (e.shiftKey && lastClickedId) {
+      const ids = orderedBoardIds;
+      const a = ids.indexOf(lastClickedId);
+      const b = ids.indexOf(task.id);
+      if (a >= 0 && b >= 0) {
+        const [from, to] = a < b ? [a, b] : [b, a];
+        const next = new Set(selectedIds);
+        for (let i = from; i <= to; i++) next.add(ids[i]);
+        selectedIds = next;
+        return;
+      }
+    }
+    if (e.metaKey || e.ctrlKey) {
+      const next = new Set(selectedIds);
+      if (next.has(task.id)) next.delete(task.id); else next.add(task.id);
+      selectedIds = next;
+      lastClickedId = task.id;
+      return;
+    }
+    if (selectedIds.size > 0) { selectedIds = new Set(); }
+    lastClickedId = task.id;
+    app?.editTask?.(task);
+  }
+
+  function clearSelection() {
+    selectedIds = new Set();
+    lastClickedId = null;
+  }
+
+  // ---- Bulk actions (board) ----
+  // Same set as TaskListPanel + a board-specific "Move to column" via a
+  // dropdown that reflects the user's columns.
+  async function bulkComplete() {
+    const ids = [...selectedIds];
+    clearSelection();
+    await Promise.all(ids.map(id => completeTask(id)));
+  }
+  async function bulkRescheduleToday() {
+    const today = new Date().toISOString().slice(0, 10);
+    const ids = [...selectedIds];
+    clearSelection();
+    await Promise.all(ids.map(id => updateTask(id, { dueDate: today })));
+  }
+  async function bulkRescheduleTomorrow() {
+    const tomorrow = addDays(new Date(), 1).toISOString().slice(0, 10);
+    const ids = [...selectedIds];
+    clearSelection();
+    await Promise.all(ids.map(id => updateTask(id, { dueDate: tomorrow })));
+  }
+  async function bulkClearDate() {
+    const ids = [...selectedIds];
+    clearSelection();
+    await Promise.all(ids.map(id => updateTask(id, { dueDate: '' })));
+  }
+  async function bulkMoveToColumn(statusKey) {
+    if (statusKey === 'done') { await bulkComplete(); return; }
+    const ids = [...selectedIds];
+    clearSelection();
+    await Promise.all(ids.map(id => moveTaskToColumn(id, statusKey)));
+  }
+  async function bulkDelete() {
+    const ids = [...selectedIds];
+    if (prefs.values.confirmDeleteTask !== false) {
+      if (!await confirmAction({
+        title: `Delete ${ids.length} task${ids.length === 1 ? '' : 's'}?`,
+        confirmLabel: 'Delete',
+        danger: true,
+      })) return;
+    }
+    clearSelection();
+    await Promise.all(ids.map(id => deleteTask(id)));
+  }
+
   // Board-card click handler — list view's clicks are owned by TaskListPanel.
   function handleClick(task) { app?.editTask?.(task); }
 
@@ -113,7 +205,12 @@
   function onCardDragStart(e, taskId) {
     draggingId = taskId;
     e.dataTransfer.effectAllowed = 'move';
+    // If this card is part of a multi-select, drag the whole set. Otherwise
+    // just the single id (legacy behavior). Single-id field is kept for
+    // back-compat with the existing onColDrop handler.
+    const ids = selectedIds.has(taskId) ? [...selectedIds] : [taskId];
     e.dataTransfer.setData('application/x-task-id', String(taskId));
+    e.dataTransfer.setData('application/x-task-ids', JSON.stringify(ids));
   }
   function onCardDragEnd() {
     draggingId = null;
@@ -131,21 +228,32 @@
   }
   async function onColDrop(e, col) {
     e.preventDefault();
-    const id = e.dataTransfer.getData('application/x-task-id');
-    if (!id) return;
+    const idsRaw = e.dataTransfer.getData('application/x-task-ids');
+    let ids = [];
+    try { ids = JSON.parse(idsRaw || '[]'); } catch { ids = []; }
+    if (ids.length === 0) {
+      const id = e.dataTransfer.getData('application/x-task-id');
+      if (id) ids = [id];
+    }
+    if (ids.length === 0) return;
     dragOverCol = null;
     draggingId = null;
-    await moveTaskToColumn(id, col.statusKey);
-    // After dropping, switch this column to manual sort so the user's drag
-    // stays in place. Skip for Done (sort there is by default chrono).
-    if (col.statusKey !== 'done') {
-      setColumnSort(col.statusKey, 'manual');
-      const ordered = tasksForColumn(col);
-      // Move the dropped task to the end of the list (drop-to-end semantics).
-      const without = ordered.filter(t => t.id !== id);
-      const final = [...without.map(t => t.id), id];
-      reorderTasksInColumn(final);
+    if (col.statusKey === 'done') {
+      // "Done" is virtual — moving here means complete-the-task.
+      await Promise.all(ids.map(id => completeTask(id)));
+      clearSelection();
+      return;
     }
+    await Promise.all(ids.map(id => moveTaskToColumn(id, col.statusKey)));
+    // Manual sort so the dragged group stays where dropped. Append in the
+    // order they were originally selected (selectedIds preserves insertion).
+    setColumnSort(col.statusKey, 'manual');
+    const ordered = tasksForColumn(col);
+    const idSet = new Set(ids.map(String));
+    const without = ordered.filter(t => !idSet.has(String(t.id)));
+    const final = [...without.map(t => t.id), ...ids];
+    reorderTasksInColumn(final);
+    if (ids.length > 1) clearSelection();
   }
 
   // ---- Inline column rename ----
@@ -224,6 +332,25 @@
     </div>
   {:else}
     <div class="board-pane">
+      {#if selectedIds.size > 0}
+        <div class="bulk-bar">
+          <span class="bulk-count">{selectedIds.size} selected</span>
+          <button class="bulk-btn" onclick={bulkComplete} use:tooltip={'Complete'}>✓ Complete</button>
+          <button class="bulk-btn" onclick={bulkRescheduleToday} use:tooltip={'Move to today'}>Today</button>
+          <button class="bulk-btn" onclick={bulkRescheduleTomorrow} use:tooltip={'Move to tomorrow'}>Tomorrow</button>
+          <button class="bulk-btn" onclick={bulkClearDate} use:tooltip={'Clear due date'}>No date</button>
+          <Dropdown
+            value=""
+            onchange={(v) => v && bulkMoveToColumn(v)}
+            options={[
+              { value: '', label: 'Move to…', disabled: true },
+              ...columnStore.items.map(c => ({ value: c.statusKey, label: c.name })),
+            ]}
+          />
+          <button class="bulk-btn bulk-btn-danger" onclick={bulkDelete} use:tooltip={'Delete'}>Delete</button>
+          <button class="bulk-btn-clear" onclick={clearSelection} use:tooltip={'Clear selection'} aria-label="Clear selection">×</button>
+        </div>
+      {/if}
       {#if !columnStore.loaded}
         <div class="board-loading">Loading columns…</div>
       {:else if columnStore.items.length === 0}
@@ -282,10 +409,11 @@
               <div
                 class="board-card"
                 class:dragging={draggingId === task.id}
+                class:selected={selectedIds.has(task.id)}
                 draggable="true"
                 ondragstart={(e) => onCardDragStart(e, task.id)}
                 ondragend={onCardDragEnd}
-                onclick={() => handleClick(task)}
+                onclick={(e) => handleBoardCardClick(task, e)}
                 onkeydown={(e) => e.key === 'Enter' && handleClick(task)}
                 role="button"
                 tabindex="0"
@@ -505,6 +633,50 @@
   .board-card:active { cursor: grabbing; }
   .board-card:hover { border-color: var(--accent); }
   .board-card.dragging { opacity: 0.4; }
+  .board-card.selected {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+  /* Bulk-action bar shared with TaskListPanel; same visual language. */
+  .bulk-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    background: var(--surface-elevated);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    flex-wrap: wrap;
+    position: sticky;
+    top: 8px;
+    z-index: 5;
+  }
+  .bulk-count { font-weight: 600; color: var(--accent); margin-right: 4px; font-size: 13px; }
+  .bulk-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--text-primary);
+  }
+  .bulk-btn:hover { background: var(--surface-hover); }
+  .bulk-btn-danger { color: var(--error, #c62828); border-color: var(--error, #c62828); }
+  .bulk-btn-danger:hover { background: color-mix(in srgb, var(--error, #c62828) 12%, var(--surface)); }
+  .bulk-btn-clear {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    padding: 4px 6px;
+    color: var(--text-tertiary);
+    margin-left: auto;
+  }
   .board-card-meta {
     font-size: 10px;
     color: var(--text-tertiary);
