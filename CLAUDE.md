@@ -349,9 +349,9 @@ Schema runs idempotently on `getDb()` via `CREATE TABLE/INDEX IF NOT EXISTS`. Co
 
 ## Reference library
 
-`docs/reference-library/` holds 20 curated PDFs across UX, calendar/time/focus, GTD, engineering, API design, IA, product strategy, and timing/rhythms. **PDFs are gitignored** (`docs/reference-library/*.pdf`) — personally-owned copyrighted material. Only `INDEX.md` is committed.
+`docs/reference-library/` holds 20 curated PDFs across UX, calendar/time/focus, GTD, engineering, API design, IA, product strategy, and timing/rhythms — plus `INDEX.md` (book navigation) and `productivity_do_reading_list.md` (curated list of ~80 external engineering articles across 13 productivity.do-relevant topics). **The whole directory is gitignored** — nothing in there is committed. PDFs are personally-owned copyrighted material; INDEX/reading list reveal stack/roadmap detail.
 
-When planning a feature: read `docs/reference-library/INDEX.md` to pick the most-relevant book, then read the targeted chapter via the Read tool with `pages: "X-Y"` (PDFs over 10 pages need it). Cite specific sections in design discussions and commit messages so future-us can trace the reasoning.
+When planning a feature: read `docs/reference-library/INDEX.md` to pick the most-relevant book, or scan the matching section of `productivity_do_reading_list.md` for recent practitioner write-ups. Read the targeted chapter via the Read tool with `pages: "X-Y"` (PDFs over 10 pages need it). Cite specific sections in design discussions and commit messages so future-us can trace the reasoning.
 
 ## Pending Setup
 
