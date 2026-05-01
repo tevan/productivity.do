@@ -10,7 +10,7 @@ uploads/
 .DS_Store
 backend/db/db.sqlite
 
-# Reference library — copyrighted PDFs we own personally for reference; not for distribution.
-# Plus the curated reading list (kept local — reveals stack/roadmap details we don't need in the public repo).
-docs/reference-library/*.pdf
-docs/reference-library/productivity_do_reading_list.md
+# Reference library — copyrighted material + internal-only research kept local.
+# The whole directory is ignored. If we ever decide to publish anything from here,
+# add a specific !path/to/file.md exception below.
+docs/reference-library/
