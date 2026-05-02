@@ -29,11 +29,15 @@
   let ShortcutsHelp = $state(null);
   let BookingPageEditor = $state(null);
   let IntegrationsPage = $state(null);
+  let AdminMetricsPage = $state(null);
   function loadTasksView() {
     if (!TasksView) import('./lib/views/TasksView.svelte').then(m => TasksView = m.default);
   }
   function loadIntegrationsPage() {
     if (!IntegrationsPage) import('./lib/views/IntegrationsPage.svelte').then(m => IntegrationsPage = m.default);
+  }
+  function loadAdminMetricsPage() {
+    if (!AdminMetricsPage) import('./lib/views/AdminMetricsPage.svelte').then(m => AdminMetricsPage = m.default);
   }
   function loadNotesView() {
     if (!NotesView) import('./lib/views/NotesView.svelte').then(m => NotesView = m.default);
@@ -86,6 +90,7 @@
     if (appView.current === 'notes') loadNotesView();
   });
   $effect(() => { if (route.isIntegrations) loadIntegrationsPage(); });
+  $effect(() => { if (route.isAdminMetrics) loadAdminMetricsPage(); });
 
   // If the user hides the active tab in Settings, bounce to the first
   // visible tab so they're not left staring at an invisible view.
@@ -499,6 +504,12 @@
 {:else if route.isIntegrations}
   {#if IntegrationsPage}
     <IntegrationsPage />
+  {:else}
+    <div class="loading-screen" aria-hidden="true"></div>
+  {/if}
+{:else if route.isAdminMetrics}
+  {#if AdminMetricsPage}
+    <AdminMetricsPage />
   {:else}
     <div class="loading-screen" aria-hidden="true"></div>
   {/if}

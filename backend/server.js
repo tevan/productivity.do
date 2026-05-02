@@ -29,6 +29,7 @@ import bookingPagesRoutes from './routes/booking-pages.js';
 import bookingPublicRoutes from './routes/booking-public.js';
 import apiV1Routes from './routes/api-v1.js';
 import adminDeveloperRoutes from './routes/admin-developer.js';
+import adminMetricsRoutes from './routes/admin-metrics.js';
 import billingRoutes, { stripeWebhookHandler } from './routes/billing.js';
 import { icsPublic, icsAdmin } from './routes/ics.js';
 import notificationsRoutes from './routes/notifications.js';
@@ -301,6 +302,7 @@ app.use(preferencesRoutes);
 app.use(calendarSetRoutes);
 app.use(bookingPagesRoutes);
 app.use(adminDeveloperRoutes);
+app.use(adminMetricsRoutes);
 app.use(billingRoutes);
 // /api/ics/* admin endpoints — require session auth.
 app.use(icsAdmin);
@@ -344,7 +346,8 @@ if (isProd || existsSync(distPath)) {
     if (
       req.path === '/' ||
       req.path === '/integrations' ||
-      req.path.startsWith('/integrations/')
+      req.path.startsWith('/integrations/') ||
+      req.path === '/admin/metrics'
     ) {
       return res.sendFile(join(distPath, 'index.html'));
     }

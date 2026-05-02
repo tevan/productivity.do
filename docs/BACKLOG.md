@@ -53,28 +53,42 @@ Living document of features we've discussed but haven't built. Pull from the top
 
 ## Open (added 2026-05-02)
 
-- **Sync UI — preserve calendar contents during refresh**: clicking the
-  Sync button in the left sidebar currently blanks the calendar until
-  the response lands. Should keep the existing rendered events visible
-  and only swap when the new data arrives (the events store already has
-  optimistic SWR; the loading flag is what blanks the view).
-- **Note + task collaboration / comments**: see
-  `docs/internal/collaboration-thinking.md`. Build A (note comments +
-  task comments via SPA + @-mentions) is small and worth doing soon;
-  scope B (sharing) waits for user request; scope C (live multi-user
-  editing) probably never.
+- **Sync UI — preserve calendar contents during refresh** ✓ shipped
+  2026-05-02. `manualResync()` now marks the cached range stale instead
+  of deleting it.
+- **Note + task collaboration / comments**: scope A (note comments)
+  shipped 2026-05-02 — `note_comments` table + CRUD routes +
+  `NoteCommentsPanel` overlay in `NoteEditor`. Scope B (sharing) +
+  scope C (live multi-user) still deferred per
+  `docs/internal/collaboration-thinking.md`. Task comments surfacing in
+  the SPA editor + @-mentions in comments still TODO.
 - **Historical weather**: see `docs/internal/historical-weather-design.md`.
   Defer until ~20 paying Pro users to model cost.
-- **Subscriptions in the sidebar**: a real surface for inbound ICS
-  feeds, parallel to the Calendars list. Pref toggle was removed
-  because the rendered surface didn't exist; build the surface, then
-  re-add the toggle.
-- **Mental-model copy refresh**: apply the "plan, capture, schedule.
-  nothing else." framing to /home, /pricing, /about marketing pages.
-- **Wire /pricing.html to /api/plans**: pricing copy + feature list
-  should fetch the catalog from the API so it can't drift from
-  server-side enforcement.
+- **Subscriptions in the sidebar** ✓ shipped 2026-05-01.
+- **Mental-model copy refresh** ✓ shipped 2026-05-02 across home /
+  features / about / pricing.
+- **Wire /pricing.html to /api/plans** ✓ shipped 2026-05-02.
 - **Drop indicator for sidebar task drag**: equivalent of the board
   drop indicator we shipped, but for the list-view drag.
-- **Activity log unification**: merge IndexedDB offline activity with
-  server-side revisions in Settings → Activity for one feed.
+- **Activity log unification** ✓ shipped 2026-05-02.
+
+## Tier 4 — Inspired (Cagan) book findings (2026-05-02)
+
+Three pre-launch product-discipline practices flagged by the book agent.
+Logging here so they're not lost; #3 (metrics dashboard) being built now.
+
+- **Charter-user recruitment**: pre-public-launch, identify 6–10 users
+  who will suffer most without the product. Work with them deeply
+  through beta. Their feedback is stronger signal than aggregate. Do
+  this BEFORE removing the IP allowlist. Practical step: list candidate
+  users + the verb / pain each one solves with productivity.do. Reach
+  out individually with a personalized note + 14-day Pro comp. Treat
+  their first-week issues as P0.
+- **Opportunity assessments**: a one-page template each meaningful
+  feature passes through before it lands on the roadmap (problem /
+  target user / success metric / business case / leave-out list). The
+  point is to refuse work that doesn't tie to a specific opportunity,
+  not to add bureaucracy. Worth picking up once 2+ people are
+  prioritizing — solo, the discipline shows up in commit messages and
+  CLAUDE.md notes.
+- **Product-health metrics dashboard**: see active build below.

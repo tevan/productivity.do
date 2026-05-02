@@ -334,6 +334,10 @@ The SPA at `/` is offline-capable as a PWA. Booking widget at `/book/*` and mark
 
 `manualResync()` in `events.svelte.js` MUST NOT delete the cache entry before refetching. Doing so blanks the in-memory `events` for the duration of the network round-trip — visually the calendar flashes empty on every Sync click. Instead, mark the cached entry stale (`fetchedAt = 0`) so events keep painting from cache while the request is in flight; only the new payload replaces them.
 
+## Admin metrics dashboard
+
+`GET /api/admin/metrics` returns six product-health numbers computed live from existing tables — no analytics-events pipeline. Surfaces at `/admin/metrics` (SPA route, lazy-loaded `AdminMetricsPage.svelte`). Auth: session-only, gated to `user_id=1` OR `is_team_admin=1`. Six cards: signups (30d, sparkline), activation (≥2 distinct days within 7d of signup, 30-60d cohort), WAU (4 weekly buckets), plan mix, retention (D1/D7/D30 from a 30-60d signup cohort), booking conversion (views → confirmed). Definitions live in `backend/routes/admin-metrics.js#computeMetrics`. **Don't add an analytics-events table until volume warrants it** — every metric should derive from data we already keep for product reasons. New metrics: extend `computeMetrics()` and add a card in `AdminMetricsPage.svelte`. Cagan/Inspired discipline: if a number won't change behavior, don't surface it.
+
 ## Tasks board column alignment
 
 `.board-pane` in `TasksView.svelte` uses `justify-content: center` — under-filled boards (3 columns × 340px on a 1600px screen) center to align with the toolbar's centered tabs. Trello and Linear both center under-filled boards. Don't switch to `flex-start` without thinking about how it'll look against the toolbar.

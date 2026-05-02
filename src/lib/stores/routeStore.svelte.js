@@ -21,6 +21,7 @@ export function getRoute() {
       const m = path.match(/^\/integrations\/([^/?#]+)/);
       return m ? m[1] : null;
     },
+    get isAdminMetrics() { return path === '/admin/metrics'; },
   };
 }
 
