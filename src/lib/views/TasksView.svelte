@@ -804,20 +804,39 @@
     box-shadow: 0 0 0 1px var(--accent);
   }
   /* Bulk-action bar shared with TaskListPanel; same visual language. */
+  /* Bulk-action bar: a floating pill, content-sized, centered above the
+     columns. Was full-width with flex-wrap which made it look like a
+     generic toolbar — not contextual to the selection. Now it reads as
+     "here's what you can do with the 12 selected tasks." */
   .bulk-bar {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 8px 12px;
-    margin-bottom: 8px;
+    padding: 6px 10px;
+    margin: 0 auto 8px;
     background: var(--surface-elevated);
     border: 1px solid var(--accent);
-    border-radius: var(--radius-md);
+    border-radius: 999px;
     box-shadow: var(--shadow-sm);
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    width: max-content;
+    max-width: 100%;
     position: sticky;
     top: 8px;
     z-index: 5;
+    /* Pin to the column-flex parent's center. align-self centers the
+       inline-flex pill horizontally inside .board-wrap. */
+    align-self: center;
+  }
+  /* Compact the embedded "Move to…" Dropdown so it doesn't stretch the
+     row to 100% the way Dropdown does by default. */
+  .bulk-bar :global(.dropdown) { width: auto; flex: 0 0 auto; }
+  .bulk-bar :global(.dropdown > button) {
+    width: auto;
+    min-width: 110px;
+    padding: 4px 10px;
+    font-size: 12px;
+    border-radius: var(--radius-sm);
   }
   .bulk-count { font-weight: 600; color: var(--accent); margin-right: 4px; font-size: 13px; }
   .bulk-btn {
@@ -840,8 +859,9 @@
     line-height: 1;
     padding: 4px 6px;
     color: var(--text-tertiary);
-    margin-left: auto;
+    margin-left: 4px;
   }
+  .bulk-btn-clear:hover { color: var(--text-primary); }
   .board-card-meta {
     font-size: 10px;
     color: var(--text-tertiary);

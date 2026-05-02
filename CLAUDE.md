@@ -315,6 +315,18 @@ User-reorderable + hideable via Settings → Tabs. Pref `appTabs = { order, hidd
 
 Full-page route. SPA serves at `/` and `/integrations[/:provider]`. Routing is minimal client-side (`src/lib/stores/routeStore.svelte.js`) — `popstate` + `pushState`, no router dep. App.svelte renders `IntegrationsPage` (lazy chunk) when `route.isIntegrations`, otherwise the regular shell. Settings still has an "Integrations" entry but it's a link button to `/integrations`. Each adapter card shows its simple-icons logo; deep link `/integrations/:provider` scrolls + highlights that adapter on load.
 
+## Offline mode (added 2026-05-02)
+
+The SPA at `/` is offline-capable as a PWA. Booking widget at `/book/*` and marketing pages are deliberately online-only. Three layers:
+
+1. **App shell precache** via `vite-plugin-pwa` — `dist/sw.js` precaches HTML/JS/CSS/fonts at install. Workbox `generateSW` mode (config in `vite.config.js`).
+2. **Read-through SWR cache** for `/api/{calendars,preferences,calendar-sets,task-columns,focus-blocks,booking-pages,notifications,auth/status,auth/google/status,notes,links}` GETs plus prefix matches on `/api/{tasks,events,integrations}`. Cache name `productivity-api-v1`, 7-day expiry, 200-entry cap.
+3. **Write queue** in `src/lib/offline/replayQueue.js` — IndexedDB-backed (`productivity-offline.queue`). `src/lib/api.js` wraps every fetch; mutations during `!navigator.onLine` enqueue with a generated `Idempotency-Key` and return a synthetic `{ok:true, queued:true, idempotencyKey}` envelope. On `online`, drain in insertion order, **last-write-wins** (no conflict UI). Activity log lives in IndexedDB store `activity-log`.
+
+SW registration is production-only (`import.meta.env.PROD`) and lazy-loaded via `import('virtual:pwa-register')` in `src/main.js`. Auto-update + 1h re-check interval. `requireAuth` bypass list extended to allow `/sw.js`, `/manifest.webmanifest`, `/workbox-*`, `/registerSW.js` through unauthenticated. Toolbar chip at `src/lib/components/OfflineChip.svelte` shows "Offline" or "Syncing N".
+
+**Excluded from offline:** `/api/v1/*` (public dev API not used by SPA), `/api/support-chat`, `/api/billing/*`, `/api/stripe/*`, `/api/ai/*`, file uploads (multipart not queued today). Full rationale + testing steps + mobile-app parity notes in `docs/internal/offline.md`.
+
 ## Sentry (added 2026-05-01)
 
 Backend errors flow through Sentry when `SENTRY_DSN` is set. No-op otherwise. Init lives in `backend/lib/sentry.js`; called from `server.js` *before* any other import. Express error-handler middleware mounted after all routes. Request bodies are scrubbed in `beforeSend` to avoid leaking tokens.

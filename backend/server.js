@@ -225,6 +225,14 @@ function requireAuth(req, res, next) {
     req.path === '/favicon.ico' ||
     req.path === '/developers' ||
     req.path === '/embed.js' ||
+    // Service Worker + PWA manifest — must load unauthenticated so the
+    // shell can be cached BEFORE the user signs in. The SW itself only
+    // makes network requests with the session cookie attached, so this
+    // doesn't widen any auth surface.
+    req.path === '/sw.js' ||
+    req.path === '/manifest.webmanifest' ||
+    req.path.startsWith('/workbox-') ||
+    req.path === '/registerSW.js' ||
     req.path === '/api/v1/openapi.json' ||
     req.path === '/api/v1/ping' ||
     req.path === '/help' ||

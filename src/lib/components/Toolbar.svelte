@@ -3,6 +3,7 @@
   import { getAppView, setAppView, getVisibleTabs } from '../stores/appView.svelte.js';
   import { getPrefs, updatePref } from '../stores/prefs.svelte.js';
   import Dropdown from './Dropdown.svelte';
+  import OfflineChip from './OfflineChip.svelte';
   import { tooltip } from '../actions/tooltip.js';
 
   let { onsettings = () => {}, onhelp = () => {}, onnewEvent = () => {}, onnewTask = () => {}, onnewNote = () => {}, onsearch = () => {}, ongotoDate = () => {}, ontoggleSidebar = () => {}, sidebarHidden = false } = $props();
@@ -122,6 +123,7 @@
   </div>
 
   <div class="toolbar-right">
+    <OfflineChip />
     <button class="icon-btn mobile-hide" onclick={onsearch} use:tooltip={'Search events (Cmd+F)'} aria-label="Search events">
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
         <circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.4"/>
