@@ -110,7 +110,22 @@ export async function fetchPrefs() {
   setPrefsCache(prefs);
 }
 
+// Defense against runaway $effect → setAppView/setView → updatePref loops:
+// if a write fires for the same key+value as the last in-flight or recently-
+// landed write, swallow it. Mobile log captured 400+ identical PUTs/sec from
+// such a loop; capping the volume at the source limits blast radius even if
+// the upstream effect is still misbehaving.
+const _lastWrites = new Map();
+function _shouldDedupe(key, value) {
+  const k = JSON.stringify([key, value]);
+  const last = _lastWrites.get(key);
+  if (last && last.serialized === k && Date.now() - last.at < 1000) return true;
+  _lastWrites.set(key, { serialized: k, at: Date.now() });
+  return false;
+}
+
 export async function updatePref(key, value) {
+  if (_shouldDedupe(key, value)) return;
   prefs = { ...prefs, [key]: value };
   writeCache(prefs);
   setPrefsCache(prefs);
@@ -142,6 +157,13 @@ export async function updatePref(key, value) {
 }
 
 export async function updatePrefs(obj) {
+  // Drop keys whose value matches what we just sent (within 1s).
+  const filtered = {};
+  for (const [k, v] of Object.entries(obj || {})) {
+    if (!_shouldDedupe(k, v)) filtered[k] = v;
+  }
+  if (Object.keys(filtered).length === 0) return;
+  obj = filtered;
   prefs = { ...prefs, ...obj };
   writeCache(prefs);
   setPrefsCache(prefs);

@@ -165,14 +165,26 @@
   function handleClick(task) { app?.editTask?.(task); }
 
   // ---- Board: tasks per column ----
-  // sortBy is per-column, stored in prefs as `taskBoardSort_<statusKey>`.
-  // Defaults to 'manual' once the user has dragged anything in this column,
-  // otherwise 'due'.
-  function getColumnSort(statusKey) {
-    return prefs.values[`taskBoardSort_${statusKey}`] || 'due';
+  // Sort is a single board-wide setting (one knob across all columns) so
+  // the user has one mental model. Manual order is still tracked per-column
+  // (drag positions survive switching to another sort and back). When the
+  // sort is anything other than 'manual', the manual order is preserved
+  // but not visible.
+  // Migration note: legacy `taskBoardSort_<statusKey>` keys are still read
+  // as a fallback — the first existing value wins — so prior users don't
+  // see their setting reset. The next setColumnSort() write graduates to
+  // the new global key and the legacy key is left to expire on its own.
+  function getColumnSort(_statusKey) {
+    const v = prefs.values.taskBoardSort;
+    if (v) return v;
+    // Fallback to any legacy per-column key.
+    for (const k of Object.keys(prefs.values)) {
+      if (k.startsWith('taskBoardSort_') && prefs.values[k]) return prefs.values[k];
+    }
+    return 'due';
   }
-  function setColumnSort(statusKey, value) {
-    updatePref(`taskBoardSort_${statusKey}`, value);
+  function setColumnSort(_statusKey, value) {
+    updatePref('taskBoardSort', value);
   }
 
   function tasksForColumn(col) {
@@ -213,6 +225,11 @@
   // ---- Drag and drop ----
   let draggingId = $state(null);
   let dragOverCol = $state(null);
+  // Precise drop indicator: which card to insert before, per column. `null`
+  // means "drop at the end of the column." When the cursor is in the top
+  // half of a card, the indicator renders above it; bottom half → below
+  // (== before the next sibling, or at column end if it's the last card).
+  let dropBeforeId = $state(null);
 
   function onCardDragStart(e, taskId) {
     draggingId = taskId;
@@ -227,16 +244,49 @@
   function onCardDragEnd() {
     draggingId = null;
     dragOverCol = null;
+    dropBeforeId = null;
   }
   function onColDragOver(e, col) {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     dragOverCol = col.statusKey;
+    // If the column has cards, defer the precise drop position to the per-
+    // card handlers (which fire on top of this one). When dragging over the
+    // empty area below the last card, fall through to "end of column".
+    const cards = e.currentTarget.querySelectorAll('.board-card[data-task-id]');
+    if (cards.length === 0) {
+      dropBeforeId = null;
+      return;
+    }
+    // Cursor is below the last card → drop at end.
+    const last = cards[cards.length - 1];
+    const lastRect = last.getBoundingClientRect();
+    if (e.clientY > lastRect.bottom) dropBeforeId = null;
+  }
+  function onCardDragOver(e, taskId) {
+    // Per-card refinement: top half = before this card, bottom half = after.
+    const rect = e.currentTarget.getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    if (e.clientY < midY) {
+      dropBeforeId = taskId;
+    } else {
+      // After this card == before the next sibling. Walk DOM siblings
+      // because `colTasks` order is the source of truth and we'd need a
+      // closure capture per column to derive it here.
+      const next = e.currentTarget.nextElementSibling;
+      const nextId = next?.dataset?.taskId || null;
+      dropBeforeId = nextId;
+    }
+    // Don't preventDefault here — the column's onDragOver already does so
+    // the drop event fires on the column. We just refine the indicator.
   }
   function onColDragLeave(e) {
     // Only clear when leaving the column entirely, not just moving across cards.
     if (e.currentTarget.contains(e.relatedTarget)) return;
-    if (dragOverCol === e.currentTarget.dataset.statusKey) dragOverCol = null;
+    if (dragOverCol === e.currentTarget.dataset.statusKey) {
+      dragOverCol = null;
+      dropBeforeId = null;
+    }
   }
   async function onColDrop(e, col) {
     e.preventDefault();
@@ -248,8 +298,11 @@
       if (id) ids = [id];
     }
     if (ids.length === 0) return;
+    // Snapshot the precise drop position before we clear the indicator.
+    const beforeId = dropBeforeId;
     dragOverCol = null;
     draggingId = null;
+    dropBeforeId = null;
     if (col.statusKey === 'done') {
       // "Done" is virtual — moving here means complete-the-task.
       await Promise.all(ids.map(id => completeTask(id)));
@@ -257,13 +310,23 @@
       return;
     }
     await Promise.all(ids.map(id => moveTaskToColumn(id, col.statusKey)));
-    // Manual sort so the dragged group stays where dropped. Append in the
-    // order they were originally selected (selectedIds preserves insertion).
+    // Manual sort so the dragged group stays where dropped. Insert at the
+    // exact position the indicator showed (before `beforeId`, or end if null).
     setColumnSort(col.statusKey, 'manual');
     const ordered = tasksForColumn(col);
     const idSet = new Set(ids.map(String));
-    const without = ordered.filter(t => !idSet.has(String(t.id)));
-    const final = [...without.map(t => t.id), ...ids];
+    const without = ordered.filter(t => !idSet.has(String(t.id))).map(t => t.id);
+    let final;
+    if (beforeId == null) {
+      final = [...without, ...ids];
+    } else {
+      const idx = without.findIndex(id => String(id) === String(beforeId));
+      if (idx === -1) {
+        final = [...without, ...ids];
+      } else {
+        final = [...without.slice(0, idx), ...ids, ...without.slice(idx)];
+      }
+    }
     reorderTasksInColumn(final);
     if (ids.length > 1) clearSelection();
   }
@@ -329,6 +392,27 @@
       <button class:active={mode === 'list'} onclick={() => setMode('list')} role="tab">List</button>
       <button class:active={mode === 'board'} onclick={() => setMode('board')} role="tab">Board</button>
     </div>
+    {#if mode === 'board'}
+      <!-- Board-wide sort. One control governs every column so users have
+           a single mental model. Manual = honor drag order; everything
+           else sorts uniformly. Icon + dropdown is intentional: the icon
+           hints at "sort", the chevron hints at "click for options". -->
+      <div class="board-sort" use:tooltip={'Sort tasks'}>
+        <svg class="sort-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 6h13M3 12h9M3 18h5"/>
+        </svg>
+        <Dropdown
+          value={getColumnSort('todo')}
+          onchange={(v) => setColumnSort('_global', v)}
+          options={[
+            { value: 'due',      label: 'Due date' },
+            { value: 'priority', label: 'Priority' },
+            { value: 'created',  label: 'Created' },
+            { value: 'manual',   label: 'Manual' },
+          ]}
+        />
+      </div>
+    {/if}
   </header>
 
   {#if mode === 'list'}
@@ -344,7 +428,7 @@
     </div>
   {:else}
     <div
-      class="board-pane"
+      class="board-wrap"
       use:marquee={{
         itemSelector: '.board-card',
         getId: el => el.dataset.taskId,
@@ -370,6 +454,7 @@
           <button class="bulk-btn-clear" onclick={clearSelection} use:tooltip={'Clear selection'} aria-label="Clear selection">×</button>
         </div>
       {/if}
+      <div class="board-pane">
       {#if !columnStore.loaded}
         <div class="board-loading">Loading columns…</div>
       {:else if columnStore.items.length === 0}
@@ -410,16 +495,6 @@
               </h3>
             {/if}
             <div class="board-col-actions">
-              <Dropdown
-                value={getColumnSort(col.statusKey)}
-                onchange={(v) => setColumnSort(col.statusKey, v)}
-                options={[
-                  { value: 'due', label: 'Due' },
-                  { value: 'priority', label: 'Priority' },
-                  { value: 'manual', label: 'Manual' },
-                  { value: 'created', label: 'Created' },
-                ]}
-              />
               {#if !isSystemColumn(col.statusKey)}
                 <button class="icon-btn" onclick={() => handleRemoveColumn(col)} use:tooltip={'Remove column'} aria-label="Remove column">×</button>
               {/if}
@@ -427,6 +502,9 @@
           </header>
           <div class="board-col-list">
             {#each colTasks as task (task.id)}
+              {#if dragOverCol === col.statusKey && dropBeforeId === task.id && draggingId !== task.id}
+                <div class="drop-indicator" aria-hidden="true"></div>
+              {/if}
               <div
                 class="board-card"
                 class:dragging={draggingId === task.id}
@@ -435,6 +513,7 @@
                 draggable="true"
                 ondragstart={(e) => onCardDragStart(e, task.id)}
                 ondragend={onCardDragEnd}
+                ondragover={(e) => onCardDragOver(e, task.id)}
                 onclick={(e) => handleBoardCardClick(task, e)}
                 onkeydown={(e) => e.key === 'Enter' && handleClick(task)}
                 role="button"
@@ -448,6 +527,9 @@
                 {/if}
               </div>
             {/each}
+            {#if dragOverCol === col.statusKey && dropBeforeId === null && colTasks.length > 0}
+              <div class="drop-indicator" aria-hidden="true"></div>
+            {/if}
             {#if colTasks.length === 0}
               <div class="board-col-empty">Drop here</div>
             {/if}
@@ -474,6 +556,7 @@
           </button>
         {/if}
       {/if}
+    </div>
     </div>
   {/if}
 </div>
@@ -503,7 +586,30 @@
     display: flex;
     align-items: center;
     justify-content: flex-end;
+    gap: 12px;
     margin-bottom: 20px;
+  }
+  .board-sort {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-secondary);
+  }
+  .board-sort .sort-icon { flex-shrink: 0; opacity: 0.7; }
+  /* Compact the dropdown — match list-view sort dropdowns. */
+  .board-sort :global(.dropdown) { width: auto; }
+  .board-sort :global(.dropdown > button) {
+    width: auto;
+    min-width: 0;
+    padding: 4px 8px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    background: transparent;
+    border-color: transparent;
+  }
+  .board-sort :global(.dropdown > button:hover) {
+    background: var(--bg-secondary);
+    border-color: var(--border);
   }
   .mode-toggle {
     display: inline-flex;
@@ -557,10 +663,22 @@
     margin: 12px 0 4px;
   }
 
+  /* Outer column-flex wrapper: holds the optional bulk-action bar above
+     the row of columns. Without this wrapper the bulk-bar sits inside the
+     row-flex `.board-pane` and gets stretched into a tall vertical box
+     alongside the columns (the "wacky box" bug). */
+  .board-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    height: 100%;
+    min-height: 0;
+  }
   .board-pane {
     display: flex;
     gap: 12px;
-    height: 100%;
+    flex: 1;
+    min-height: 0;
     align-items: stretch;
   }
   .board-col {
@@ -645,6 +763,17 @@
   .icon-btn:hover { color: var(--error, #d33); background: var(--surface-hover); }
 
   .board-col-list { display: flex; flex-direction: column; gap: 4px; flex: 1; min-height: 40px; }
+  /* Precise drop indicator. A 2px accent-colored line that renders between
+     two cards (or before the first / after the last) showing exactly where
+     the dragged task will land on release. */
+  .drop-indicator {
+    height: 2px;
+    margin: 1px 4px;
+    border-radius: 2px;
+    background: var(--accent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
+    pointer-events: none;
+  }
   .board-col-empty {
     font-size: 11px;
     color: var(--text-tertiary);

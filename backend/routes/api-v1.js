@@ -76,6 +76,14 @@ setInterval(() => {
 }, 5 * RL_WINDOW_MS).unref?.();
 
 router.use((req, res, next) => {
+  // The router is mounted with `app.use(apiV1Routes)` (no path prefix), so
+  // EVERY request that flows through Express passes through this middleware
+  // — even ones bound for `/api/preferences`, `/api/tasks`, etc. Restrict
+  // counting to actual /api/v1/* paths so non-v1 traffic doesn't burn the
+  // anonymous-IP bucket. Was the cause of mobile users getting "Rate limit
+  // exceeded" on /api/preferences PUT after a few preference saves.
+  if (!req.path.startsWith('/api/v1/')) return next();
+
   // Apply rate limit by api key prefix or by ip. Max varies by plan when we
   // can identify the user; otherwise use the default for anonymous traffic.
   const auth = req.get('authorization') || '';
