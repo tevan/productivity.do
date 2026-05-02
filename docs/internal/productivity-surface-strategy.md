@@ -245,6 +245,101 @@ slope. The answer is no, even if a user asks. The flexibility we offer is
 **flexibility about time**, not flexibility about structure. Notion owns
 structure. We own time.
 
+## Ideas under consideration (not load-bearing yet)
+
+These came up during the same 2026-05-02 conversation. They aren't part of
+the three primary investments above, but they're aligned with the
+"productivity surface" thesis enough to keep on the list. Re-evaluate after
+files / next-thing / timeline ship.
+
+### Importable workflow files (community contribution, no marketplace)
+
+Owner asked: how do we get the community contributing things others want?
+
+The Notion-style answer (host a template gallery with browsing, ratings,
+forks) is wrong for us. Marketplace overhead requires moderation, abuse
+prevention, hosted content, search, and an active user base big enough to
+populate the long tail. With <100 charter users it would be an empty
+storefront making the product look smaller, not bigger.
+
+The narrow version that *is* worth shipping: a portable file format —
+`.productivity.json` or similar — that bundles event templates, focus
+blocks, booking-page config, kanban columns, and project structure into a
+single artifact. Anyone can email / Slack / tweet one to anyone else.
+Click → preview → import. Distribution happens outside our product; we
+own the format and the importer/exporter. No hosted content, no
+moderation surface, no marketplace.
+
+Three force-multiplying side effects:
+
+1. **AI-leverage compounds.** Claude (or any LLM) can generate these
+   files from a prose description: "give me a setup for a freelance
+   designer with 3 clients." The LLM *becomes* the marketplace without us
+   hosting one. Users prompt their way to a setup; we provide the format
+   and the import path.
+2. **Pairs naturally with files done well.** A workflow file is itself a
+   file. Attach to a note titled "Onboarding pack for new hires," share
+   the note's link. The unified-files investment carries this.
+3. **Optional curated tail.** If we want a small starter gallery later,
+   it lives as 10-20 files in `docs/templates/` linked from the marketing
+   site. Curated by owner. No DB, no UGC, no moderation, no abuse
+   surface.
+
+Build cost: 1-2 weeks once files-done-well exists. Don't build before then;
+the format is more valuable when files are first-class.
+
+### In-product automations ("if X, then Y")
+
+Owner asked: a setting that says "every time I add a note, attach it to
+a day" or similar internal/external rules. Out of scope for the three
+primary investments but worth thinking about as a *layer* on top of them.
+
+The framing that makes this fit our strategy without becoming
+Zapier-shaped: **automations are deterministic rules that run on
+events emitted by the existing data model — they don't introduce new
+schema, they don't add new pillars, and they don't open the surface
+to user-authored code.**
+
+Two tiers we could ship and stop:
+
+1. **A small fixed catalog of opinionated rules** (one toggle each, no
+   builder UI). Examples that match the way we already think about the
+   product:
+   - "Auto-attach new notes to today's date"
+   - "When I move a task to 'In Progress' on the board, create a focus
+     block on my calendar for its estimated time"
+   - "When a meeting ends, prompt me to attach a note"
+   - "When a task gets a new comment, bump it to the top of its column"
+   - "When I complete the last task in a project, ask if the project is
+     done"
+
+   These are decisions WE make about how the surface should behave. The
+   user opts each one on or off. No DSL, no conditions UI, no debugging
+   experience to support. Each rule is one if-statement in code, and
+   each only ships if it survives the "would I actually use this?" bar.
+
+2. **External-side hooks via the existing webhook surface.** We already
+   have outbound webhooks (`/api/webhooks`) emitting `task.created`,
+   `event.created`, `booking.created`, etc. with HMAC-signed payloads and
+   retry queues. Anyone wiring Zapier, Make, or n8n already has the path.
+   We don't need to build a Zapier clone — we ARE the source of truth
+   they integrate with. Documenting this better is the work, not adding
+   more infra.
+
+What we should NOT build:
+
+- A general-purpose rule builder UI (conditions, branches, transforms).
+  That's Zapier's terrain. Same trap as the Notion-database trap: their
+  product, our liability.
+- User-authored JS / formulas. Sandboxing pain, support burden, and we
+  lose the ability to evolve the data model freely.
+- Cron / scheduled rules. The opinionated catalog covers the cases we
+  want; cron is the slope toward Zapier.
+
+Build order: revisit AFTER the three primary investments ship. The
+opinionated catalog is the small one (1-2 weeks). Webhook docs upgrade is
+its own ~1-day pass.
+
 ## Next-decision triggers
 
 Re-open this strategy when ANY of:
