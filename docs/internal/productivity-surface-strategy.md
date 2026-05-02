@@ -444,6 +444,115 @@ the agentic future. Specifically:
 This is not a separate investment area — it's a discipline applied to
 the three primary investments.
 
+## Voice — the third load-bearing investment
+
+Added 2026-05-02 after observing the landscape. Mem now leads their
+product menu with "Voice Mode," ahead of Calendar Integration, Chat, and
+Web Clipper — meaning the AI-notes app pivoted to voice-first capture as
+their wedge. Granola is doing the same to Otter in meetings. The pattern:
+**voice as the interface to decisions, not voice as a feature page.**
+
+Otter.ai is a useful cautionary tale — Whisper made transcription
+~free, every meeting platform now ships native transcription, and
+"summary + action items" is table-stakes for any LLM. Single-purpose AI
+productivity tools whose moat is the model (not the data) get
+commoditized. Lesson: don't ship features whose defensibility is "we
+use AI to do X." Ship features whose moat is "your stuff is here and
+connected."
+
+### Two voice surfaces we ship; one we deliberately don't
+
+**Build #1 — voice on the "what should I do right now" surface.** Press a
+key (space, on phone an AirPods squeeze), hear the answer, say what to
+do. "Your next thing is the Q3 doc, due Tuesday — want to start a focus
+block now?" → "Yes" → done. Ambient access to the decision surface.
+Most aligned with the agentic-shift bet from the future-proofing
+section. Whisper + Claude + our existing MCP tools = all pieces already
+in hand.
+
+**Build #2 — voice capture that routes to the right pillar.** Speak; an
+LLM decides whether what you said is a task ("remind me to call Anne
+Tuesday"), an event ("lunch with Sara at noon Wednesday"), a note
+("what struck me about the design review was…"), or a comment on an
+existing thing ("for the Q3 doc, also include the regional split"). It
+lands in the right place automatically. **This is Mem's bet executed
+for our shape** — but we're better positioned because we already have
+the calendar + tasks + notes substrate; they had to bolt the calendar
+piece on after.
+
+**Don't build (yet) — meetings transcription / Granola-shape.** Tempting
+because files-done-well + timeline + voice converge here, and our
+substrate gives us "the action items become real tasks linked to the
+event." But the space is moving fast, narrower than (#1) and (#2), and
+the moat is contested. Revisit once Granola/Otter shake out.
+
+**Already free — ChatGPT and Claude voice via our MCP.** We already have
+`POST /mcp`. ChatGPT Developer Mode + our MCP = "tell ChatGPT to schedule
+something or create a task" works today. Ongoing work is keeping the
+MCP tool surface excellent (expand from tasks/events/today to also
+include notes, files when they ship, and the timeline). This is the
+agentic-shift bet executed at zero cost — we're not competing with
+ChatGPT/Claude, we're the destination they reach into.
+
+### Implementation order revision
+
+Files-done-well still ships first (substrate). The "what should I do
+right now" surface and voice ship together as one feature — the surface
+is voiced from day one, not retrofitted. Voice capture (#2) is a
+separate ship after that. Cross-pillar timeline stays last.
+
+## On task project metadata as a priority signal
+
+Owner observed (2026-05-02): "I want to leverage task projects more.
+That will help influence decisions. Are there fields in projects/tasks
+that would emphasize priority?"
+
+The question is well-formed: projects are a *grouping* signal but
+currently flat. To use them in the "what should I do right now" ranker,
+we need a way for the user to express which projects matter more than
+others, without inventing Notion-shaped per-project metadata.
+
+The four legal levers (each minimal, none introduces new schema beyond
+what we already shadow from Todoist):
+
+1. **`is_favorite` on Todoist projects** — already mirrored. Today it
+   only affects sidebar pinning. The decision ranker should weight tasks
+   in favorited projects higher. Cheap (one column already in cache).
+2. **`priority` on tasks** — already mirrored (1-4 in our schema, 4 =
+   highest). The ranker should respect it but not blindly: a P4 task
+   buried in a stale project loses to a P2 task in an active one. Use
+   priority as a *boost*, not a sort key.
+3. **Project order (sort_order)** — already in Todoist. We don't surface
+   it as ranking signal today. The user's manual project order in the
+   sidebar is the cheapest "what matters most" expression we can
+   harvest. First project = primary; last project = vestigial.
+4. **Recency-of-touch** (derived, no schema). A project where the user
+   completed a task in the last 7 days outranks one that's been quiet
+   for a month — even at the same priority. We already have
+   `completed_at` on tasks_cache.
+
+The composite signal for a task in the ranker becomes:
+
+```
+score(task) = priority_weight(task.priority)
+            + favorite_boost(task.project.is_favorite)
+            + project_position_weight(task.project.sort_order)
+            + recency_weight(project_last_touched_at)
+            + due_urgency(task.due_date, now)
+            + estimation_fit(task.estimated_minutes, free_now)
+```
+
+All of those already exist in our data. **No new fields needed for the
+v1 ranker.** A "Pin project to the top of decisions" toggle could come
+later if `is_favorite` proves insufficient; we don't need it day one.
+
+What we should NOT add:
+- Per-project priority numbers, custom fields, or weights. That's the
+  Notion-database trap.
+- A "project goal" / "project deadline" pillar. Out of scope.
+- AI-generated project priority. Without explicit user signal, it's a
+  guess that the user has to correct, which is worse than asking them.
+
 ## Next-decision triggers
 
 Re-open this strategy when ANY of:
