@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { q } from '../db/init.js';
 import { fetchBusyIntervals } from '../lib/booking.js';
 import { expandFocusBlocks, DEFAULT_WORK_HOURS } from '../lib/autoSchedule.js';
+import { projectLoad, getTaskRatio, getProjectRatios } from '../lib/estimation.js';
 
 const router = Router();
 
@@ -124,7 +125,8 @@ router.get('/api/today', async (req, res) => {
     // ---- Tasks: due today (in user tz) + overdue, not completed ----
     const cacheRows = q(`
       SELECT todoist_id, content, description, due_date, due_datetime,
-             priority, estimated_minutes, is_completed, created_at, updated_at
+             priority, estimated_minutes, is_completed, created_at, updated_at,
+             project_name
         FROM tasks_cache
        WHERE user_id = ? AND (is_completed = 0 OR is_completed IS NULL)
     `).all(userId);
@@ -168,6 +170,7 @@ router.get('/api/today', async (req, res) => {
           dueDatetime: r.due_datetime,
           priority: r.priority,
           estimatedMinutes: est,
+          projectName: r.project_name,
           slipRisk: 'overdue',
           ageDays,
         });
@@ -179,6 +182,7 @@ router.get('/api/today', async (req, res) => {
           dueDatetime: r.due_datetime,
           priority: r.priority,
           estimatedMinutes: est,
+          projectName: r.project_name,
           slipRisk: 'due_today',
           ageDays,
         });
@@ -197,10 +201,39 @@ router.get('/api/today', async (req, res) => {
     const committedMinutes = tasks.reduce((s, t) => s + t.estimatedMinutes, 0);
     const committedTaskCount = tasks.length;
 
+    // ---- Estimation Intelligence: realistic load ----
+    // Multiply each task's estimate by the most-specific available historical
+    // ratio (per-task → per-project → global). hasHistory is false until the
+    // user has ≥3 completed tasks with both estimated_minutes and
+    // actual_minutes — until then, this is a no-op echo of committedMinutes.
+    const load = projectLoad(userId, tasks);
+
+    // Per-task ratios (task-level → project-level fallback). We don't surface
+    // the global ratio per-row — that's redundant noise; the global ratio
+    // already shows up in the day-level capacity warning. Per-row badges are
+    // for tasks where we have task or project history that diverges from 1.0.
+    const projectRatios = getProjectRatios(userId);
+    const taskRatios = {};
+    for (const t of tasks) {
+      const taskR = getTaskRatio(userId, t.content);
+      const projR = t.projectName ? projectRatios.get(t.projectName) : null;
+      const r = taskR || projR || null;
+      if (r) {
+        taskRatios[t.id] = {
+          ratio: Number(r.ratio.toFixed(2)),
+          samples: r.samples,
+          source: taskR ? 'task' : 'project',
+        };
+      }
+    }
+
     // ---- The hero sentence ----
     const hero = composeHero({
       freeMinutes,
       committedMinutes,
+      // When we have history, the hero reasons about realistic load.
+      // When we don't, it falls back to committedMinutes (the estimate sum).
+      realisticMinutes: load.hasHistory ? load.realistic : null,
       committedTaskCount,
       overdueCount: overdue.length,
       dueTodayCount: dueToday.length,
@@ -220,6 +253,17 @@ router.get('/api/today', async (req, res) => {
       dueTodayCount: dueToday.length,
       hero,
       tasks,
+      // Estimation Intelligence payload — frontend renders the day-capacity
+      // warning + per-task accuracy badges from this. ratio == 1 + samples == 0
+      // means no history yet; UI hides the badge.
+      load: {
+        estimated: load.estimated,
+        realistic: load.realistic,
+        ratio: Number(load.ratio.toFixed(2)),
+        samples: load.samples,
+        hasHistory: load.hasHistory,
+      },
+      taskRatios,
     });
   } catch (err) {
     console.error('GET /api/today error:', err.message);
@@ -308,7 +352,7 @@ function taskDueMs(row, tz) {
 }
 
 function composeHero({
-  freeMinutes, committedMinutes, committedTaskCount,
+  freeMinutes, committedMinutes, realisticMinutes, committedTaskCount,
   overdueCount, dueTodayCount, hasWorkHours,
   estimatesPresent, estimatesTotal,
 }) {
@@ -318,6 +362,14 @@ function composeHero({
     if (Math.abs(h - Math.round(h)) < 0.05) return `${Math.round(h)} ${h === 1 ? 'hour' : 'hours'}`;
     return `${h.toFixed(1)} hours`;
   };
+
+  // The hero reasons about REALISTIC load when we have user history; that's
+  // the whole point of Estimation Intelligence. Without history we use the
+  // user's own estimates verbatim. Either way, "load" is what we compare
+  // to free time when deciding overcommitted vs fits.
+  const load = (typeof realisticMinutes === 'number' && realisticMinutes > 0)
+    ? realisticMinutes
+    : committedMinutes;
 
   // Each branch returns at most one hero sentence and one support line.
   // The hero is the focal thought; the support is the prompt for action.
@@ -355,7 +407,7 @@ function composeHero({
 
   // Lots of tasks, few estimates → the math is approximate. Only call this
   // out when the answer isn't already obvious.
-  const obvious = freeMinutes <= 15 && committedMinutes >= 30;
+  const obvious = freeMinutes <= 15 && load >= 30;
   if (!obvious && committedTaskCount >= 3 && estimatesPresent / Math.max(1, estimatesTotal) < 0.4) {
     return {
       kind: 'no_estimates',
@@ -364,13 +416,20 @@ function composeHero({
     };
   }
 
-  const diff = committedMinutes - freeMinutes;
+  const diff = load - freeMinutes;
+  // When realistic load > estimate, mention that the math reflects history.
+  const realisticInflated = (typeof realisticMinutes === 'number') && (realisticMinutes > committedMinutes + 15);
 
   if (diff > 30) {
     const over = fmtH(diff);
-    const overdueClause = overdueCount > 0
-      ? `${overdueCount} ${plural('item', overdueCount)} already overdue.`
-      : `Drop or move ${over} of work.`;
+    let overdueClause;
+    if (overdueCount > 0) {
+      overdueClause = `${overdueCount} ${plural('item', overdueCount)} already overdue.`;
+    } else if (realisticInflated) {
+      overdueClause = `Based on history, today's work likely runs ${fmtH(realisticMinutes)} — drop or move ${over}.`;
+    } else {
+      overdueClause = `Drop or move ${over} of work.`;
+    }
     return {
       kind: 'overcommitted',
       sentence: `Today's plate needs ${over} more than fits.`,
@@ -379,17 +438,23 @@ function composeHero({
   }
 
   if (diff < -30) {
+    const supportText = realisticInflated
+      ? `${fmtH(committedMinutes)} estimated · ${fmtH(realisticMinutes)} realistic, ${fmtH(freeMinutes)} free.`
+      : `${fmtH(committedMinutes)} of work, ${fmtH(freeMinutes)} free.`;
     return {
       kind: 'fits',
       sentence: `It fits, with room to spare.`,
-      support: `${fmtH(committedMinutes)} of work, ${fmtH(freeMinutes)} free.`,
+      support: supportText,
     };
   }
 
+  const tightSupport = realisticInflated
+    ? `${fmtH(realisticMinutes)} of work (history-adjusted) in ${fmtH(freeMinutes)} free. Begin.`
+    : `${fmtH(committedMinutes)} of work in ${fmtH(freeMinutes)} of free time. Begin.`;
   return {
     kind: 'fits',
     sentence: `It fits.`,
-    support: `${fmtH(committedMinutes)} of work in ${fmtH(freeMinutes)} of free time. Begin.`,
+    support: tightSupport,
   };
 }
 

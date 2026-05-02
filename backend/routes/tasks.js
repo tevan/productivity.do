@@ -310,6 +310,35 @@ router.put('/api/tasks/:id', async (req, res) => {
       task = await todoist.updateTask(id, updates, req.user.id);
     }
 
+    // Estimation Intelligence: a "move to today" is intent-to-start. Record
+    // started_at if the request set dueDate to today's local YMD AND no
+    // started_at is recorded yet. We compute "today's YMD" with the user's
+    // primary timezone (falls back to server tz) so a 11pm "move to today"
+    // doesn't accidentally key off UTC and miss.
+    if (dueDate !== undefined && dueDate) {
+      try {
+        const tzRow = q(
+          "SELECT value FROM preferences WHERE user_id = ? AND key = 'primaryTimezone'"
+        ).get(req.user.id);
+        let tz = null;
+        try { tz = tzRow?.value ? JSON.parse(tzRow.value) : null; } catch {}
+        if (!tz || typeof tz !== 'string') {
+          try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; }
+          catch { tz = 'UTC'; }
+        }
+        const todayYmd = new Intl.DateTimeFormat('en-CA', {
+          timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
+        }).format(new Date());
+        if (dueDate === todayYmd) {
+          q(`
+            UPDATE tasks_cache
+               SET started_at = COALESCE(started_at, datetime('now'))
+             WHERE user_id = ? AND todoist_id = ?
+          `).run(req.user.id, id);
+        }
+      } catch {} // estimation data is best-effort; never block the user's edit
+    }
+
     // Project change is a separate Todoist endpoint
     if (projectId !== undefined && projectId !== null) {
       task = await todoist.moveTask(id, { projectId }, req.user.id);
@@ -375,14 +404,27 @@ router.post('/api/tasks/:id/complete', async (req, res) => {
     // Snapshot before flipping so the revision (and the synthesis layer's
     // age-at-completion query) has the prior shape.
     const before = q(
-      'SELECT content, priority, due_date, due_datetime, estimated_minutes, created_at FROM tasks_cache WHERE user_id = ? AND todoist_id = ?'
+      'SELECT content, priority, due_date, due_datetime, estimated_minutes, created_at, started_at FROM tasks_cache WHERE user_id = ? AND todoist_id = ?'
     ).get(req.user.id, id);
 
     await todoist.completeTask(id, req.user.id);
 
+    // Compute actual_minutes from started_at if we have it. Clamp 1..480
+    // (8 hours) so a task left "started" overnight doesn't poison the
+    // historical ratio. Tasks completed without a started_at remain NULL,
+    // which the accuracy-badge SQL filters on.
+    let actualMinutes = null;
+    if (before?.started_at) {
+      const startMs = new Date(before.started_at).getTime();
+      if (Number.isFinite(startMs)) {
+        const minutes = Math.round((Date.now() - startMs) / 60_000);
+        if (minutes > 0) actualMinutes = Math.min(480, minutes);
+      }
+    }
+
     q(
-      "UPDATE tasks_cache SET is_completed = 1, completed_at = datetime('now'), updated_at = datetime('now') WHERE user_id = ? AND todoist_id = ?"
-    ).run(req.user.id, id);
+      "UPDATE tasks_cache SET is_completed = 1, completed_at = datetime('now'), actual_minutes = ?, updated_at = datetime('now') WHERE user_id = ? AND todoist_id = ?"
+    ).run(actualMinutes, req.user.id, id);
 
     // Record the completion in revisions so the activity feed + weekly review
     // see it. Idempotent failure-tolerant — the task is already completed.
@@ -422,7 +464,7 @@ router.post('/api/tasks/:id/reopen', async (req, res) => {
     await todoist.reopenTask(id, req.user.id);
 
     q(
-      "UPDATE tasks_cache SET is_completed = 0, completed_at = NULL, updated_at = datetime('now') WHERE user_id = ? AND todoist_id = ?"
+      "UPDATE tasks_cache SET is_completed = 0, completed_at = NULL, actual_minutes = NULL, updated_at = datetime('now') WHERE user_id = ? AND todoist_id = ?"
     ).run(req.user.id, id);
 
     res.json({ ok: true });
@@ -579,15 +621,22 @@ router.post('/api/tasks/:id/auto-schedule', async (req, res) => {
 
     // Update Todoist due_datetime to match the scheduled time so the task
     // shows up at the right moment in the sidebar/views without a re-sync.
+    // Also record started_at = the event's scheduled start; actual_minutes
+    // gets computed at completion as (completed_at - started_at).
     try {
       await todoist.updateTask(id, { due_datetime: result.startIso }, req.user.id);
       q(
-        "UPDATE tasks_cache SET due_datetime = ?, updated_at = datetime('now') WHERE user_id = ? AND todoist_id = ?"
-      ).run(result.startIso, userId, id);
+        "UPDATE tasks_cache SET due_datetime = ?, started_at = ?, updated_at = datetime('now') WHERE user_id = ? AND todoist_id = ?"
+      ).run(result.startIso, result.startIso, userId, id);
     } catch (err) {
       // Non-fatal: the calendar event was created successfully even if
       // Todoist push failed (e.g. token expired). Surface the warning.
       console.warn('auto-schedule: Todoist update failed:', err.message);
+      // Still record started_at locally even if Todoist push failed —
+      // the GCal event exists and that's what determines intent-to-start.
+      q(
+        "UPDATE tasks_cache SET started_at = ?, updated_at = datetime('now') WHERE user_id = ? AND todoist_id = ?"
+      ).run(result.startIso, userId, id);
     }
 
     res.json({

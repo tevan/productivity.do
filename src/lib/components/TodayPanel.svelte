@@ -45,6 +45,7 @@
   const today = $derived(synth.today);
   const weekly = $derived(synth.weekly);
   const observation = $derived(synth.observation);
+  const ledger = $derived(synth.ledger);
 
   // ---- Mount / unmount transitions ----
   let io;
@@ -269,6 +270,7 @@
     <nav class="jumps" aria-label="Jump to section">
       <button class:active={activeSection === 'today'} onclick={() => scrollTo('today')}>Today</button>
       <button class:active={activeSection === 'week'} onclick={() => scrollTo('week')}>Week</button>
+      <button class:active={activeSection === 'ledger'} onclick={() => scrollTo('ledger')}>Ledger</button>
       <button class:active={activeSection === 'patterns'} onclick={() => scrollTo('patterns')}>Patterns</button>
     </nav>
     <button class="close" onclick={requestClose} aria-label="Close">
@@ -279,6 +281,8 @@
   </header>
 
   {#snippet taskRow(t)}
+    {@const tr = today?.taskRatios?.[t.id]}
+    {@const showBadge = tr && (tr.ratio >= 1.3 || tr.ratio <= 0.7)}
     <li class="task" class:overdue={t.slipRisk === 'overdue'}>
       <button class="task-tap" onclick={() => openTask(t)}>
         <div class="task-title">{t.content}</div>
@@ -289,6 +293,19 @@
           {#if t.priority && t.priority >= 3}
             <span class="dot">·</span>
             <span class="prio">priority</span>
+          {/if}
+          {#if showBadge}
+            <span class="dot">·</span>
+            <span
+              class="accuracy-badge"
+              class:slow={tr.ratio >= 1.3}
+              class:fast={tr.ratio <= 0.7}
+              title={tr.source === 'task'
+                ? `You usually take ${tr.ratio.toFixed(1)}× your estimate on this task (${tr.samples} runs).`
+                : `You usually take ${tr.ratio.toFixed(1)}× your estimate on tasks in this project (${tr.samples} runs).`}
+            >
+              {tr.ratio.toFixed(1)}×
+            </span>
           {/if}
         </div>
       </button>
@@ -345,6 +362,18 @@
                 <div class="rail-overflow" style="left: {gauge.freePct}%; width: {Math.min(gauge.overflowPct, 30)}%"></div>
               {/if}
             </div>
+
+            {#if today.load?.hasHistory && today.load.ratio > 1.15}
+              <p class="load-note">
+                History says you usually take <strong>{today.load.ratio.toFixed(1)}×</strong> your estimates.
+                Today's realistic load: <strong>{fmtHours(today.load.realistic)}</strong>.
+              </p>
+            {:else if today.load?.hasHistory && today.load.ratio < 0.85}
+              <p class="load-note load-note-good">
+                History says you usually finish in <strong>{(today.load.ratio).toFixed(1)}×</strong> your estimates.
+                Today's realistic load: <strong>{fmtHours(today.load.realistic)}</strong>.
+              </p>
+            {/if}
           </div>
         {/if}
 
@@ -423,6 +452,63 @@
               </li>
             {/each}
           </ul>
+        {/if}
+      {/if}
+    </section>
+
+    <hr class="seam" />
+
+    <!-- ===== Time Ledger ===== -->
+    <section id="syn-ledger" class="section section-ledger">
+      {#if !ledger && synth.isLoadingLedger}
+        <div class="skeleton">
+          <div class="sk-line w40"></div>
+          <div class="sk-line w80"></div>
+          <div class="sk-line w70"></div>
+        </div>
+      {:else if ledger}
+        <p class="meta">Time ledger · last {ledger.weeks} weeks</p>
+        <h2 class="hero hero-{ledger.headline.tone === 'concern' ? 'concern' : (ledger.headline.tone === 'good' ? 'good' : 'neutral')}">{ledger.headline.text}</h2>
+        <p class="hero-support">
+          {ledger.totals.lastWeekHours.toFixed(1)}h scheduled this week ·
+          baseline {ledger.totals.priorWeekAvgHours.toFixed(1)}h
+          {#if Math.abs(ledger.totals.deltaHours) >= 0.5}
+            · {ledger.totals.deltaHours > 0 ? '+' : ''}{ledger.totals.deltaHours.toFixed(1)}h
+          {/if}
+        </p>
+
+        {#if ledger.categories.length > 0}
+          <ul class="ledger-list">
+            {#each ledger.categories.slice(0, 8) as cat (cat.id)}
+              {@const max = Math.max(1, ...cat.sparkline)}
+              <li class="ledger-row">
+                <div class="lr-head">
+                  <span class="lr-swatch" style="background: {cat.color || 'var(--text-tertiary)'}"></span>
+                  <span class="lr-name">{cat.name}</span>
+                  <span class="lr-hours">{cat.lastWeekHours.toFixed(1)}h</span>
+                  {#if cat.priorWeekAvgHours >= 0.5}
+                    <span class="lr-delta lr-delta-{cat.deltaHours > 0.5 ? 'up' : (cat.deltaHours < -0.5 ? 'down' : 'flat')}">
+                      {cat.deltaHours > 0 ? '+' : ''}{cat.deltaHours.toFixed(1)}h
+                    </span>
+                  {/if}
+                </div>
+                <div class="sparkline" aria-hidden="true">
+                  {#each cat.sparkline as h, i}
+                    <span
+                      class="spark-bar"
+                      class:current={i === cat.sparkline.length - 1}
+                      style="height: {Math.max(3, (h / max) * 100)}%"
+                      title="{h.toFixed(1)}h"
+                    ></span>
+                  {/each}
+                </div>
+              </li>
+            {/each}
+          </ul>
+        {:else}
+          <p class="caption">
+            No time on visible calendars yet. Connect Google Calendar or schedule a few events to see this populate.
+          </p>
         {/if}
       {/if}
     </section>
@@ -612,6 +698,8 @@
   .hero-fits { color: var(--text-primary); }
   .hero-rest { color: var(--text-primary); }
   .hero-neutral { color: var(--text-primary); }
+  .hero-good { color: var(--text-primary); }
+  .hero-concern { color: var(--text-primary); }
 
   /* Support line — second voice underneath the hero. Stays Inter (the
      hero is Fraunces); reads as the "what to do" prompt. */
@@ -687,6 +775,44 @@
     box-shadow: 0 0 0 2px var(--surface);
     transition: left var(--motion-slow) var(--motion-ease),
                 width var(--motion-slow) var(--motion-ease);
+  }
+
+  /* History-adjusted load note — surfaces only when the user has ≥3 prior
+     completions and the ratio is meaningfully off 1.0. */
+  .load-note {
+    margin: 12px 0 0;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+  }
+  .load-note strong {
+    color: var(--text-primary);
+    font-weight: 500;
+  }
+  .load-note-good { color: var(--text-secondary); }
+
+  /* Per-task accuracy badge — shown only when task or project history says
+     the user systematically over- or under-runs this kind of task. */
+  .accuracy-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-variant-numeric: tabular-nums;
+    font-size: 10.5px;
+    font-weight: 500;
+    line-height: 1.4;
+    letter-spacing: 0.01em;
+    background: color-mix(in srgb, var(--text-secondary) 12%, transparent);
+    color: var(--text-secondary);
+  }
+  .accuracy-badge.slow {
+    background: color-mix(in srgb, var(--error, #c25e4d) 14%, transparent);
+    color: var(--error, #c25e4d);
+  }
+  .accuracy-badge.fast {
+    background: color-mix(in srgb, var(--accent, #3b82f6) 12%, transparent);
+    color: var(--accent, #3b82f6);
   }
 
   /* ---- Plate (today's tasks) ---- */
@@ -797,6 +923,81 @@
       transform var(--motion-soft) var(--motion-ease),
       visibility 0s linear 0s;
   }
+  /* ---- Time Ledger (calendar pillar's stake) ---- */
+  .ledger-list {
+    list-style: none;
+    margin: 18px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .ledger-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .lr-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .lr-swatch {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    flex: 0 0 auto;
+    box-shadow: inset 0 0 0 0.5px rgba(0,0,0,0.1);
+  }
+  .lr-name {
+    color: var(--text-primary);
+    font-weight: 500;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .lr-hours {
+    font-variant-numeric: tabular-nums;
+    color: var(--text-primary);
+    font-weight: 500;
+  }
+  .lr-delta {
+    font-variant-numeric: tabular-nums;
+    font-size: 12px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--text-secondary) 10%, transparent);
+    color: var(--text-secondary);
+  }
+  .lr-delta-up {
+    background: color-mix(in srgb, var(--error, #c25e4d) 14%, transparent);
+    color: var(--error, #c25e4d);
+  }
+  .lr-delta-down {
+    background: color-mix(in srgb, var(--accent, #3b82f6) 12%, transparent);
+    color: var(--accent, #3b82f6);
+  }
+  .sparkline {
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 28px;
+    padding-left: 18px; /* align with lr-name */
+  }
+  .spark-bar {
+    flex: 1;
+    background: color-mix(in srgb, var(--text-tertiary) 60%, transparent);
+    border-radius: 1.5px;
+    min-height: 3px;
+    transition: background var(--motion-quick) var(--motion-ease);
+  }
+  .spark-bar.current {
+    background: var(--text-secondary);
+  }
+
   /* Narrow viewport: no room to float; show actions below the row,
      pushing layout (acceptable trade-off on mobile/sheet view). */
   @media (max-width: 520px) {

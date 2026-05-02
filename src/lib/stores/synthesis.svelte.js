@@ -16,8 +16,9 @@ import { api } from '../api.js';
 let today = $state(null);
 let weekly = $state(null);
 let observation = $state(null);
-let lastFetched = $state({ today: 0, weekly: 0, observation: 0 });
-let inFlight = $state({ today: false, weekly: false, observation: false });
+let ledger = $state(null);
+let lastFetched = $state({ today: 0, weekly: 0, observation: 0, ledger: 0 });
+let inFlight = $state({ today: false, weekly: false, observation: false, ledger: false });
 
 const TTL_MS = 5 * 60_000; // 5 minutes — synthesis isn't real-time
 let prefetchScheduled = false;
@@ -59,6 +60,21 @@ async function fetchWeekly(force = false) {
   }
 }
 
+async function fetchLedger(force = false) {
+  if (inFlight.ledger) return;
+  if (!force && ledger && Date.now() - lastFetched.ledger < TTL_MS) return;
+  inFlight.ledger = true;
+  try {
+    const res = await api('/api/time-ledger');
+    if (res?.ok) {
+      ledger = res;
+      lastFetched.ledger = Date.now();
+    }
+  } catch {} finally {
+    inFlight.ledger = false;
+  }
+}
+
 async function fetchObservation(force = false) {
   if (inFlight.observation) return;
   if (!force && observation !== null && Date.now() - lastFetched.observation < TTL_MS) return;
@@ -79,9 +95,11 @@ export function getSynthesis() {
     get today() { return today; },
     get weekly() { return weekly; },
     get observation() { return observation; },
+    get ledger() { return ledger; },
     get isLoadingToday() { return inFlight.today; },
     get isLoadingWeekly() { return inFlight.weekly; },
     get isLoadingObservation() { return inFlight.observation; },
+    get isLoadingLedger() { return inFlight.ledger; },
   };
 }
 
@@ -89,6 +107,7 @@ export function refreshSynthesis() {
   fetchToday(true);
   fetchWeekly(true);
   fetchObservation(true);
+  fetchLedger(true);
 }
 
 export function refreshToday() { fetchToday(true); }
@@ -110,6 +129,7 @@ export function schedulePrefetch(delayMs = 1500) {
     fetchToday();
     fetchWeekly();
     fetchObservation();
+    fetchLedger();
   };
   if (typeof requestIdleCallback === 'function') {
     setTimeout(() => requestIdleCallback(run, { timeout: 4000 }), delayMs);
@@ -123,6 +143,7 @@ export function schedulePrefetch(delayMs = 1500) {
       fetchToday();
       fetchWeekly();
       fetchObservation();
+      fetchLedger();
     }
   }, TTL_MS);
 
@@ -133,6 +154,7 @@ export function schedulePrefetch(delayMs = 1500) {
         if (Date.now() - lastFetched.today > TTL_MS) fetchToday();
         if (Date.now() - lastFetched.weekly > TTL_MS) fetchWeekly();
         if (Date.now() - lastFetched.observation > TTL_MS) fetchObservation();
+        if (Date.now() - lastFetched.ledger > TTL_MS) fetchLedger();
       }
     });
   }

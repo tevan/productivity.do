@@ -4,6 +4,7 @@
   import { confirmAction } from '../utils/confirmModal.svelte.js';
   import RevisionHistoryPanel from './RevisionHistoryPanel.svelte';
   import NoteCommentsPanel from './NoteCommentsPanel.svelte';
+  import NoteContextPanel from './NoteContextPanel.svelte';
   import { tooltip } from '../actions/tooltip.js';
   import { renderMarkdown, SLASH_COMMANDS, applySlash, tryMarkdownShortcut } from '../utils/markdown.js';
 
@@ -15,6 +16,10 @@
   let color = $state(note?.color || null);
   let historyOpen = $state(false);
   let commentsOpen = $state(false);
+  // Live Context Panel — Notes pillar's "stake". Default-on for notes that
+  // are likely to have linked items (existing notes), default-off for brand
+  // new ones to keep the empty state clean.
+  let contextOpen = $state(!!note?.id);
   function onRestored(r) {
     // Restored note comes back in the response; sync local state so the
     // editor reflects the restored content immediately.
@@ -202,7 +207,7 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="modal-backdrop" onclick={onclose}>
-  <div class="note-modal" onclick={(e) => e.stopPropagation()}>
+  <div class="note-modal" class:has-context={contextOpen && note?.id} onclick={(e) => e.stopPropagation()}>
     <div class="note-header">
       <input
         class="note-title"
@@ -262,6 +267,9 @@
           {/if}
         </div>
         {#if note?.id}
+          <button class="icon-btn" class:active={contextOpen} onclick={() => contextOpen = !contextOpen} use:tooltip={contextOpen ? 'Hide context' : 'Show context'} aria-label="Toggle context panel">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          </button>
           <button class="icon-btn" onclick={() => commentsOpen = true} use:tooltip={'Comments'} aria-label="Comments">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           </button>
@@ -345,6 +353,12 @@
         onclose={() => commentsOpen = false}
       />
     {/if}
+    {#if contextOpen && note?.id}
+      <NoteContextPanel
+        noteId={note.id}
+        onclose={() => contextOpen = false}
+      />
+    {/if}
   </div>
 </div>
 
@@ -371,6 +385,17 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    transition: width 220ms cubic-bezier(.2,.7,.2,1);
+  }
+  .note-modal.has-context {
+    width: 1160px;
+    padding-right: 280px;
+  }
+  @media (max-width: 880px) {
+    .note-modal.has-context {
+      width: 880px;
+      padding-right: 0;
+    }
   }
   .note-header {
     display: flex;

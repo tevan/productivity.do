@@ -7,6 +7,7 @@
   import { getPrefs } from '../stores/prefs.svelte.js';
   import { renderMarkdown } from '../utils/markdown.js';
   import NotesSidebarSection from '../components/sidebar/NotesSidebarSection.svelte';
+  import NoteContextPanel from '../components/NoteContextPanel.svelte';
 
   const notesStore = getNotes();
   const notesView = getNotesView();
@@ -16,6 +17,20 @@
   // Mobile: when the app sidebar is hidden the user has no path to the
   // notes list, so render an inline list (until they pick one).
   let isMobile = $state(typeof window !== 'undefined' && window.innerWidth < 768);
+
+  // Live Context Panel — remembers user's preference in localStorage. The
+  // first-time default is OFF; once a user toggles it on, it stays.
+  let contextOpen = $state(
+    typeof window !== 'undefined'
+      ? window.localStorage.getItem('productivity_note_context_open') === '1'
+      : false
+  );
+  function toggleContext() {
+    contextOpen = !contextOpen;
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('productivity_note_context_open', contextOpen ? '1' : '0');
+    }
+  }
   $effect(() => {
     if (typeof window === 'undefined') return;
     const onResize = () => { isMobile = window.innerWidth < 768; };
@@ -149,7 +164,7 @@
   {:else}
     <!-- The app sidebar's NotesSidebarSection is the canonical list — no
          second list inside the view. Full-width reader pane here. -->
-    <main class="reader">
+    <main class="reader" class:has-context={contextOpen && selected?.id}>
       {#if selected}
         <div class="reader-head">
           {#if editingTitle}
@@ -174,6 +189,17 @@
                delete still live in the NoteEditor modal that opens here.
                If we add a right-click context menu later, this button
                can drop entirely. -->
+          <button
+            class="more-btn"
+            class:active={contextOpen}
+            onclick={toggleContext}
+            aria-label={contextOpen ? 'Hide context panel' : 'Show context panel'}
+            title={contextOpen ? 'Hide context' : 'Show context — linked event, tasks, project health'}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>
+            </svg>
+          </button>
           <button class="more-btn" onclick={() => app?.editNote?.(selected)} aria-label="More actions" title="Color, pin, archive, delete…">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
               <circle cx="3" cy="8" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="13" cy="8" r="1.4"/>
@@ -238,16 +264,27 @@
         <div class="reader-empty">Select a note from the sidebar to read.</div>
       {/if}
     </main>
+    {#if contextOpen && selected?.id}
+      <NoteContextPanel noteId={selected.id} onclose={toggleContext} />
+    {/if}
   {/if}
 </div>
 
 <style>
   .notes-view {
+    position: relative; /* anchor for the context panel */
     flex: 1;
     overflow: hidden;
     display: flex;
     flex-direction: column;
     background: var(--bg);
+  }
+  .reader.has-context {
+    padding-right: 296px; /* leave room for the 280px panel + breathing space */
+    transition: padding-right 220ms cubic-bezier(.2,.7,.2,1);
+  }
+  @media (max-width: 880px) {
+    .reader.has-context { padding-right: 0; }
   }
   .btn-primary {
     padding: 6px 14px;

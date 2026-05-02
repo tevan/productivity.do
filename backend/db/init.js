@@ -564,6 +564,17 @@ function applyMigrations(database) {
   // legacy completion before this column existed).
   ensureColumn(database, 'tasks_cache', 'completed_at', 'TEXT');
 
+  // Estimation Intelligence (added 2026-05-02): the loop between "how long
+  // did the user expect this to take" (estimated_minutes) and "how long did
+  // it actually take" (actual_minutes). started_at captures intent-to-start:
+  // either the moment a user clicks "Move to today" or the start_time of an
+  // auto-scheduled GCal event (recorded at schedule time, used as a proxy
+  // for "this is when work began"). actual_minutes = completed_at - started_at,
+  // computed at completion. Both NULL when the task was completed without
+  // ever being scheduled or moved to today (we have no honest signal).
+  ensureColumn(database, 'tasks_cache', 'started_at',     'TEXT');
+  ensureColumn(database, 'tasks_cache', 'actual_minutes', 'INTEGER');
+
   // When the task was first seen by us. Used by the synthesis layer to
   // compute "task age at completion" and surface drifting tasks. We don't
   // get this from Todoist (their `added_at` is per-resync), so we record
