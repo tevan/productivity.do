@@ -285,6 +285,24 @@ function applyMigrations(database) {
     CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id, archived_at, pinned DESC, updated_at DESC);
   `);
 
+  // Note comments — Scope A of the collaboration design (see
+  // docs/internal/collaboration-thinking.md). Author posts a markdown
+  // comment on their own note; later, when sharing ships, recipients
+  // can comment too. Schema mirrors the future task_comments shape so
+  // a generalization is cheap.
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS note_comments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      note_id INTEGER NOT NULL,
+      body TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      deleted_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_note_comments_note ON note_comments(note_id, created_at);
+  `);
+
   // Team booking pages — multi-host support.
   //   host_user_ids:        JSON array of user ids (host_user_ids INCLUDES the
   //                         page owner unless explicitly overridden). When

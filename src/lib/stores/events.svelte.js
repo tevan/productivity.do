@@ -102,13 +102,21 @@ export function applyLocalPatch(eventId, patch) {
 // Used by the manual "click to re-sync" affordance in the sidebar footer.
 // In-flight throttle: ignore clicks fired within 5s of the last sync to
 // keep someone mashing the button from hammering the API.
+//
+// IMPORTANT: don't delete the cached entry before refetching — that would
+// make fetchEvents() see "no cache" and blank `events` to [] while the
+// network round-trip runs. The user perceives the entire calendar
+// flashing empty, which is jarring for a routine sync. Instead, mark the
+// entry stale (fetchedAt = 0) so events keep painting from cache while
+// the request is in flight, and only the new payload replaces them.
 let lastManualSyncAt = 0;
 export async function manualResync(start, end) {
   const now = Date.now();
   if (now - lastManualSyncAt < 5000) return false;
   lastManualSyncAt = now;
   const key = cacheKey(start, end);
-  rangeCache.delete(key);
+  const cached = rangeCache.get(key);
+  if (cached) cached.fetchedAt = 0;
   await fetchEvents(start, end);
   return true;
 }

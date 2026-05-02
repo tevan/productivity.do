@@ -1,21 +1,51 @@
 <script>
-  // Activity feed — cross-resource recent revisions for this user.
-  // Surfaces every notable change to notes/tasks (etc.) with a relative
-  // timestamp and what changed. Per-resource history with restore lives
-  // on the resource's own viewer (note editor → "Version history").
+  // Activity feed — cross-resource recent revisions for this user, MERGED
+  // with the offline replay log. The server tells us what was committed
+  // (notes/tasks revisions); the offline queue tells us what got replayed
+  // or failed when the device came back online. Both streams answer the
+  // user's "what just happened?" question, so they belong in one view.
 
   import { api } from '../api.js';
+  import { recentActivity as offlineActivity } from '../offline/replayQueue.js';
 
   let items = $state([]);
   let loading = $state(true);
 
   async function load() {
     loading = true;
-    const r = await api('/api/activity?limit=200');
-    items = r?.ok ? (r.items || []) : [];
+    const [srv, off] = await Promise.all([
+      api('/api/activity?limit=200'),
+      offlineActivity(100).catch(() => []),
+    ]);
+    const serverItems = srv?.ok ? (srv.items || []) : [];
+    // Normalize offline entries into the same shape as server revisions.
+    // Source `'offline'` lets the row pick a different label / icon.
+    const offlineItems = (off || []).map((e, i) => ({
+      id: `offline-${e.idempotencyKey || i}-${e.replayedAt}`,
+      createdAt: e.replayedAt,
+      resource: deriveResource(e.url),
+      op: e.kind === 'failure' ? 'failed' : 'replayed',
+      source: 'offline',
+      label: `${e.method} ${shortPath(e.url)}`,
+      detail: e.error || (e.kind === 'success' ? 'Synced' : ''),
+    }));
+    // Merge + sort newest-first.
+    items = [...serverItems, ...offlineItems].sort((a, b) =>
+      String(b.createdAt).localeCompare(String(a.createdAt))
+    );
     loading = false;
   }
   $effect(() => { load(); });
+
+  function deriveResource(url) {
+    if (!url) return '';
+    const m = String(url).match(/\/api\/([^/?]+)/);
+    return m ? m[1] : '';
+  }
+  function shortPath(url) {
+    try { return new URL(url, location.origin).pathname; }
+    catch { return url; }
+  }
 
   function relativeWhen(iso) {
     if (!iso) return '';
@@ -36,6 +66,8 @@
     delete: 'deleted',
     soft_delete: 'moved to trash',
     restore: 'restored',
+    replayed: 'synced (offline)',
+    failed: 'failed (offline)',
   };
 </script>
 
@@ -50,12 +82,15 @@
   {:else}
     <ul class="feed">
       {#each items as item (item.id)}
-        <li class="feed-row">
+        <li class="feed-row" class:offline={item.source === 'offline'} class:failed={item.op === 'failed'}>
           <span class="when" title={item.createdAt}>{relativeWhen(item.createdAt)}</span>
           <span class="op">{OP_LABELS[item.op] || item.op}</span>
           <span class="kind">{RES_LABELS[item.resource] || item.resource}</span>
           {#if item.label}
-            <span class="label">"{item.label}"</span>
+            <span class="label">{item.source === 'offline' ? item.label : `"${item.label}"`}</span>
+          {/if}
+          {#if item.detail}
+            <span class="detail">— {item.detail}</span>
           {/if}
         </li>
       {/each}
@@ -79,5 +114,8 @@
   .when { color: var(--text-tertiary); width: 70px; flex-shrink: 0; font-size: 11px; font-variant-numeric: tabular-nums; }
   .op { color: var(--text-secondary); }
   .kind { color: var(--text-secondary); text-transform: lowercase; }
-  .label { color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .label { color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+  .detail { color: var(--text-tertiary); font-size: 12px; }
+  .feed-row.offline .op { color: var(--accent); }
+  .feed-row.failed .op { color: var(--error, #c62828); }
 </style>

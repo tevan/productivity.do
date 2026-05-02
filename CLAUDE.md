@@ -324,7 +324,19 @@ The SPA at `/` is offline-capable as a PWA. Booking widget at `/book/*` and mark
 
 1. **App shell precache** via `vite-plugin-pwa` — `dist/sw.js` precaches HTML/JS/CSS/fonts at install. Workbox `generateSW` mode (config in `vite.config.js`).
 2. **Read-through SWR cache** for `/api/{calendars,preferences,calendar-sets,task-columns,focus-blocks,booking-pages,notifications,auth/status,auth/google/status,notes,links}` GETs plus prefix matches on `/api/{tasks,events,integrations}`. Cache name `productivity-api-v1`, 7-day expiry, 200-entry cap.
-3. **Write queue** in `src/lib/offline/replayQueue.js` — IndexedDB-backed (`productivity-offline.queue`). `src/lib/api.js` wraps every fetch; mutations during `!navigator.onLine` enqueue with a generated `Idempotency-Key` and return a synthetic `{ok:true, queued:true, idempotencyKey}` envelope. On `online`, drain in insertion order, **last-write-wins** (no conflict UI). Activity log lives in IndexedDB store `activity-log`.
+3. **Write queue** in `src/lib/offline/replayQueue.js` — IndexedDB-backed (`productivity-offline.queue`). `src/lib/api.js` wraps every fetch; mutations during `!navigator.onLine` enqueue with a generated `Idempotency-Key` and return a synthetic `{ok:true, queued:true, idempotencyKey}` envelope. On `online`, drain in insertion order, **last-write-wins** (no conflict UI). Activity log lives in IndexedDB store `activity-log`. `ActivityTab.svelte` MERGES the IndexedDB log with `/api/activity` (server-side revisions) so the user sees one feed for "what just happened?" — sorted newest-first.
+
+## Note comments (Scope A collaboration)
+
+`note_comments(user_id, note_id, body, created_at, updated_at, deleted_at)` — author-only for now. CRUD at `/api/notes/:id/comments` and `/api/notes/:id/comments/:commentId`. Soft-delete via `deleted_at`. UI: `NoteCommentsPanel.svelte` mounted as an overlay inside `NoteEditor.svelte` (same anchored-overlay pattern as `RevisionHistoryPanel.svelte`). The note must own the comments; route returns 404 (not 403) when the note isn't owned, to avoid leaking existence. Schema mirrors the future `task_comments` shape so a "comments anywhere" generalization is cheap. Scopes B (sharing) + C (live multi-user) deferred per `docs/internal/collaboration-thinking.md` — wait for user demand.
+
+## Manual resync UX
+
+`manualResync()` in `events.svelte.js` MUST NOT delete the cache entry before refetching. Doing so blanks the in-memory `events` for the duration of the network round-trip — visually the calendar flashes empty on every Sync click. Instead, mark the cached entry stale (`fetchedAt = 0`) so events keep painting from cache while the request is in flight; only the new payload replaces them.
+
+## Tasks board column alignment
+
+`.board-pane` in `TasksView.svelte` uses `justify-content: center` — under-filled boards (3 columns × 340px on a 1600px screen) center to align with the toolbar's centered tabs. Trello and Linear both center under-filled boards. Don't switch to `flex-start` without thinking about how it'll look against the toolbar.
 
 SW registration is production-only (`import.meta.env.PROD`) and lazy-loaded via `import('virtual:pwa-register')` in `src/main.js`. Auto-update + 1h re-check interval. `requireAuth` bypass list extended to allow `/sw.js`, `/manifest.webmanifest`, `/workbox-*`, `/registerSW.js` through unauthenticated. Toolbar chip at `src/lib/components/OfflineChip.svelte` shows "Offline" or "Syncing N".
 

@@ -3,6 +3,7 @@
   import { getPrefs } from '../stores/prefs.svelte.js';
   import { confirmAction } from '../utils/confirmModal.svelte.js';
   import RevisionHistoryPanel from './RevisionHistoryPanel.svelte';
+  import NoteCommentsPanel from './NoteCommentsPanel.svelte';
   import { tooltip } from '../actions/tooltip.js';
   import { renderMarkdown, SLASH_COMMANDS, applySlash, tryMarkdownShortcut } from '../utils/markdown.js';
 
@@ -13,6 +14,7 @@
   let pinned = $state(!!note?.pinned);
   let color = $state(note?.color || null);
   let historyOpen = $state(false);
+  let commentsOpen = $state(false);
   function onRestored(r) {
     // Restored note comes back in the response; sync local state so the
     // editor reflects the restored content immediately.
@@ -260,6 +262,9 @@
           {/if}
         </div>
         {#if note?.id}
+          <button class="icon-btn" onclick={() => commentsOpen = true} use:tooltip={'Comments'} aria-label="Comments">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          </button>
           <button class="icon-btn" onclick={() => historyOpen = true} use:tooltip={'Version history'} aria-label="Version history">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg>
           </button>
@@ -332,6 +337,12 @@
         id={note.id}
         onrestored={onRestored}
         onclose={() => historyOpen = false}
+      />
+    {/if}
+    {#if commentsOpen && note?.id}
+      <NoteCommentsPanel
+        noteId={note.id}
+        onclose={() => commentsOpen = false}
       />
     {/if}
   </div>

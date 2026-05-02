@@ -641,11 +641,11 @@
     flex: 1;
     min-height: 0;
     align-items: stretch;
-    /* If columns don't fill the row (e.g. 3 columns × 340px on a 1600px
-       monitor) they cluster left rather than stretching to absurd
-       widths. The flex 1 1 0 + max-width on .board-col is what caps
-       individual width; this just makes the leftover space empty. */
-    justify-content: flex-start;
+    /* Center the column row when it doesn't fill the available width (3
+       columns × 340px on a 1600px monitor). Left-aligning made the
+       columns look offset from the centered toolbar nav above. Trello
+       and Linear both center under-filled boards. */
+    justify-content: center;
   }
   .board-col {
     flex: 1 1 0;

@@ -177,4 +177,82 @@ router.post('/api/notes/:id/revisions/:revId/restore', (req, res) => {
   res.json({ ok: true, note: after });
 });
 
+// ---------------------------------------------------------------------------
+// Comments on notes — Scope A of the collaboration plan. Author-only for now;
+// when sharing ships, recipients of a shared note can post too.
+// ---------------------------------------------------------------------------
+
+const MAX_COMMENT = 10_000;
+
+function ownsNote(userId, noteId) {
+  const row = getDb().prepare(
+    "SELECT 1 FROM notes WHERE id = ? AND user_id = ? AND deleted_at IS NULL"
+  ).get(noteId, userId);
+  return !!row;
+}
+
+router.get('/api/notes/:id/comments', (req, res) => {
+  const userId = req.session.userId;
+  const noteId = Number(req.params.id);
+  if (!ownsNote(userId, noteId)) {
+    return res.status(404).json({ ok: false, error: 'Note not found' });
+  }
+  const rows = getDb().prepare(
+    "SELECT id, user_id AS userId, body, created_at AS createdAt, updated_at AS updatedAt FROM note_comments WHERE note_id = ? AND deleted_at IS NULL ORDER BY created_at ASC"
+  ).all(noteId);
+  res.json({ ok: true, comments: rows });
+});
+
+router.post('/api/notes/:id/comments', (req, res) => {
+  const userId = req.session.userId;
+  const noteId = Number(req.params.id);
+  if (!ownsNote(userId, noteId)) {
+    return res.status(404).json({ ok: false, error: 'Note not found' });
+  }
+  const body = String(req.body?.body || '').trim();
+  if (!body) return res.status(400).json({ ok: false, error: 'body required' });
+  if (body.length > MAX_COMMENT) {
+    return res.status(400).json({ ok: false, error: `body must be <= ${MAX_COMMENT} chars` });
+  }
+  const r = getDb().prepare(
+    "INSERT INTO note_comments (user_id, note_id, body) VALUES (?, ?, ?)"
+  ).run(userId, noteId, body);
+  const row = getDb().prepare(
+    "SELECT id, user_id AS userId, body, created_at AS createdAt, updated_at AS updatedAt FROM note_comments WHERE id = ?"
+  ).get(r.lastInsertRowid);
+  res.json({ ok: true, comment: row });
+});
+
+router.put('/api/notes/:id/comments/:commentId', (req, res) => {
+  const userId = req.session.userId;
+  const noteId = Number(req.params.id);
+  const commentId = Number(req.params.commentId);
+  const body = String(req.body?.body || '').trim();
+  if (!body) return res.status(400).json({ ok: false, error: 'body required' });
+  if (body.length > MAX_COMMENT) {
+    return res.status(400).json({ ok: false, error: `body must be <= ${MAX_COMMENT} chars` });
+  }
+  // Author-only edit. UPDATE returns 0 rows if the user doesn't own it.
+  const r = getDb().prepare(
+    "UPDATE note_comments SET body = ?, updated_at = datetime('now') WHERE id = ? AND note_id = ? AND user_id = ? AND deleted_at IS NULL"
+  ).run(body, commentId, noteId, userId);
+  if (r.changes === 0) return res.status(404).json({ ok: false, error: 'Comment not found' });
+  const row = getDb().prepare(
+    "SELECT id, user_id AS userId, body, created_at AS createdAt, updated_at AS updatedAt FROM note_comments WHERE id = ?"
+  ).get(commentId);
+  res.json({ ok: true, comment: row });
+});
+
+router.delete('/api/notes/:id/comments/:commentId', (req, res) => {
+  const userId = req.session.userId;
+  const noteId = Number(req.params.id);
+  const commentId = Number(req.params.commentId);
+  // Soft-delete so revisions/audit can still see the post-edit history.
+  const r = getDb().prepare(
+    "UPDATE note_comments SET deleted_at = datetime('now') WHERE id = ? AND note_id = ? AND user_id = ? AND deleted_at IS NULL"
+  ).run(commentId, noteId, userId);
+  if (r.changes === 0) return res.status(404).json({ ok: false, error: 'Comment not found' });
+  res.json({ ok: true });
+});
+
 export default router;
