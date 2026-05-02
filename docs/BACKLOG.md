@@ -50,3 +50,31 @@ Living document of features we've discussed but haven't built. Pull from the top
 - **Resend domain verification** for `productivity.do` so transactional emails don't go to spam. (When we wire the actual `RESEND_API_KEY` here.)
 - **Sentry or similar error tracking** on the backend — currently we just `console.warn` and rely on `pm2 logs`.
 - **Backup the SQLite DB** to the existing restic flow if not already covered.
+
+## Open (added 2026-05-02)
+
+- **Sync UI — preserve calendar contents during refresh**: clicking the
+  Sync button in the left sidebar currently blanks the calendar until
+  the response lands. Should keep the existing rendered events visible
+  and only swap when the new data arrives (the events store already has
+  optimistic SWR; the loading flag is what blanks the view).
+- **Note + task collaboration / comments**: see
+  `docs/internal/collaboration-thinking.md`. Build A (note comments +
+  task comments via SPA + @-mentions) is small and worth doing soon;
+  scope B (sharing) waits for user request; scope C (live multi-user
+  editing) probably never.
+- **Historical weather**: see `docs/internal/historical-weather-design.md`.
+  Defer until ~20 paying Pro users to model cost.
+- **Subscriptions in the sidebar**: a real surface for inbound ICS
+  feeds, parallel to the Calendars list. Pref toggle was removed
+  because the rendered surface didn't exist; build the surface, then
+  re-add the toggle.
+- **Mental-model copy refresh**: apply the "plan, capture, schedule.
+  nothing else." framing to /home, /pricing, /about marketing pages.
+- **Wire /pricing.html to /api/plans**: pricing copy + feature list
+  should fetch the catalog from the API so it can't drift from
+  server-side enforcement.
+- **Drop indicator for sidebar task drag**: equivalent of the board
+  drop indicator we shipped, but for the list-view drag.
+- **Activity log unification**: merge IndexedDB offline activity with
+  server-side revisions in Settings → Activity for one feed.

@@ -2,6 +2,7 @@
   import { createNote, updateNote, deleteNote } from '../stores/notes.svelte.js';
   import { getPrefs } from '../stores/prefs.svelte.js';
   import { confirmAction } from '../utils/confirmModal.svelte.js';
+  import RevisionHistoryPanel from './RevisionHistoryPanel.svelte';
   import { tooltip } from '../actions/tooltip.js';
   import { renderMarkdown, SLASH_COMMANDS, applySlash, tryMarkdownShortcut } from '../utils/markdown.js';
 
@@ -11,6 +12,17 @@
   let body = $state(note?.body || '');
   let pinned = $state(!!note?.pinned);
   let color = $state(note?.color || null);
+  let historyOpen = $state(false);
+  function onRestored(r) {
+    // Restored note comes back in the response; sync local state so the
+    // editor reflects the restored content immediately.
+    if (r?.note) {
+      title = r.note.title || '';
+      body = r.note.body || '';
+      pinned = !!r.note.pinned;
+      color = r.note.color || null;
+    }
+  }
   let colorOpen = $state(false);
   // The 12 named scheme slots — picking one of these routes through the
   // active color scheme via var(--color-{slot}). Plus null = no color.
@@ -247,6 +259,11 @@
             </div>
           {/if}
         </div>
+        {#if note?.id}
+          <button class="icon-btn" onclick={() => historyOpen = true} use:tooltip={'Version history'} aria-label="Version history">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg>
+          </button>
+        {/if}
         <button class="icon-btn" onclick={handleDelete} use:tooltip={'Delete'} aria-label="Delete">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/></svg>
         </button>
@@ -309,6 +326,14 @@
       </span>
       <span class="note-hint">/ slash commands · Cmd+E toggle preview · Cmd+S save</span>
     </div>
+    {#if historyOpen && note?.id}
+      <RevisionHistoryPanel
+        resource="notes"
+        id={note.id}
+        onrestored={onRestored}
+        onclose={() => historyOpen = false}
+      />
+    {/if}
   </div>
 </div>
 
@@ -324,6 +349,7 @@
     padding: 16px;
   }
   .note-modal {
+    position: relative; /* anchor for the version-history overlay */
     background: var(--surface);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-lg);

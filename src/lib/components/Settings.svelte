@@ -194,14 +194,16 @@
 
   const SIDEBAR_SECTION_OPTIONS = [
     // Only the sections actually rendered by Sidebar.svelte are toggleable.
-    // Templates / subscriptions / quick-slots have settings pages but no
-    // sidebar surface, so they were dead checkboxes — removed 2026-05-02.
+    // Templates / quick-slots are dead — Settings only — so they don't
+    // appear here. Subscriptions DOES have a sidebar surface (re-added
+    // 2026-05-02) and is included.
     { id: 'miniCalendar', label: 'Mini calendar' },
     { id: 'tasks', label: 'Tasks' },
     { id: 'notes', label: 'Notes' },
     { id: 'sets', label: 'Calendar sets' },
     { id: 'bookingPages', label: 'Booking pages' },
     { id: 'calendars', label: 'Calendars' },
+    { id: 'subscriptions', label: 'Subscriptions' },
   ];
 
   // All sidebar sections default to visible (true). When the user toggles

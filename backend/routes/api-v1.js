@@ -23,6 +23,7 @@ import {
 import { apiPage } from '../lib/bookingMappers.js';
 import { emitEvent } from '../lib/webhooks.js';
 import { idempotency } from '../middleware/idempotency.js';
+import { ERROR_CODES, sendError } from '../lib/errorCodes.js';
 
 const router = Router();
 
@@ -123,7 +124,7 @@ router.use((req, res, next) => {
   res.set('X-RateLimit-Remaining', String(Math.max(0, r.remaining)));
   if (!r.allowed) {
     res.set('Retry-After', String(Math.ceil((r.retryMs || RL_WINDOW_MS) / 1000)));
-    return res.status(429).json({ ok: false, error: 'Rate limit exceeded' });
+    return sendError(res, 'rate_limit_exceeded', { retryAfter: Math.ceil((r.retryMs || RL_WINDOW_MS) / 1000) });
   }
   next();
 });
@@ -138,6 +139,20 @@ router.use(idempotency);
 // ---------------------------------------------------------------------------
 router.get('/api/v1/ping', (req, res) => {
   res.json({ ok: true, time: new Date().toISOString(), version: 'v1' });
+});
+
+// Public discovery endpoint for the error-code catalog. Lets SDK
+// generators and docs sites pattern-match on stable codes without
+// scraping prose. Mirrors /api/v1/openapi.json — unauthenticated.
+router.get('/api/v1/error-codes', (req, res) => {
+  const codes = Object.entries(ERROR_CODES).map(([code, def]) => ({
+    code,
+    category: code.split('_')[0],
+    http: def.http,
+    message: def.message,
+  }));
+  res.set('Cache-Control', 'public, max-age=300');
+  res.json({ ok: true, codes });
 });
 
 router.get('/api/v1/me', requireApi(), (req, res) => {

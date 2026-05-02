@@ -22,7 +22,7 @@ Fantastical-inspired web calendar with Google Calendar + Todoist sync. Svelte 5 
 - **Login:** `POST /api/auth` with `{email, password}`. Falls back to seed user `SEED_USER_EMAIL` (env, defaults to `owner@productivity.do`) if no email supplied — preserves the legacy single-password login during the transition.
 - **Google OAuth:** Calendar read/write scopes, per-user tokens in `google_tokens` (PK = user_id), auto-refresh.
 - **Todoist:** API token in `.env` (still single-user shared — needs per-user column for true multi-tenancy; flagged in `routes/tasks.js`).
-- **Public bypass list:** `/api/auth/*`, `/api/signup`, `/api/verify/*`, `/api/stripe/webhook`, `/assets/*`, `/book.html`, `/book/*`, `/api/public/booking/*`, `/developers`, `/embed.js`, `/api/v1/openapi.json`, `/api/v1/ping`, `/home.html`, `/features.html`, `/pricing.html`, `/security.html`, `/about.html`, `/changelog.html`, `/terms.html`, `/privacy.html`, `/signup.html`.
+- **Public bypass list:** `/api/auth/*`, `/api/signup`, `/api/verify/*`, `/api/stripe/webhook`, `/assets/*`, `/book.html`, `/book/*`, `/api/public/booking/*`, `/developers`, `/developers/explorer`, `/embed.js`, `/api/v1/openapi.json`, `/api/v1/ping`, `/api/v1/error-codes`, `/home.html`, `/features.html`, `/pricing.html`, `/security.html`, `/about.html`, `/changelog.html`, `/terms.html`, `/privacy.html`, `/signup.html`.
 
 ## Views
 
@@ -150,6 +150,7 @@ Booking public (unprotected):
 Public developer API (Bearer pk_live_<prefix>.<secret>, scoped):
   GET  /api/v1/ping                          (no auth)
   GET  /api/v1/openapi.json                  (no auth — full OpenAPI 3.1 spec)
+  GET  /api/v1/error-codes                   (no auth — stable error-code catalog)
   GET  /api/v1/me                            (key info)
   CRUD /api/v1/tasks, /api/v1/events, /api/v1/calendars,
        /api/v1/booking-pages[/:id/bookings], /api/v1/webhooks
@@ -195,6 +196,8 @@ Two HTML entries: `index.html` (main SPA) and `book.html` (public booking widget
 - **Public asset access:** `requireAuth` middleware allow-lists `/assets/*`, `/book.html`, `/favicon.{svg,ico}`, `/developers`, `/embed.js`, `/api/v1/openapi.json`, `/api/v1/ping` so the unauthenticated widget + docs + ping can load.
 - **Calendly extras (per-page sub-resources):** Event types (multi-meeting), custom questions (text/textarea/select/checkbox, optionally per-type), workflows (webhook on_booked / on_canceled / on_rescheduled / reminder_24h with `{{name}}` template vars + 8s timeout + SSRF guard), single-use invite tokens, time polls (Doodle-style), routing forms (rules evaluated server-side via POST /api/public/forms/:slug/route — never returned to clients), branding (logo/cover/brand_color), pacing (min_gap_min/weekly_max), Stripe price stub, ICS download + Google/Outlook add-to-calendar.
 - **Public developer API (`/api/v1`):** Bearer `pk_live_<prefix>.<secret>` (sha256-hashed, `crypto.timingSafeEqual` compare). Scopes: read/write × tasks/events/booking-pages, read calendars/webhooks, write webhooks, plus admin wildcard. CORS `origin: '*'` (non-reflected). Session-cookie fallback only honored for same-origin requests. OpenAPI 3.1 spec auto-generated at `/api/v1/openapi.json`.
+- **API error-code catalog:** `backend/lib/errorCodes.js` is the single source for stable error codes (`auth_*`, `plan_*`, `validation_*`, `not_found_*`, `conflict_*`, `rate_*`, `bulk_*`, `payload_*`, `upstream_*`, `server_*`). Every `/api/v1` error response should be `{ ok:false, code, message, ... }` — use `sendError(res, code, extras)` (or `sendUpstreamError`). `GET /api/v1/error-codes` exposes the catalog (5min cache); `docs/help/api/error-codes.md` documents the contract. Don't repurpose existing codes — add new ones.
+- **API Explorer at `/developers/explorer`:** Self-contained HTML at `backend/views/explorer.html`. Loads `/api/v1/openapi.json`, lets the user paste an API key + pick an op + tweak JSON body + send live requests. Auto-generates an `Idempotency-Key` for write methods. Uses DOM methods (no innerHTML) — security hook will reject anything else.
 - **Outbound webhooks:** HMAC-SHA256 over `${ts}.${body}`, sent via `X-Productivity-Signature: t=<ts>,v1=<sig>` (replay-safe — receivers should reject >5min stale). 8s timeout, retry queue 1m/5m/30m/2h/12h. URLs validated by `isSafeWebhookUrl` (https + non-loopback/RFC1918/CGNAT/IPv6-internal) at persist time and at delivery time.
 - **Confirm modal:** `confirmAction()` from `src/lib/utils/confirmModal.svelte.js` returns `Promise<boolean>` and renders via `<ConfirmRoot>` mounted in `App.svelte`. Replaces `window.confirm()` throughout per CLAUDE.md UI rules.
 - **Upgrade modal:** `showUpgrade({feature, requiredPlan, detail})` from `src/lib/utils/upgradeModal.svelte.js`. The `api()` wrapper in `src/lib/api.js` auto-triggers it whenever the backend returns `{code:'plan_required', requiredPlan, feature}`. Backend helpers (`requireFeature` and `checkCountLimit` in `backend/lib/plans.js`) emit that shape on 402.

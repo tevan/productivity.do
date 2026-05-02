@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>API Explorer · productivity.do</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --fg: #1a1a1a;
+    --fg-muted: #6b7280;
+    --fg-faint: #9ca3af;
+    --bg: #fff;
+    --bg-soft: #f8f7f5;
+    --bg-code: #0f1115;
+    --bg-code-fg: #e8eaed;
+    --border: #e5e7eb;
+    --accent: #6366f1;
+    --accent-hover: #4f46e5;
+    --green: #059669;
+    --orange: #d97706;
+    --red: #b91c1c;
+    --radius: 8px;
+  }
+  html, body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'Inter', system-ui, sans-serif;
+    line-height: 1.5;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, pre, .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 18px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  header h1 { font-size: 18px; font-weight: 700; }
+  header h1 .v { color: var(--fg-faint); font-weight: 500; font-size: 13px; margin-left: 6px; }
+  header .links a { font-size: 13px; color: var(--fg-muted); margin-left: 16px; }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 0;
+    min-height: calc(100vh - 60px);
+  }
+  @media (max-width: 880px) {
+    .layout { grid-template-columns: 1fr; }
+    aside.ops { border-right: none; border-bottom: 1px solid var(--border); max-height: 280px; }
+  }
+
+  aside.ops {
+    border-right: 1px solid var(--border);
+    background: var(--bg-soft);
+    padding: 16px 12px;
+    overflow-y: auto;
+    max-height: calc(100vh - 60px);
+  }
+  aside.ops .filter {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 13px;
+    margin-bottom: 12px;
+    background: #fff;
+  }
+  aside.ops .group-h {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--fg-faint);
+    letter-spacing: 0.04em;
+    margin: 14px 8px 4px;
+  }
+  aside.ops button.op {
+    display: flex;
+    width: 100%;
+    text-align: left;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--fg);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  aside.ops button.op:hover { background: rgba(99, 102, 241, 0.08); }
+  aside.ops button.op.active { background: rgba(99, 102, 241, 0.16); }
+  .verb {
+    display: inline-block;
+    min-width: 48px;
+    text-align: center;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+  .verb.GET    { background: #dcfce7; color: #166534; }
+  .verb.POST   { background: #dbeafe; color: #1e40af; }
+  .verb.PUT    { background: #fef3c7; color: #92400e; }
+  .verb.DELETE { background: #fee2e2; color: #991b1b; }
+
+  main.work {
+    padding: 22px 28px;
+    overflow-x: hidden;
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--fg-muted);
+    min-width: 80px;
+  }
+  input[type="text"], input[type="password"], textarea {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  textarea { font-family: 'JetBrains Mono', monospace; min-height: 160px; resize: vertical; }
+  .url-row {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+  }
+  .url-row .verb-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 13px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    color: #fff;
+    background: var(--fg);
+    min-width: 70px;
+    text-align: center;
+  }
+  .url-row .verb-tag.GET    { background: #16a34a; }
+  .url-row .verb-tag.POST   { background: #2563eb; }
+  .url-row .verb-tag.PUT    { background: #d97706; }
+  .url-row .verb-tag.DELETE { background: #dc2626; }
+  .url-row input { flex: 1; font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+
+  .send-btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 18px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .send-btn:hover { background: var(--accent-hover); }
+  .send-btn:disabled { background: var(--fg-faint); cursor: not-allowed; }
+
+  .panes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-top: 16px;
+  }
+  @media (max-width: 1100px) { .panes { grid-template-columns: 1fr; } }
+
+  .pane h3 {
+    font-size: 12px;
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .pane pre {
+    background: var(--bg-code);
+    color: var(--bg-code-fg);
+    padding: 14px;
+    border-radius: var(--radius);
+    overflow: auto;
+    font-size: 12px;
+    line-height: 1.5;
+    max-height: 60vh;
+  }
+  .status-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .status-pill.ok    { background: #dcfce7; color: #166534; }
+  .status-pill.fail  { background: #fee2e2; color: #991b1b; }
+  .status-pill.warn  { background: #fef3c7; color: #92400e; }
+
+  .helper {
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    font-size: 13px;
+    color: var(--fg-muted);
+    margin-bottom: 16px;
+    line-height: 1.55;
+  }
+  .helper code { background: #fff; }
+
+  .timing { font-size: 11px; color: var(--fg-faint); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>API Explorer <span class="v">/api/v1</span></h1>
+  <div class="links">
+    <a href="/developers">← Docs</a>
+    <a href="/api/v1/openapi.json" target="_blank">OpenAPI</a>
+    <a href="/help/api/error-codes">Error codes</a>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="ops" id="ops">
+    <input class="filter" id="filter" type="text" placeholder="Filter operations…" autocomplete="off" />
+    <div id="oplist" class="oplist"></div>
+  </aside>
+
+  <main class="work">
+    <div class="helper">
+      Paste an API key from <a href="/" target="_blank">Settings → Developer</a>, pick an operation,
+      tweak the body, and click <strong>Send</strong>. Requests run against
+      this server — they will create / update real data on your account.
+      Use the <code>read:</code>-scoped key for safe browsing.
+    </div>
+
+    <div class="row">
+      <label for="apikey">API Key</label>
+      <input id="apikey" type="password" placeholder="pk_live_xxxxxxxx.xxxxxxxx…" autocomplete="off" />
+    </div>
+
+    <div class="url-row">
+      <span id="verbTag" class="verb-tag GET">GET</span>
+      <input id="urlInput" type="text" value="/api/v1/ping" />
+      <button id="sendBtn" class="send-btn">Send</button>
+    </div>
+
+    <div class="panes">
+      <div class="pane">
+        <h3>
+          Request body
+          <span style="font-weight: 400; text-transform: none; color: var(--fg-faint);" id="bodyHint">JSON, optional for GET/DELETE</span>
+        </h3>
+        <textarea id="body" spellcheck="false"></textarea>
+      </div>
+      <div class="pane">
+        <h3>
+          Response
+          <span id="status" class="status-pill" style="display: none;"></span>
+        </h3>
+        <div class="timing" id="timing"></div>
+        <pre id="resp" style="opacity: 0.5;">— click Send to see the response —</pre>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+const KEY_LS = 'productivity_explorer_apikey';
+const apikeyEl = document.getElementById('apikey');
+const urlEl    = document.getElementById('urlInput');
+const verbTag  = document.getElementById('verbTag');
+const bodyEl   = document.getElementById('body');
+const respEl   = document.getElementById('resp');
+const statusEl = document.getElementById('status');
+const timingEl = document.getElementById('timing');
+const filterEl = document.getElementById('filter');
+const opListEl = document.getElementById('oplist');
+const sendBtn  = document.getElementById('sendBtn');
+
+apikeyEl.value = localStorage.getItem(KEY_LS) || '';
+apikeyEl.addEventListener('input', () => localStorage.setItem(KEY_LS, apikeyEl.value));
+
+let currentVerb = 'GET';
+function setVerb(v) {
+  currentVerb = v;
+  verbTag.textContent = v;
+  verbTag.className = 'verb-tag ' + v;
+}
+
+// All sidebar entries are built with DOM methods (no innerHTML) — content
+// comes from the OpenAPI spec but treating it as untrusted is cheap
+// insurance against future changes.
+async function loadOps() {
+  let spec;
+  try {
+    const res = await fetch('/api/v1/openapi.json');
+    spec = await res.json();
+  } catch (err) {
+    const errDiv = document.createElement('div');
+    errDiv.style.cssText = 'padding: 12px; color: var(--red);';
+    errDiv.textContent = 'Could not load /api/v1/openapi.json';
+    opListEl.replaceChildren(errDiv);
+    return;
+  }
+  const ops = [];
+  for (const [path, methods] of Object.entries(spec.paths || {})) {
+    for (const [method, def] of Object.entries(methods)) {
+      if (!['get', 'post', 'put', 'delete'].includes(method)) continue;
+      ops.push({
+        method: method.toUpperCase(),
+        path,
+        summary: def.summary || '',
+        tag: (def.tags && def.tags[0]) || 'misc',
+        operationId: def.operationId,
+        requestSample: extractRequestSample(def),
+      });
+    }
+  }
+  renderOps(ops);
+  filterEl.addEventListener('input', () => renderOps(ops));
+}
+
+function extractRequestSample(def) {
+  const ct = def?.requestBody?.content;
+  if (!ct) return null;
+  const json = ct['application/json'];
+  if (!json) return null;
+  if (json.example) return JSON.stringify(json.example, null, 2);
+  if (json.examples) {
+    const first = Object.values(json.examples)[0];
+    if (first?.value) return JSON.stringify(first.value, null, 2);
+  }
+  if (json.schema?.example) return JSON.stringify(json.schema.example, null, 2);
+  return null;
+}
+
+function renderOps(ops) {
+  const q = filterEl.value.trim().toLowerCase();
+  const filtered = q
+    ? ops.filter(o => o.path.toLowerCase().includes(q) || o.summary.toLowerCase().includes(q))
+    : ops;
+  const groups = {};
+  for (const o of filtered) {
+    (groups[o.tag] = groups[o.tag] || []).push(o);
+  }
+  const frag = document.createDocumentFragment();
+  for (const [tag, items] of Object.entries(groups).sort()) {
+    const h = document.createElement('div');
+    h.className = 'group-h';
+    h.textContent = tag;
+    frag.appendChild(h);
+    for (const o of items) {
+      const btn = document.createElement('button');
+      btn.className = 'op';
+      btn.dataset.method = o.method;
+      btn.dataset.path = o.path;
+      if (o.requestSample) btn.dataset.sample = o.requestSample;
+      const verbSpan = document.createElement('span');
+      verbSpan.className = 'verb ' + o.method;
+      verbSpan.textContent = o.method;
+      const pathSpan = document.createElement('span');
+      pathSpan.textContent = o.path;
+      btn.appendChild(verbSpan);
+      btn.appendChild(pathSpan);
+      btn.addEventListener('click', () => {
+        opListEl.querySelectorAll('button.op').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        setVerb(o.method);
+        urlEl.value = o.path.replace(/\{(\w+)\}/g, ':$1');
+        bodyEl.value = o.requestSample || '';
+      });
+      frag.appendChild(btn);
+    }
+  }
+  opListEl.replaceChildren(frag);
+}
+
+sendBtn.addEventListener('click', async () => {
+  const url = urlEl.value.trim();
+  const apikey = apikeyEl.value.trim();
+  if (!url) return;
+  let body = null;
+  if (['POST', 'PUT'].includes(currentVerb) && bodyEl.value.trim()) {
+    try {
+      body = JSON.stringify(JSON.parse(bodyEl.value));
+    } catch (err) {
+      respEl.textContent = 'Request body is not valid JSON: ' + err.message;
+      statusEl.style.display = 'inline-block';
+      statusEl.className = 'status-pill fail';
+      statusEl.textContent = 'Local error';
+      return;
+    }
+  }
+  const headers = { 'Content-Type': 'application/json' };
+  if (apikey) headers['Authorization'] = 'Bearer ' + apikey;
+  // Generate idempotency key for write requests so retries are safe.
+  if (['POST', 'PUT', 'DELETE'].includes(currentVerb)) {
+    headers['Idempotency-Key'] = 'explorer-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
+  }
+  sendBtn.disabled = true;
+  sendBtn.textContent = 'Sending…';
+  respEl.style.opacity = '0.5';
+  respEl.textContent = '— sending —';
+  statusEl.style.display = 'none';
+  timingEl.textContent = '';
+  const t0 = performance.now();
+  try {
+    const res = await fetch(url, { method: currentVerb, headers, body, credentials: 'omit' });
+    const dt = Math.round(performance.now() - t0);
+    const text = await res.text();
+    let pretty = text;
+    try { pretty = JSON.stringify(JSON.parse(text), null, 2); } catch {}
+    respEl.style.opacity = '1';
+    respEl.textContent = pretty;
+    statusEl.style.display = 'inline-block';
+    statusEl.className = 'status-pill ' + (res.ok ? 'ok' : (res.status >= 500 ? 'fail' : 'warn'));
+    statusEl.textContent = res.status + ' ' + res.statusText;
+    timingEl.textContent = dt + ' ms · ' + (text.length) + ' bytes';
+  } catch (err) {
+    respEl.style.opacity = '1';
+    respEl.textContent = 'Network error: ' + err.message;
+    statusEl.style.display = 'inline-block';
+    statusEl.className = 'status-pill fail';
+    statusEl.textContent = 'Network';
+  } finally {
+    sendBtn.disabled = false;
+    sendBtn.textContent = 'Send';
+  }
+});
+
+loadOps();
+</script>
+</body>
+</html>

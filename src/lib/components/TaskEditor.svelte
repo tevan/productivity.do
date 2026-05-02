@@ -7,8 +7,10 @@
   import { parseTaskDue, todoistColor, todoistColorThemed, lowerAmPm } from '../utils/dates.js';
   import Dropdown from './Dropdown.svelte';
   import { tooltip } from '../actions/tooltip.js';
+  import RevisionHistoryPanel from './RevisionHistoryPanel.svelte';
 
   let { task = null, onclose = () => {} } = $props();
+  let historyOpen = $state(false);
   const appCtx = getContext('app');
 
   function switchToEvent() {
@@ -340,6 +342,13 @@
       </svg>
     </button>
     {#if task?.id}
+      <button class="footer-btn" onclick={() => historyOpen = true} use:tooltip={'Version history'} aria-label="Version history">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>
+        </svg>
+      </button>
+    {/if}
+    {#if task?.id}
       <button
         class="footer-btn complete-btn"
         class:reopen={task?.isCompleted}
@@ -364,6 +373,13 @@
       {saving ? 'Saving…' : 'Save'}
     </button>
   </div>
+  {#if historyOpen && task?.id}
+    <RevisionHistoryPanel
+      resource="tasks"
+      id={task.id}
+      onclose={() => historyOpen = false}
+    />
+  {/if}
 </div>
 
 <style>

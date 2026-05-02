@@ -9,6 +9,10 @@
   import CalendarSets from './CalendarSets.svelte';
   import NotificationBell from './NotificationBell.svelte';
   import { getCalendars, toggleCalendar } from '../stores/calendars.svelte.js';
+  import {
+    getSubscriptions, fetchSubscriptions, toggleSubscriptionVisible,
+    refreshSubscription, removeSubscription,
+  } from '../stores/subscriptions.svelte.js';
   // TaskRow + completeTask/updateTask/deleteTask + buildTaskGroups +
   // withSubtaskOrder + confirmAction were used by the inline task list
   // implementation; that lives in TaskListPanel now.
@@ -207,6 +211,15 @@
   let copiedPageId = $state(null);
 
   $effect(() => { if (sectionsVisible.bookingPages !== false) fetchBookingPages(); });
+  // Inbound ICS feeds — fetched lazily when the section is visible. The
+  // 6-hour cron refresh runs server-side regardless.
+  const subsStore = getSubscriptions();
+  const subs = $derived(subsStore.items);
+  $effect(() => {
+    if (sectionsVisible.subscriptions !== false && appViewStore.current === 'calendar') {
+      fetchSubscriptions();
+    }
+  });
 
   async function handleNewBookingPage() {
     const page = await createBookingPage();
@@ -463,6 +476,45 @@
               </div>
             {/each}
           {/if}
+        </div>
+      {/if}
+    </div>
+    {/if}
+
+    {#if sectionsVisible.subscriptions !== false && appViewStore.current === 'calendar' && subs.length > 0}
+    <!-- Inbound ICS feeds (holidays, sports schedules, external Google
+         exports). Read-only events — toggle visibility per feed; click
+         the refresh icon to force a re-pull. Adding a feed lives in
+         Settings → Calendar → Subscriptions; we don't duplicate the
+         "Add" form here so the sidebar stays scannable. -->
+    <div class="sidebar-section">
+      <button class="section-header" onclick={() => toggleCollapse('subscriptions')}>
+        <svg class="chevron" class:rotated={!collapsed.subscriptions} width="10" height="10" viewBox="0 0 10 10">
+          <path d="M3 1.5L7 5L3 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+        <h3 class="section-title">Subscriptions</h3>
+        <span class="section-count">{subs.length}</span>
+      </button>
+      {#if !collapsed.subscriptions}
+        <div class="calendar-list">
+          {#each subs as s (s.id)}
+            <div class="calendar-item-wrap">
+              <label class="calendar-item">
+                <input
+                  type="checkbox"
+                  checked={s.visible !== false}
+                  onchange={() => toggleSubscriptionVisible(s)}
+                />
+                <span class="cal-dot" style="background: {s.color || 'var(--text-tertiary)'}"></span>
+                <span class="cal-name">{s.name}</span>
+              </label>
+              <button class="cal-hide-btn" onclick={() => refreshSubscription(s.id)} use:tooltip={'Refresh feed'} aria-label="Refresh feed">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path d="M2 6a4 4 0 0 1 7-2.5M10 6a4 4 0 0 1-7 2.5M9 1.5v2h-2M3 10.5v-2h2" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </div>
+          {/each}
         </div>
       {/if}
     </div>

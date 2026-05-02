@@ -191,8 +191,10 @@ app.use(apiV1Routes);
 
 // Developer docs + embed loader
 const developersHtml = readFileSync(join(__dirname, 'views', 'developers.html'), 'utf8');
+const explorerHtml = readFileSync(join(__dirname, 'views', 'explorer.html'), 'utf8');
 const embedJs = readFileSync(join(__dirname, 'views', 'embed.js'), 'utf8');
 app.get('/developers', (req, res) => res.type('html').send(developersHtml));
+app.get('/developers/explorer', (req, res) => res.type('html').send(explorerHtml));
 app.get('/embed.js', (req, res) => {
   res.type('application/javascript');
   res.set('Cache-Control', 'public, max-age=300');
@@ -229,6 +231,7 @@ function requireAuth(req, res, next) {
     req.path === '/favicon.svg' ||
     req.path === '/favicon.ico' ||
     req.path === '/developers' ||
+    req.path === '/developers/explorer' ||
     req.path === '/embed.js' ||
     // Service Worker + PWA manifest — must load unauthenticated so the
     // shell can be cached BEFORE the user signs in. The SW itself only
@@ -240,6 +243,7 @@ function requireAuth(req, res, next) {
     req.path === '/registerSW.js' ||
     req.path === '/api/v1/openapi.json' ||
     req.path === '/api/v1/ping' ||
+    req.path === '/api/v1/error-codes' ||
     // Plan catalog — read-only marketing/SaaS metadata; consumed by
     // /pricing.html so the copy can't drift from server enforcement.
     req.path === '/api/plans' ||
