@@ -14,3 +14,6 @@ backend/db/db.sqlite
 # The whole directory is ignored. If we ever decide to publish anything from here,
 # add a specific !path/to/file.md exception below.
 docs/reference-library/
+
+# Claude Code project-local runtime (lock files, scheduled tasks)
+.claude/
