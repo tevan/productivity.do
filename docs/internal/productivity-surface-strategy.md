@@ -340,6 +340,110 @@ Build order: revisit AFTER the three primary investments ship. The
 opinionated catalog is the small one (1-2 weeks). Webhook docs upgrade is
 its own ~1-day pass.
 
+## Future-proofing across disruption vectors
+
+The calendar / tasks / notes / files space will keep getting disrupted. We
+don't know which disruption wins, but we can name the forces and pick a
+property that's robust across most of them. This section is the lens to
+re-apply when a "should we add X" decision shows up.
+
+### Three forces actively reshaping the space
+
+**1. The agentic shift (largest near-term impact).** The unit of work
+moves from "user does it" to "user delegates it." Today: open Todoist,
+type "buy milk." Soon: say "make sure the fridge has milk" and an agent
+decides whether that's a task, a recurring task, an Instacart order, or
+a conversation with a spouse. The interface becomes conversation; the
+productivity app becomes plumbing. Notion is most exposed (their data
+model is humans-clicking-blocks); Linear is okay (API-first); calendars
+persist because meetings happen between humans. Task management as we
+know it might not.
+
+**2. Voice and ambient capture.** The reason people don't capture more is
+the friction of opening an app, picking a list, typing. Once "remind me
+to follow up with Anne next Tuesday" works invisibly across all devices
+and goes to the right place, the capture surface evaporates. Apple,
+Google, and OpenAI all want this. The defensive move is to be the
+*destination*, not to compete on capture UI.
+
+**3. The collapse of file/note/task into "thing I might come back to."**
+People don't care which bucket something is in — they care "find me what
+Anne sent me about Q3." Mem, Capacities, Cosmos are all trying this and
+nobody's nailed it. The clever insight when someone does is that the
+bucket doesn't matter — the question does. Search becomes the primary
+interface. Our "files done well" investment partially anticipates this,
+but our search is currently mediocre (Cmd+F is title-only on most
+surfaces). That's a real gap.
+
+### Disruptors we're tracking but don't have a strong take on
+
+- **Spatial / AR.** If Apple Vision-line works out, time-as-space (your
+  week as a 3D layout) might reshape calendars. 5+ years; likely a
+  feature on top, not a replacement.
+- **Death of email.** Slack/Teams killed it for internal; the question
+  is external. If something kills external email, "inbox-shaped surfaces"
+  lose relevance and our deliberate non-email stance just becomes the
+  default.
+- **Western super-apps.** WeChat-style "everything in one chat thread"
+  is a paradigm Western productivity has resisted. If someone cracks it,
+  the "separate apps for separate things" model gets stress-tested.
+
+### What we genuinely don't know
+
+- Whether the right unit of organization is the project (Notion's bet),
+  the day (our bet), the thread (Slack's bet), or the agent task (the
+  new bet).
+- Whether attention/focus will get more contested or less.
+- Whether the productivity audience even exists in 5 years — if AI
+  handles 60% of knowledge work, the people who remain spend their time
+  differently, and those things might not need a calendar or task list
+  at all.
+
+### How our three investments hold up
+
+Picked deliberately to survive most futures, but not all:
+
+- *Agentic shift:* OK. The "what should I do right now" surface is a
+  ranked list that an agent could read as easily as a human. Files
+  unified gives an agent one place to look. Cross-pillar timeline gives
+  an agent the audit trail.
+- *Voice capture:* Vulnerable. If capture happens elsewhere, our value
+  depends on being where the captured stuff lands. The timeline helps
+  because "all your stuff threaded in one place" is a destination value
+  (not a capture value).
+- *Search-first collapse:* Partially prepared. Files-done-well points
+  in the right direction; we'd need actual content search to compete.
+  Real work, not on the current roadmap.
+
+### The robust property to optimize for
+
+Across most disruption scenarios, this property survives:
+
+> **Be the place where someone (or their agent) makes the decision about
+> what to do next.**
+
+Robust whether capture happens via voice, whether tasks are agent-
+generated, whether projects or threads or hours are the unit of
+organization, and whether email lives. As long as humans (or agents
+acting for them) make decisions about how to spend time, *something*
+needs to be that surface. We aim to be it.
+
+### One concrete bet implied by all this
+
+**Invest in the API and webhook surface as much as the UI.** If agents
+are the dominant consumer in 3 years, the product that's machine-readable
+wins. We already have `/api/v1`, MCP, and outbound webhooks in
+reasonable shape — keeping those excellent is cheap insurance against
+the agentic future. Specifically:
+- Every UI feature ships with the corresponding API.
+- The MCP tool surface stays current (we already ship `create_task`,
+  `list_events`, etc.; expand as features land).
+- Webhook events fire for every meaningful state change, not just the
+  obvious ones.
+
+This is not a separate investment area — it's a discipline applied to
+the three primary investments.
+
 ## Next-decision triggers
 
 Re-open this strategy when ANY of:
