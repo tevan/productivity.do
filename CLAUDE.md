@@ -16,13 +16,68 @@ Fantastical-inspired web calendar with Google Calendar + Todoist sync. Svelte 5 
 
 ## Auth
 
-- **Layer 1 (private beta):** site-gate password screen (`/site-gate/login.html`, password env: `SITE_PASSWORD=launch2026`). HMAC-signed cookie via `SITE_AUTH_SECRET`, 30-day TTL. nginx `auth_request` hits Express `/site-gate/verify`. 3 failed attempts within 15min → 1-hour IP block (in-memory). `SITE_GATE_BYPASS_IPS` env (comma-separated) bypasses both password and lockout — owner's home IP `69.131.127.243` is on it. Mounted at `backend/routes/site-gate.js`; nginx routes site-gate, marketing pages (`/home.html`, etc.), `/book/*`, `/q/*`, `/developers`, `/developers/explorer`, `/api/v1/{ping,openapi.json,error-codes}`, `/api/public/*`, `/api/stripe/webhook`, `/api/email-inbox/inbound`, `/ics/u/*` PUBLIC. Replaces the prior IP-allowlist setup. **Whole gate to be deleted at public launch** — remove route mount + nginx auth_request block + env vars. Pattern modeled on resourcingtools.com staging gate.
-- **Layer 2:** `users` table with bcrypt password hashes, cookie-session with `req.session.userId`. Legacy sessions (`authenticated=true` with no userId) bridge to seed user id=1.
-- **Signup:** `POST /api/signup` with email + password + plan. Auto-login on success, best-effort verification email via Resend (`GET /api/verify/:token`).
-- **Login:** `POST /api/auth` with `{email, password}`. Falls back to seed user `SEED_USER_EMAIL` (env, defaults to `owner@productivity.do`) if no email supplied — preserves the legacy single-password login during the transition.
-- **Google OAuth:** Calendar read/write scopes, per-user tokens in `google_tokens` (PK = user_id), auto-refresh.
-- **Todoist:** API token in `.env` (still single-user shared — needs per-user column for true multi-tenancy; flagged in `routes/tasks.js`).
-- **Public bypass list:** `/api/auth/*`, `/api/signup`, `/api/verify/*`, `/api/stripe/webhook`, `/assets/*`, `/book.html`, `/book/*`, `/api/public/booking/*`, `/developers`, `/developers/explorer`, `/embed.js`, `/api/v1/openapi.json`, `/api/v1/ping`, `/api/v1/error-codes`, `/home.html`, `/features.html`, `/pricing.html`, `/security.html`, `/about.html`, `/changelog.html`, `/terms.html`, `/privacy.html`, `/signup.html`.
+Three layers, applied in this order: site-gate (private-beta password) → user session (real account auth) → per-resource authorization.
+
+- **Layer 1 — Site-gate (private beta):** see [Site-gate](#site-gate-private-beta) section below. nginx `auth_request` enforces a shared cookie before requests reach the SPA or `/api/*`. Will be removed at public launch.
+- **Layer 2 — User session:** `users` table with bcrypt password hashes, cookie-session with `req.session.userId`. Legacy sessions (`authenticated=true` with no userId) bridge to seed user id=1.
+  - **Signup:** `POST /api/signup` with email + password + plan. Auto-login on success, best-effort verification email via Resend (`GET /api/verify/:token`).
+  - **Login:** `POST /api/auth` with `{email, password}`. Falls back to seed user `SEED_USER_EMAIL` (env, defaults to `owner@productivity.do`) if no email supplied — preserves the legacy single-password login during the transition.
+  - **Google OAuth:** Calendar read/write scopes, per-user tokens in `google_tokens` (PK = user_id), auto-refresh.
+  - **Todoist:** Per-user PAT in `users.todoist_token`; falls back to `process.env.TODOIST_API_TOKEN` for legacy single-user mode (flagged in `routes/tasks.js`).
+- **Layer 3 — Per-resource authorization:** route handlers check `req.user.id` matches the resource owner. API keys (Bearer `pk_live_…`) carry scopes for `/api/v1/*`.
+
+### Public bypass list (Express requireAuth middleware)
+
+These paths skip Layer 2 (user session) — they're either pre-auth flows or genuinely public surfaces. Layer 1 (site-gate) still applies during private beta unless the path is also nginx-bypassed (see Site-gate section).
+
+`/api/auth/*`, `/api/signup`, `/api/verify/*`, `/api/stripe/webhook`, `/assets/*`, `/book.html`, `/book/*`, `/api/public/booking/*`, `/developers`, `/developers/explorer`, `/embed.js`, `/api/v1/openapi.json`, `/api/v1/ping`, `/api/v1/error-codes`, `/site-gate/*`, `/sw.js`, `/manifest.webmanifest`, `/workbox-*`, `/registerSW.js`, `/avatars/*`, `/help`, `/help/*`, `/api/account/confirm-email`, `/home.html`, `/features.html`, `/pricing.html`, `/security.html`, `/about.html`, `/changelog.html`, `/terms.html`, `/privacy.html`, `/signup.html`.
+
+When adding a new pre-auth route, edit BOTH:
+1. The Express bypass conditional in `backend/server.js` (the `requireAuth` middleware).
+2. The corresponding nginx `location` block in `/etc/nginx/sites-available/productivity.do.conf` if the route should also be reachable without the site-gate cookie.
+
+## Site-gate (private beta)
+
+A shared-password screen gating access to the SPA + `/api/*` during the private-beta phase. Mirrors the resourcingtools.com staging-gate pattern — modeled there, lifted here. **Designed to be deleted at public launch** without disturbing the rest of the system.
+
+**Why it exists:** the prior approach was an nginx IP allowlist (`allow 69.131.127.243; deny all;`). That worked from the owner's home IP but rendered as blank-page 403s for charter users on mobile carriers, coffee shops, etc. The site-gate keeps the charter-user friction (a password) without locking out devices that move between networks.
+
+**Files:**
+- `backend/routes/site-gate.js` — `POST /site-gate/check`, `GET /site-gate/verify` (nginx auth_request hook), `POST /site-gate/logout`, `GET /site-gate/login.html`. Mounted before `requireAuth` so it's always reachable.
+- `backend/views/site-gate-login.html` — self-contained login page with attempts-remaining display, dark mode, mobile-friendly layout. No SPA dependency, no Vite — served directly.
+- `/etc/nginx/sites-available/productivity.do.conf` — the `auth_request /site-gate/_verify` directive on the SPA `location /` block, plus `error_page 401 = @site_gate_login` redirecting to the login page with `?to=$request_uri` so post-login lands on the originally-requested path.
+
+**Cookie shape:** `productivity_site_auth=v1.<exp>.<sig>`. `sig` is `HMAC-SHA256(SITE_AUTH_SECRET, "v1.${exp}")`. Verified with `crypto.timingSafeEqual`. Cookie attributes: `Secure; HttpOnly; SameSite=Lax; Max-Age=30 days`.
+
+**Lockout:** 3 failed attempts within 15 minutes from the same client IP → that IP is blocked from further attempts for 1 hour. State is in-memory (`Map<ip, {count, firstAt, blockedUntil?}>`). PM2 restart resets counters — that's intentional: a server hiccup shouldn't lock anyone out permanently. Single-process today; multi-process would need shared state (Redis or sqlite).
+
+**Bypass IPs:** the `SITE_GATE_BYPASS_IPS` env (comma-separated) skips BOTH the password prompt AND the lockout. Owner's home IP is populated. The bypass reads from `X-Forwarded-For` (leftmost hop), since requests come Cloudflare → nginx → Express.
+
+**nginx-public surfaces (no site-gate, no auth_request):**
+- Marketing pages: `/home.html`, `/features.html`, `/pricing.html`, `/about.html`, `/changelog.html`, `/terms.html`, `/privacy.html`, `/security.html`, `/signup.html`
+- Booking widgets: `/book/*`, `/q/*`
+- Developer surface: `/developers`, `/developers/explorer`, `/api/v1/{ping,openapi.json,error-codes}`
+- External webhook + invitee endpoints: `/api/stripe/webhook`, `/api/public/*`, `/api/email-inbox/inbound`, `/ics/u/*`
+- Site-gate itself: `/site-gate/*` (login page + check endpoint)
+- Favicon
+
+Everything else (the SPA, `/api/*`, `/admin/*`) is gated.
+
+**Environment:**
+- `SITE_PASSWORD` — required. The shared password.
+- `SITE_AUTH_SECRET` — required. 64 hex chars (`openssl rand -hex 32`). Rotating invalidates all existing cookies.
+- `SITE_GATE_BYPASS_IPS` — optional. Comma-separated.
+
+**Implementation notes:**
+- `getPassword()` / `getSecret()` / `getBypassIps()` are functions, not module-level constants. server.js parses `.env` AFTER imports, so reading `process.env.*` at module-load captures empty strings. Lazy access fixes that.
+- The `/site-gate/verify` route returns 200 if `SITE_PASSWORD` or `SITE_AUTH_SECRET` is unset — fail-open so a misconfigured server doesn't brick the site.
+- The login page passes `?to=<original-path>` through and the JS validates it starts with `/` (no `//`) before redirecting, to prevent open-redirect via a crafted login URL.
+
+**Removal at public launch:**
+1. Delete `backend/routes/site-gate.js` and `backend/views/site-gate-login.html`.
+2. Remove the `siteGateRoutes` import + `app.use(siteGateRoutes)` line + `/site-gate/*` bypass in `backend/server.js`.
+3. In `/etc/nginx/sites-available/productivity.do.conf`, delete the `auth_request /site-gate/_verify` line on `location /`, the `error_page 401 = @site_gate_login` block, and the public `/site-gate/`, `/site-gate/_verify` location blocks. The other public locations (marketing, booking, developer) stay — they're correct for public launch too.
+4. Delete `SITE_PASSWORD`, `SITE_AUTH_SECRET`, `SITE_GATE_BYPASS_IPS` from `.env`.
 
 ## Views
 
@@ -129,6 +184,51 @@ ICS feeds + notifications + billing (protected):
   GET  /api/notifications, POST /api/notifications/read,
        POST /api/notifications/:id/read, DELETE /api/notifications/:id
   GET  /api/billing/me, GET/POST /api/billing/checkout, GET /api/billing/portal
+  GET  /api/plans                              (no auth — pricing.html consumes this)
+
+Notes (protected):
+  GET /api/notes, GET /api/notes/:id,
+  POST /api/notes, PUT /api/notes/:id, DELETE /api/notes/:id (soft-delete; ?permanent=1 to skip)
+  GET  /api/notes/:id/revisions               (90d history, 50 versions cap)
+  POST /api/notes/:id/revisions/:revId/restore
+  GET  /api/notes/:id/comments                (author-only; mirrors task_comments)
+  POST /api/notes/:id/comments,
+  PUT  /api/notes/:id/comments/:commentId,
+  DELETE /api/notes/:id/comments/:commentId   (soft-delete via deleted_at)
+
+Tasks revisions (protected):
+  GET  /api/tasks/:id/revisions
+  POST /api/tasks/:id/revisions/:revId/restore
+
+Trash + activity + operations (protected):
+  GET  /api/trash                              (list soft-deleted across notes/booking_pages/event_templates/calendar_sets)
+  POST /api/trash/restore                      ({resource, id})
+  POST /api/trash/purge                        ({resource, id})
+  POST /api/trash/empty                        (purge all past purge_at)
+  GET  /api/activity                           (cross-resource recent revisions for the user)
+  GET  /api/operations/:id                     (LRO status; AI prep + future bulk imports)
+  GET  /api/operations/:id:wait                (long-poll variant, max 30s)
+
+Account + sessions (protected, except confirm-email):
+  GET  /api/account                            (profile + active sessions list)
+  PUT  /api/account/profile                    (display_name, timezone)
+  POST /api/account/avatar (multipart), DELETE /api/account/avatar
+  POST /api/account/change-password            (verifies current pw, revokes other sessions)
+  POST /api/account/change-email               (sends confirmation to NEW address)
+  GET  /api/account/confirm-email              (no auth — token in query)
+  DELETE /api/account/sessions/:id             (revoke one device)
+  POST /api/account/sessions/revoke-others
+  POST /api/account/delete                     (soft-delete; 30-day recovery; ?mode=immediate skips)
+  GET  /api/account/export                     (full data ZIP)
+
+Admin metrics (admin-only — user_id=1 OR is_team_admin=1):
+  GET  /api/admin/metrics                      (signups/activation/WAU/plans/retention/booking-conv)
+
+Site-gate (no auth — private-beta password screen):
+  GET  /site-gate/login.html
+  POST /site-gate/check
+  GET  /site-gate/verify                       (nginx auth_request hook)
+  POST /site-gate/logout
 
 Booking public (unprotected):
   GET /book/cancel/:token                    (HTML widget)  ← register first
@@ -265,7 +365,7 @@ Two HTML entries: `index.html` (main SPA) and `book.html` (public booking widget
 - **Persistent event cache:** `events.svelte.js` writes the in-memory `rangeCache` Map to `localStorage.productivity_events_cache` on every successful fetch. On module load, hydrates the Map AND pre-populates the `events` $state with the union of all cached entries — so first paint after refresh shows last-known data instantly. 24h disk TTL; in-memory 5min TTL drives revalidation.
 - **Multi-select tasks** in sidebar: shift-click ranges, cmd/ctrl-click toggles. Bulk action bar: Complete / Today / Tomorrow / No date / Delete.
 
-## Integrations / sources abstraction (added 2026-05-01)
+## Integrations / sources abstraction
 
 Calendar and tasks are no longer hardcoded to Google + Todoist. Every event/task carries a `provider` column. `provider = 'native'` means the user created it in productivity.do (no third-party). Other providers register adapters.
 
@@ -285,7 +385,7 @@ Calendar and tasks are no longer hardcoded to Google + Todoist. Every event/task
 
 Full architecture rationale: `docs/internal/integrations.md`. Developer-platform integration scaffolds (Zapier/Make/n8n/IFTTT/Pipedream/Workato/Activepieces) live in `docs/integrations/`.
 
-## MCP server + Slack app (added 2026-05-01)
+## MCP server + Slack app
 
 - **MCP server** at `POST/GET /mcp`. Streamable HTTP transport via `@modelcontextprotocol/sdk`. Bearer `pk_live_…` auth (same scheme as `/api/v1`). Tools: `create_task`, `complete_task`, `list_tasks`, `create_event`, `list_events`, `list_booking_pages`. Resources: `productivity://tasks`, `productivity://today`. Server impl in `backend/mcp/server.js`; route in `backend/routes/mcp.js`. Sessions are in-memory, keyed by `mcp-session-id` header. Per-session McpServer instance is bound to one user. Mounted before `requireAuth` (Bearer-only).
 - **Slack app** at `POST /api/slack/command` (HMAC-signed slash command), `GET /api/slack/install` (OAuth install start), `GET /api/slack/oauth/callback`, `GET /slack/link?token=…` (session-auth user-linking). Tables: `slack_workspaces` (per-team bot tokens), `slack_user_links` (slack_user_id ↔ user_id mapping), `slack_link_tokens` (10-min single-use). Slash command: `/productivity new task: <title>` with optional trailing `today`/`tomorrow`/`YYYY-MM-DD` date hint. `/productivity link` and `/productivity help` also supported. Body parsing is custom (raw body needed for HMAC) — slack route mounts BEFORE `express.json()`. Env: `SLACK_SIGNING_SECRET`, `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `PUBLIC_ORIGIN`.
@@ -318,13 +418,17 @@ User-reorderable + hideable via Settings → Tabs. Pref `appTabs = { order, hidd
 
 Full-page route. SPA serves at `/` and `/integrations[/:provider]`. Routing is minimal client-side (`src/lib/stores/routeStore.svelte.js`) — `popstate` + `pushState`, no router dep. App.svelte renders `IntegrationsPage` (lazy chunk) when `route.isIntegrations`, otherwise the regular shell. Settings still has an "Integrations" entry but it's a link button to `/integrations`. Each adapter card shows its simple-icons logo; deep link `/integrations/:provider` scrolls + highlights that adapter on load.
 
-## Offline mode (added 2026-05-02)
+## Offline mode
 
 The SPA at `/` is offline-capable as a PWA. Booking widget at `/book/*` and marketing pages are deliberately online-only. Three layers:
 
 1. **App shell precache** via `vite-plugin-pwa` — `dist/sw.js` precaches HTML/JS/CSS/fonts at install. Workbox `generateSW` mode (config in `vite.config.js`).
 2. **Read-through SWR cache** for `/api/{calendars,preferences,calendar-sets,task-columns,focus-blocks,booking-pages,notifications,auth/status,auth/google/status,notes,links}` GETs plus prefix matches on `/api/{tasks,events,integrations}`. Cache name `productivity-api-v1`, 7-day expiry, 200-entry cap.
 3. **Write queue** in `src/lib/offline/replayQueue.js` — IndexedDB-backed (`productivity-offline.queue`). `src/lib/api.js` wraps every fetch; mutations during `!navigator.onLine` enqueue with a generated `Idempotency-Key` and return a synthetic `{ok:true, queued:true, idempotencyKey}` envelope. On `online`, drain in insertion order, **last-write-wins** (no conflict UI). Activity log lives in IndexedDB store `activity-log`. `ActivityTab.svelte` MERGES the IndexedDB log with `/api/activity` (server-side revisions) so the user sees one feed for "what just happened?" — sorted newest-first.
+
+SW registration is production-only (`import.meta.env.PROD`) and lazy-loaded via `import('virtual:pwa-register')` in `src/main.js`. Auto-update + 1h re-check interval. `requireAuth` bypass list extended to allow `/sw.js`, `/manifest.webmanifest`, `/workbox-*`, `/registerSW.js` through unauthenticated. Toolbar chip at `src/lib/components/OfflineChip.svelte` shows "Offline" or "Syncing N".
+
+**Excluded from offline:** `/api/v1/*` (public dev API not used by SPA), `/api/support-chat`, `/api/billing/*`, `/api/stripe/*`, `/api/ai/*`, file uploads (multipart not queued today). Full rationale + testing steps + mobile-app parity notes in `docs/internal/offline.md`.
 
 ## Note comments (Scope A collaboration)
 
@@ -346,11 +450,7 @@ Task comments use the existing Todoist proxy at `/api/tasks/:id/comments` (GET/P
 
 `.board-pane` in `TasksView.svelte` uses `justify-content: center` — under-filled boards (3 columns × 340px on a 1600px screen) center to align with the toolbar's centered tabs. Trello and Linear both center under-filled boards. Don't switch to `flex-start` without thinking about how it'll look against the toolbar.
 
-SW registration is production-only (`import.meta.env.PROD`) and lazy-loaded via `import('virtual:pwa-register')` in `src/main.js`. Auto-update + 1h re-check interval. `requireAuth` bypass list extended to allow `/sw.js`, `/manifest.webmanifest`, `/workbox-*`, `/registerSW.js` through unauthenticated. Toolbar chip at `src/lib/components/OfflineChip.svelte` shows "Offline" or "Syncing N".
-
-**Excluded from offline:** `/api/v1/*` (public dev API not used by SPA), `/api/support-chat`, `/api/billing/*`, `/api/stripe/*`, `/api/ai/*`, file uploads (multipart not queued today). Full rationale + testing steps + mobile-app parity notes in `docs/internal/offline.md`.
-
-## Sentry (added 2026-05-01)
+## Error tracking (Sentry)
 
 Backend errors flow through Sentry when `SENTRY_DSN` is set. No-op otherwise. Init lives in `backend/lib/sentry.js`; called from `server.js` *before* any other import. Express error-handler middleware mounted after all routes. Request bodies are scrubbed in `beforeSend` to avoid leaking tokens.
 
@@ -386,9 +486,19 @@ Schema runs idempotently on `getDb()` via `CREATE TABLE/INDEX IF NOT EXISTS`. Co
 
 ## Reference library
 
-`docs/reference-library/` holds 20 curated PDFs across UX, calendar/time/focus, GTD, engineering, API design, IA, product strategy, and timing/rhythms — plus `INDEX.md` (book navigation) and `productivity_do_reading_list.md` (curated list of ~80 external engineering articles across 13 productivity.do-relevant topics). **The whole directory is gitignored** — nothing in there is committed. PDFs are personally-owned copyrighted material; INDEX/reading list reveal stack/roadmap detail.
+`docs/reference-library/` holds 20 curated PDFs across UX, calendar/time/focus, GTD, engineering, API design, IA, product strategy, and timing/rhythms — plus `INDEX.md` (book navigation), `applicable_insights.md` (the working insights doc — what each book/article applies to in our codebase), and `productivity_do_reading_list.md` (curated list of ~80 external engineering articles across 13 productivity.do-relevant topics). **The whole directory is gitignored** — nothing in there is committed. PDFs are personally-owned copyrighted material; INDEX/reading list reveal stack/roadmap detail.
 
-When planning a feature: read `docs/reference-library/INDEX.md` to pick the most-relevant book, or scan the matching section of `productivity_do_reading_list.md` for recent practitioner write-ups. Read the targeted chapter via the Read tool with `pages: "X-Y"` (PDFs over 10 pages need it). Cite specific sections in design discussions and commit messages so future-us can trace the reasoning.
+**State as of 2026-05-02:** all 13 unread books in the library have been read by background agents and produced structured insight entries in `applicable_insights.md` (~3500 lines, ~130 Pending actions). Books with `Status: ⏳ Pending` actions represent the working backlog from a literature lens. Articles in `productivity_do_reading_list.md` haven't been processed yet — that's the next pass.
+
+When planning a feature: read `docs/reference-library/INDEX.md` to pick the most-relevant book, then check `applicable_insights.md` for actions already proposed (search for the book title heading). Read the targeted chapter via the Read tool with `pages: "X-Y"` (PDFs over 10 pages need it; chunks of 5-8 pages avoid the per-tool-call 32MB cap). Cite specific sections in design discussions and commit messages so future-us can trace the reasoning.
+
+**Cross-book themes already crystallized** (see memory entries):
+- "Time-to-close" as the right product metric (Newport, reinforced by Atomic Habits' Goodhart's Law) — see `time_to_close_metric.md` memory.
+- The weekly digest is currently broken three ways (Tufte: no baseline; Newport: engagement-bait; Allen: passive list; Clear: not implementation-intention shaped). One rewrite satisfies all four.
+- Two books point at the same schema change — GTD's Areas of Focus and BASB's PARA both want `project_id` on notes.
+- "Don't surface back to user" consensus on productivity metrics (Hooked + Clear's Goodhart + Newport).
+
+When proposing actions, follow the convention in `applicable_insights.md`: each action carries a `Status:` line with one of `⏳ Pending` / `🟡 In progress` / `✅ Implemented` / `❌ Skipped`. Edit in place when status changes; don't append siblings.
 
 ## Pending Setup
 
@@ -401,12 +511,13 @@ When planning a feature: read `docs/reference-library/INDEX.md` to pick the most
 - **Resend API key:** Set `RESEND_API_KEY` in `.env` for booking confirmation/cancellation/24h reminder + signup verification emails. Without it all calls no-op silently.
 - **Postmark inbound — LIVE.** Server `Productivity-Inbound` (ID 19064779), domain `inbox.productivity.do`, webhook URL embeds `INBOX_WEBHOOK_USER:INBOX_WEBHOOK_PASS@` for HTTP Basic Auth. MX record `inbox.productivity.do → inbound.postmarkapp.com` priority 10 in Cloudflare (DNS-only, orange cloud off). Payload normalizer in handler maps Postmark's capitalized keys to our lowercase shape.
 - **Public launch checklist:**
-  - Remove nginx IP allowlist (`/etc/nginx/sites-available/productivity.do.conf`)
+  - Remove the site-gate (see "Removal at public launch" in the [Site-gate](#site-gate-private-beta) section — 4 steps)
   - Configure Stripe Price IDs + webhook in dashboard pointing at `/api/stripe/webhook`
-  - Verify Google OAuth (consent screen)
+  - Verify Google OAuth (consent screen — currently in testing mode)
+  - Remove the `noindex, nofollow` defaults from marketing pages once SEO is desired
 - **Optional (if provisioned):**
   - `GOOGLE_MAPS_API_KEY` for `/api/travel-time` to return real durations (otherwise it returns null silently). Travel-time chips on day view are deferred until this is set.
   - `ANTHROPIC_API_KEY` for AI meeting prep summaries. Without it, the "Prep with AI" button returns 503.
   - `INBOX_DOMAIN` for email-to-task. Without it the per-user address still generates but mail won't deliver. Pick a mail receiver provider (SES inbound, Postmark, Cloudflare Email Routing → Worker) and POST parsed mail to `/api/email-inbox/inbound`.
-- **Backlog:** see `docs/BACKLOG.md`. Tier 1 (5 items) and Tier 2 (6 items) shipped; Tier 3 has 3 items shipped (mobile polish, CSV export, bulk API) and 6 deferred (travel chips, email-to-task, focus blocks, Slack/Teams/Discord, Stripe Connect, AI prep summaries, OAuth registry).
+- **Backlog:** see `docs/BACKLOG.md`. Tiers 1-2 shipped. Tier 3 mostly shipped (mobile polish, CSV export, bulk API, focus blocks, AI prep, email-to-task skeleton). Still deferred: travel chips (gated on `GOOGLE_MAPS_API_KEY`), Slack/Teams/Discord deepening, Stripe Connect, OAuth app registry. Tier 4 is the Cagan/Inspired set — charter-user recruitment + opportunity-assessment template (see `applicable_insights.md` for ~130 reading-derived actions across all 13 books).
 - **Project card on tevan.co/tools/projects:** ID `de34950e-533a-45da-a254-befd4e154e5f`. Status updates POST to `http://127.0.0.1:3010/tools/api/projects/<id>/status-claude`.
