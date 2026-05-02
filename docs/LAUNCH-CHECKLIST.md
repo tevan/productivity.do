@@ -1,8 +1,10 @@
 # productivity.do — Public Launch Checklist
 
-Pre-launch state (2026-05-01): IP-allowlisted at the nginx layer, Stripe Price IDs not configured, Google OAuth in testing mode. Schema is multi-tenant; all the pieces wait on env config + account-side approvals.
+**Canonical user-action list.** This is the doc to walk through when prepping for launch. Everything here is something you (the human) need to do — accounts, dashboards, dollars, or external approvals. Agents shouldn't run any of this autonomously.
 
-This doc is a checklist *for the human*. Nothing here should be run autonomously by an agent — every item either changes prod behavior, costs money, or commits to an external account. Walk through it manually when ready to flip the switch.
+Status as of 2026-05-02: site-gate password-protected, Stripe Price IDs unset, Google OAuth in testing mode, Resend/Sentry/Anthropic keys unset, charter-user list TODO, redesign in flight. Code surfaces are launch-ready (multi-tenant schema, billing flow, plan gates, full keyboard a11y, GDPR export, tenancy-audited).
+
+When you complete an item, leave the box checked and add a date. When you discover something new that needs to happen before launch, add it here — this list is the single source of truth.
 
 ---
 
@@ -56,47 +58,76 @@ The AI support chat in Settings → Help routes escalations (trigger words like 
 
 The AI chat will work without this set, but escalations silently fail. Don't ship to real users without a mailbox someone reads.
 
-## 5. Optional integrations (skip for launch, wire later)
+## 5. Sentry — backend error tracking
+
+Currently `SENTRY_DSN` is unset and the boot logs say so on every restart. The instrumentation is already wired throughout — `notify.js`, `stripe.js`, `calendarSyncRetry.js`, `webhooks.js`, `revisions.js`, `operations.js`, the global Express error middleware. Without the DSN, every error past `console.warn` lives only in `pm2 logs` until rotation.
+
+- [ ] Create a Sentry project for productivity.do (sentry.io free tier is fine for solo).
+- [ ] Set `SENTRY_DSN=https://...` in `.env`.
+- [ ] `pm2 restart productivity`. The boot log should now read `[sentry] initialized` instead of `[sentry] SENTRY_DSN not set`.
+- [ ] Verify by triggering a known-bad path (e.g. `curl localhost:3020/api/billing/portal -H "Cookie: …"` against a user with no `stripe_customer_id` to force the 500). Confirm the error appears in the Sentry dashboard within ~30 seconds.
+
+Worth doing weeks before launch — it lets you watch the error rate during the redesign in real time instead of finding out after.
+
+## 6. Charter-user list (Cagan/Inspired)
+
+Pre-launch literature flag: identify 6-10 people who will benefit most from the product. Personal outreach beats aggregate signal during private beta.
+
+- [ ] List 6-10 candidate users with the specific verb/pain each one solves with productivity.do (e.g. "Maya — runs three calendars across two clients, currently triple-books herself").
+- [ ] Send personalized outreach (NOT a marketing blast). Offer 14-day Pro comp + your direct contact for first-week issues.
+- [ ] Give them site-gate access today; don't wait for public launch. Their first-week issues are P0.
+- [ ] Track first-week sentiment + a single "would you be disappointed if this product disappeared?" question at day 14.
+
+Do this BEFORE removing the site-gate (item 8). Their feedback shapes the redesign.
+
+## 7. Optional integrations (skip for launch, wire later)
 
 - [ ] **Tomorrow.io API key** for weather narratives — `TOMORROW_API_KEY=...`. Without it the WeatherRow falls back to Open-Meteo and the narrative tooltip says "no details available."
-- [ ] **Anthropic API key** for AI meeting prep — `ANTHROPIC_API_KEY=sk-ant-...`. Without it the "Prep with AI" button returns a friendly 503.
-- [ ] **Google Maps API key** for travel-time chips — `GOOGLE_MAPS_API_KEY=...`. Without it `/api/travel-time` silently returns null and the day-view travel band uses `~` placeholders.
-- [ ] **Postmark inbound** for email-to-task — already provisioned (server `Productivity-Inbound`, ID 19064779), MX record live in Cloudflare. Just confirm `INBOX_DOMAIN=inbox.productivity.do` is set in `.env`.
+- [ ] **Anthropic API key** for AI meeting prep + AI support chat — `ANTHROPIC_API_KEY=sk-ant-...`. Without it the "Prep with AI" button returns a friendly 503 and the support chat is disabled. **Marketing pages currently advertise both — provision the key OR strip the AI claims before launch, otherwise it's false advertising.**
+- [ ] **Google Maps API key** for travel-time chips — currently SET in .env. ✅
+- [ ] **Postmark inbound** for email-to-task — currently SET (server `Productivity-Inbound`, ID 19064779, MX record live, `INBOX_DOMAIN=inbox.productivity.do`). ✅
 
-## 6. Remove the nginx IP allowlist
+## 8. Cloudflare SSL Full (strict)
 
-This is the actual "go live" moment. Once this lands, anyone on the internet can hit the site.
+Origin certificate is installed but Cloudflare SSL mode is currently Flexible (or unconfigured). API token doesn't have zone-settings permission so this needs a manual UI step.
 
-- [ ] Verify items 1-3 above are green.
-- [ ] On the server, edit `/etc/nginx/sites-available/productivity.do.conf` and remove (or comment out):
-  ```nginx
-  # IP allowlist
-  allow 69.131.127.243;
-  deny all;
-  ```
-- [ ] `sudo nginx -t && sudo systemctl reload nginx`
-- [ ] Verify from an outside network (phone hotspot or a VPN) that you can reach `productivity.do/home.html` and the booking widget at `/book/:slug`.
+- [ ] In Cloudflare → SSL/TLS → Overview, set encryption mode to **Full (strict)**.
+- [ ] Verify with `curl -I https://productivity.do` from outside the server — should return 200 with no cert warnings.
+
+## 9. Remove the site-gate (THE actual go-live moment)
+
+Once this lands, anyone on the internet can hit the SPA + `/api/*`. Marketing pages, booking widgets, and the developer surface are already public.
+
+- [ ] Verify items 1-6 above are green and at least 5 charter users have spent a week on it.
+- [ ] Delete the site-gate code surface (4-step procedure, see CLAUDE.md "Removal at public launch" subsection of [Site-gate](../../CLAUDE.md#site-gate-private-beta)):
+  1. Delete `backend/routes/site-gate.js` and `backend/views/site-gate-login.html`.
+  2. Remove the `siteGateRoutes` import + `app.use(siteGateRoutes)` line + `/site-gate/*` bypass in `backend/server.js`.
+  3. In `/etc/nginx/sites-available/productivity.do.conf`, delete the `auth_request /site-gate/_verify` directive on `location /`, the `error_page 401 = @site_gate_login` block, and the public `/site-gate/`, `/site-gate/_verify` location blocks.
+  4. Delete `SITE_PASSWORD`, `SITE_AUTH_SECRET`, `SITE_GATE_BYPASS_IPS` from `.env`.
+- [ ] `sudo nginx -t && sudo systemctl reload nginx && pm2 restart productivity`.
+- [ ] Verify from an outside network (phone hotspot or VPN) that you can reach `productivity.do/` (SPA, no password prompt), `/home.html` (marketing), and the booking widget at `/book/:slug`.
 - [ ] Verify rate limits work: hit `/api/v1/ping` 130 times in a minute from one IP, expect a 429.
 
-The convenience script at `scripts/launch-go-live.sh` does steps 5.2 + 5.3 with a backup of the previous config (so you can revert in seconds if something goes wrong).
-
-## 7. Post-launch monitoring (first 48h)
+## 10. Post-launch monitoring (first 48h)
 
 - [ ] Watch `pm2 logs productivity` for `error` lines.
 - [ ] Watch `/var/log/outage-attribution.log` — origin/edge/DNS attribution for any blip.
-- [ ] Set up Sentry (or equivalent) for backend error tracking — currently we rely on `pm2 logs`, which truncates at the rotate boundary.
-- [ ] First-day metrics to glance at:
-  - Signups (`SELECT count(*) FROM users WHERE created_at > date('now','-1 day')`)
-  - Booking conversions (per-page analytics endpoint)
-  - 4xx/5xx ratio in the access log
-  - Stripe checkout success vs. abandonment
+- [ ] Watch the Sentry dashboard (set up in section 5) for issue spikes.
+- [ ] First-day metrics to glance at — `/admin/metrics` shows all of these:
+  - Signups (last 30d sparkline)
+  - Activation (≥2 distinct active days within 7d of signup, 30-60d cohort)
+  - WAU (4 weekly buckets)
+  - Plan mix (free/pro/team)
+  - Retention (D1/D7/D30 from a 30-60d signup cohort)
+  - Booking conversion (views → confirmed)
+- [ ] Stripe checkout success vs. abandonment from the Stripe dashboard.
 
-## 8. After launch — rollback plan
+## 11. After launch — rollback plan
 
-If anything goes wrong, the rollback is fast:
+If anything goes wrong:
 
-- **Site misbehaving:** restore the nginx allowlist with `scripts/launch-go-live.sh --restore` and `sudo systemctl reload nginx`.
+- **Site misbehaving:** restore the site-gate by reverting the section-9 commit (`git revert <sha> && pm2 restart productivity`). The gate code is one commit away — adversaries lose access in seconds.
 - **Stripe webhook taking bad signups:** revoke the webhook secret in the dashboard; the route returns 400 for everything until you set a new one.
 - **Bad code shipped:** `git revert <sha> && pm2 restart productivity`. The `events_cache` and `tasks_cache` rebuild on next sync.
 
-The site has nothing in production database that isn't either rebuildable from upstream (Google/Todoist) or owned by the user (notes/booking-pages/links/focus-blocks). Backups via restic run hourly remote + 15-min local.
+The site has nothing in production database that isn't either rebuildable from upstream (Google/Todoist) or owned by the user (notes/booking-pages/links/focus-blocks). Backups via restic run hourly remote + 15-min local. Test a restore once before launch — the worst time to discover a backup gap is during recovery.

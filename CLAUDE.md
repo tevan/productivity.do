@@ -558,7 +558,7 @@ When proposing actions, follow the convention in `applicable_insights.md`: each 
 
 ## Pending Setup
 
-**Canonical pre-launch checklist lives at `docs/BACKLOG.md` "Pre-launch checklist" section.** Rough summary:
+**Canonical user-action list: `docs/LAUNCH-CHECKLIST.md`.** Walk through it when prepping for launch — every item there changes prod behavior, costs money, or commits to an external account. Rough summary:
 
 - **External services / `.env`:** Stripe (Price IDs + webhook), Resend (API key + domain verify), Sentry (DSN), Anthropic (key — or strip AI marketing copy), Cloudflare SSL Full (strict), Google OAuth verification (4-6wk Google review).
 - **Code surfaces:** Site-gate removal (4-step delete per "Removal at public launch" in the [Site-gate](#site-gate-private-beta) section). Do this LAST.
