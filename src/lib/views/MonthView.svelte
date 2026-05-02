@@ -70,8 +70,6 @@
         {/if}
         {#each week as day}
           {@const dayEvents = eventsForDate(day)}
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div
             class="month-cell"
             class:today={isToday(day)}
@@ -83,12 +81,20 @@
             <div class="cell-events">
               {#each dayEvents.slice(0, MAX_EVENTS_PER_CELL) as event}
                 {@const color = getEventColor(event, cals.items)}
-                <!-- svelte-ignore a11y_click_events_have_key_events -->
-                <!-- svelte-ignore a11y_no_static_element_interactions -->
                 <div
                   class="month-event-bar"
+                  role="button"
+                  tabindex="0"
+                  aria-label={`${event.summary || 'Untitled event'}. Press Enter to view.`}
                   style="background: var({color.varName}, {color.light});"
                   onclick={(e) => { e.stopPropagation(); onclickEvent(event, e); }}
+                  onkeydown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onclickEvent(event, e);
+                    }
+                  }}
                   use:tooltip={event.summary}
                 >
                   {event.summary || '(No title)'}
@@ -225,6 +231,10 @@
     color: var(--text-primary);
   }
   .month-event-bar:hover { filter: brightness(0.95); }
+  .month-event-bar:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
 
   .more-chip {
     font-size: 10px;

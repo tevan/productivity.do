@@ -175,11 +175,15 @@
   }
 </script>
 
-<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-<!-- svelte-ignore a11y_click_events_have_key_events -->
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="editor-backdrop" onclick={onclose}></div>
-<div class="editor-modal" onkeydown={handleKeydown}>
+<!--
+  Modal dialog. Backdrop is purely visual + click-to-close convenience;
+  Esc on the modal itself also closes (via handleKeydown), so the
+  backdrop's lack of keyboard equivalent is OK — the user can already
+  dismiss without a mouse. role=presentation on backdrop tells SR to
+  ignore it; role=dialog + aria-modal on the modal traps SR cursor.
+-->
+<div class="editor-backdrop" onclick={onclose} role="presentation"></div>
+<div class="editor-modal" role="dialog" aria-modal="true" aria-label={isEdit ? 'Edit event' : 'New event'} onkeydown={handleKeydown}>
   <div class="editor-header">
     <h2>{isEdit ? 'Edit Event' : 'New Event'}</h2>
     <div class="header-actions">

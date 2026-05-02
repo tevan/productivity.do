@@ -425,6 +425,27 @@ Every public booking surface (`/book/:slug`, `/q/:id`, cancellation/reschedule w
 
 `isStripeConfigured()` requires BOTH `STRIPE_SECRET_KEY` AND at least one of the four `STRIPE_PRICE_*` env vars to be set. Returning true with the secret key alone surfaces a 500 mid-checkout when `priceIdFor()` returns null. New helper `isStripePlanConfigured(plan, period)` lets the SPA disable an individual upgrade button when its price isn't wired (e.g., Pro is configured but Team isn't yet) without disabling the whole pricing page.
 
+## TimeGrid keyboard accessibility
+
+WCAG 2.1.1 Level A — full keyboard support across the calendar grid + chip surfaces. The keyboard model is split between a pure helper (`src/lib/utils/timegridKeyboard.js`) and the wiring inside `TimeGrid.svelte`. Tests at `timegridKeyboard.spec.js` document the contract — runnable under vitest if/when we add it.
+
+**Two focus modes**, distinguished by what's focused (DOM is the source of truth, not separate state):
+
+- **Slot focus** — an hour cell is focused. Arrow keys traverse 24 hours × N days, Page Up/Down jumps 4 hours, Home/End to top/bottom of day, Enter/Space opens new-event flow at that time. Arrow at column edge swallows (returns `noop`) so focus doesn't leak to the next focusable element on the page.
+- **Event focus** — an event chip is focused. Arrow Up/Down nudges by `prefs.dragSnapMinutes` (Shift halves it for fine-grained moves), Arrow Left/Right shifts ±1 day, Alt+Arrow Up/Down resizes the end time only, Enter/E opens the editor, Delete/Backspace removes (with confirm), Shift+F10 / ContextMenu key opens the right-click menu, Esc returns focus to the surrounding slot.
+
+**Roving tabindex** per WAI-ARIA grid pattern: only one descendant inside `.day-columns` has `tabindex=0` at any time. `focusedDay` + `focusedSlot` track the slot tabstop; `focusedEventId` (composite `${calendarId}|${id}`) tracks the chip tabstop. When `focusedEventId` is non-null, the chip wins; otherwise the slot at (focusedDay, focusedSlot) gets the tabstop.
+
+**ARIA**: `role="grid"` on `.day-columns`, `role="row"` per day-column, `role="gridcell"` on hour-slots AND event chips, plus `aria-rowcount`/`aria-colcount`/`aria-rowindex`/`aria-colindex`. Each gridcell has an `aria-label` derived from `ariaSlotLabel()` or `ariaEventLabel()`. A polite-mode `aria-live` region (`role=status` with `.sr-only` styling) at the top of the wrapper announces moves like "9:00 AM, Tuesday May 12" or "Moved to Coffee with Alex, ...".
+
+**Optimistic patch on keyboard moves**: `applyLocalPatch()` runs before the network round-trip, same as the drag handler. Failed PUT rolls back the patch and announces "Could not update event. Reverting." Don't drop this — keyboard users feel the lag worse than mouse users because they hold arrow keys.
+
+**Companion components also keyboard-accessible**: `EventChip.svelte`, `TaskRow.svelte`, `MonthView.svelte` event bars, `AllDayRow.svelte` working-location chips. All have `role=button` + `tabindex=0` + Enter/Space handlers. Only event chips inside the time-grid get the full move/resize keyboard model — all-day chips don't, because keyboard-driven day-shift on a multi-day span would compete with the slot-focus model on the same surface and confuse SR users. To shift an all-day event's days via keyboard, open the editor with Enter and edit the dates directly.
+
+**Focus-visible CSS**: every focusable surface in the calendar gets a 2px accent outline only on `:focus-visible` (so mouse users don't see haloes on click). Slot focus uses `box-shadow: inset` to stay within the row divider; event chips use `outline-offset` for breathing room.
+
+**Removed `svelte-ignore a11y_*` comments** across `TimeGrid.svelte`, `AllDayRow.svelte`, `EventChip.svelte`, `TaskRow.svelte`, `MonthView.svelte`. New code in these files should not reintroduce them — if Svelte flags an interactive element, the answer is to add the role + key handler, not to suppress.
+
 ## Optimistic drag pattern
 
 Drag/drop and other instant-feedback mutations MUST optimistically patch the in-memory store BEFORE the network round-trip. Use `applyLocalPatch(eventId, patch)` from `events.svelte.js` for events; `tasks.svelte.js#updateTask` already does optimistic + rollback for tasks. **Do not** rely on a `dragPreview`-only solution to hide the lag — that masks the bug, doesn't fix it. The store is the source of truth; preview overlays are for in-flight gesture rendering only. Bug fixed 2026-05-01: chip flashed back to original position for one frame between dragPreview clear and server response. Wired in `TimeGrid.svelte#onCommit` (timed events) and `AllDayRow.svelte` mouse-up (all-day events).

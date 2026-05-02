@@ -56,8 +56,12 @@
   };
 </script>
 
-<!-- svelte-ignore a11y_click_events_have_key_events -->
-<!-- svelte-ignore a11y_no_static_element_interactions -->
+<!--
+  Task row is a button-like surface — clicking opens the editor. Made
+  keyboard-accessible via role=button + tabindex + Enter/Space handler.
+  The checkbox inside is its own real <button>, so SR stops at "complete
+  task" before announcing the row title.
+-->
 <div
   class="task-row"
   class:compact
@@ -69,8 +73,20 @@
   data-task-id={task.id}
   style:padding-left={indent > 0 ? `${6 + indent * 16}px` : null}
   draggable={draggable ? 'true' : undefined}
+  role="button"
+  tabindex={onclickTask ? 0 : -1}
+  aria-label={`Task: ${task.content}${task.isCompleted ? ', completed' : ''}. Press Enter to edit.`}
   ondragstart={handleDragStart}
   onclick={(e) => onclickTask?.(task, e)}
+  onkeydown={(e) => {
+    // Enter/Space = open editor. Don't intercept if focus is on the
+    // inner checkbox button (browser's native key handling fires there).
+    if (e.target !== e.currentTarget) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onclickTask?.(task, e);
+    }
+  }}
 >
   <button
     class="task-checkbox"
@@ -125,6 +141,11 @@
     transition: opacity 0.3s;
   }
   .task-row:hover { background: var(--surface-hover); }
+  .task-row:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+    background: var(--surface-hover);
+  }
   .task-row.selected {
     background: var(--accent-light);
     box-shadow: inset 2px 0 0 var(--accent);

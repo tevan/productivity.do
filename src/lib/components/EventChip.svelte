@@ -40,16 +40,29 @@
   const tipText = $derived(calName ? `${event.summary || '(No title)'}\n${calName}` : (event.summary || ''));
 </script>
 
-<!-- svelte-ignore a11y_click_events_have_key_events -->
-<!-- svelte-ignore a11y_no_static_element_interactions -->
+<!--
+  Chip is button-like: click → open. Made keyboard-accessible via role +
+  tabindex + Enter/Space handler. The Join button inside is a real <a>,
+  so SR reads "link, Join" after the chip's own label.
+-->
 <div
   class="event-chip"
   class:compact
   class:tentative={isTentative}
   class:declined={isDeclined}
+  role="button"
+  tabindex="0"
+  aria-label={`${event.summary || 'Untitled event'}${calName ? ', ' + calName : ''}${isDeclined ? ', declined' : isTentative ? ', tentative' : ''}. Press Enter to view.`}
   style="background: {bg}; border-left-color: {darkenColor(bgFallback, 0.3)};"
   use:tooltip={tipText}
   onclick={(e) => { e.stopPropagation(); onclick(event, e); }}
+  onkeydown={(e) => {
+    if (e.target !== e.currentTarget) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onclick(event, e);
+    }
+  }}
 >
   <div class="event-chip-content">
     {#if !compact}
@@ -91,6 +104,10 @@
   }
   .event-chip:hover {
     filter: brightness(0.96);
+  }
+  .event-chip:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
 
   /* RSVP "maybe": diagonal stripe overlay + dashed left border so it reads

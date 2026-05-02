@@ -381,10 +381,17 @@
 {#if allDayEvents.length > 0 || tasks.some(t => t.dueDate) || tasks.length > 0}
   <div class="allday-zone" style="--cols: {dates.length}">
     <div class="hour-gutter-spacer"></div>
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <!--
+      Container surface for click-to-create on empty all-day rows.
+      role=region with an aria-label so SR users get an entry hook;
+      the chips/tasks inside are the actual focusable elements.
+      Click handler fires only on background (children stopPropagation).
+    -->
     <div
       class="allday-grid"
       bind:this={gridEl}
+      role="region"
+      aria-label="All-day events. Click an empty area to add an event."
       ondragenter={handleGridDragEnter}
       ondragover={handleGridDragOver}
       ondragleave={handleGridDragLeave}
@@ -405,7 +412,9 @@
         {#each colTasks as task, tIdx (task.id)}
           {@const isShiftedTask = taskDragShift && taskDragShift.taskId === task.id}
           {@const shiftedCol = isShiftedTask ? Math.max(0, Math.min(dates.length - 1, colIdx + taskDragShift.deltaDays)) : colIdx}
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <!-- The TaskRow inside is itself focusable + has its own keyboard
+               support (Enter to edit, etc.). The wrapper just needs to be
+               a non-interactive container so SR doesn't double-up the role. -->
           <div
             class="cell-task"
             class:dragging={isShiftedTask}
@@ -424,17 +433,28 @@
         {#if isWL}
           <!-- Working-location: a thin soft bar across the whole span with
                an inline icon+label pill at the left. Single element so the
-               label and tail never disconnect visually. -->
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
+               label and tail never disconnect visually. Keyboard: Enter
+               opens the editor; arrow drags are intentionally not wired
+               because all-day events span days and the visual model for
+               keyboard-driven day-shift would compete with the time-grid
+               keyboard model (which handles the bigger surface). -->
           <div
             class="allday-event wl-bar"
             class:dragging={isDragging}
             class:wl-multi={item.span > 1}
+            role="button"
+            tabindex="0"
+            aria-label={`Working location: ${item.event.summary || 'Home'}. Press Enter to edit.`}
             style="grid-column: {item.startCol + 1} / span {item.span}; grid-row: {item.row + 1}"
             use:tooltip={item.event.summary}
             onmousedown={(e) => handleAllDayMouseDown(e, item.event)}
             onclick={(e) => { e.stopPropagation(); handleChipClick(item.event, e); }}
+            onkeydown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleChipClick(item.event, e);
+              }
+            }}
           >
             <span class="wl-pill">
               <svg class="wl-icon" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -445,8 +465,9 @@
             </span>
           </div>
         {:else}
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- All-day event row. The inner EventChip is the focusable
+               surface (a real button under the hood); this wrapper just
+               hosts the layout grid placement and the drag handlers. -->
           <div
             class="allday-event"
             class:dragging={isDragging}

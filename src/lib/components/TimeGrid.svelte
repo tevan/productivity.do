@@ -1,10 +1,10 @@
 <script>
-  import { getContext } from 'svelte';
+  import { getContext, tick } from 'svelte';
   import { getHourSlots, isToday, isSameDay, formatTime, getDayName } from '../utils/dates.js';
   import { getPrefs } from '../stores/prefs.svelte.js';
   import { getCalendars } from '../stores/calendars.svelte.js';
   import { getEventColor, darkenColor, readableText, readableSubtext, resolveCssVar } from '../utils/colors.js';
-  import { updateEvent, applyLocalPatch } from '../stores/events.svelte.js';
+  import { updateEvent, applyLocalPatch, deleteEvent } from '../stores/events.svelte.js';
   import { getTasks, updateTask } from '../stores/tasks.svelte.js';
   import AllDayRow from './AllDayRow.svelte';
   import WeatherRow from './WeatherRow.svelte';
@@ -15,6 +15,13 @@
   import { getTravelBlocks } from '../stores/travel.svelte.js';
   import { tooltip } from '../actions/tooltip.js';
   import { createLink } from '../stores/links.svelte.js';
+  import {
+    SLOT_MINUTES, SLOTS_PER_DAY,
+    slotIndexForDate, slotToHM, dateAtSlot,
+    ariaSlotLabel, ariaEventLabel,
+    slotKeyAction, eventKeyAction, clampGridFocus,
+  } from '../utils/timegridKeyboard.js';
+  import { confirmAction } from '../utils/confirmModal.svelte.js';
 
   const focusStore = getFocusBlocks();
   const travelStore = getTravelBlocks();
@@ -114,6 +121,180 @@
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('application/x-task-id', String(task.id));
     e.dataTransfer.setData('text/plain', task.content || '');
+  }
+
+  // --- Keyboard navigation (WCAG 2.1.1 — full keyboard support for the grid)
+  //
+  // Roving-tabindex pattern per WAI-ARIA grid spec: only one element inside
+  // the grid is in the tab order at a time. Arrow keys move focus within
+  // the grid; Tab leaves the grid entirely. Mode (slot vs event) is
+  // determined by which DOM element is currently focused — we don't
+  // duplicate it as state. focusedDay/focusedSlot are the tabstop *target*
+  // for empty cells; focusedEventId is the tabstop target when an event
+  // chip is roving.
+  let focusedDay = $state(0);
+  let focusedSlot = $state(slotIndexForDate(new Date()));
+  // Event id (NOT calendarId+id composite) — used to render exactly one
+  // event chip with tabindex=0 at any time. When null and no event is
+  // focused, the slot at [focusedDay, focusedSlot] gets the tabstop.
+  let focusedEventId = $state(null);
+  // Polite-mode aria-live region content. Cleared after announcements so
+  // repeated identical actions ("moved by 15 minutes") still fire SR
+  // updates instead of being ignored as duplicates.
+  let liveAnnouncement = $state('');
+  let liveTimer = null;
+  // Whenever the visible day-range shrinks (e.g. switching from Week to Day
+  // view), clamp the tabstop so the focusable hour-slot is still rendered.
+  // Otherwise the user's first Tab into the grid lands on nothing.
+  $effect(() => {
+    if (dates.length === 0) return;
+    if (focusedDay >= dates.length) focusedDay = dates.length - 1;
+    if (focusedDay < 0) focusedDay = 0;
+  });
+  function announce(msg) {
+    liveAnnouncement = '';
+    // queueMicrotask so the empty string actually flushes before the new
+    // one (otherwise SRs treat it as no change). Then a longer delay
+    // before clearing so users with slow SRs hear the full message.
+    queueMicrotask(() => { liveAnnouncement = msg; });
+    clearTimeout(liveTimer);
+    liveTimer = setTimeout(() => { liveAnnouncement = ''; }, 4000);
+  }
+
+  // Move focus to a specific slot. Components are looked up via data
+  // attributes rather than refs — refs would require a 2D Map keyed by
+  // (day, slot) which adds bookkeeping for marginal gain.
+  async function focusSlotEl(dayIdx, slotIdx) {
+    focusedDay = dayIdx;
+    focusedSlot = slotIdx;
+    focusedEventId = null;
+    await tick();
+    const sel = `[data-grid-slot="${dayIdx}-${slotIdx}"]`;
+    const el = gridEl?.querySelector(sel);
+    if (el) {
+      el.focus({ preventScroll: false });
+      // Auto-scroll the slot into view if the user navigated off-screen.
+      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }
+
+  async function focusEventEl(eventKey) {
+    // eventKey is `${calendarId}|${id}` so two events with colliding ids
+    // across calendars don't fight over the same DOM target.
+    focusedEventId = eventKey;
+    await tick();
+    const el = gridEl?.querySelector(`[data-grid-event="${CSS.escape(String(eventKey))}"]`);
+    if (el) el.focus({ preventScroll: false });
+  }
+  function eventKeyFor(event) { return `${event.calendarId}|${event.id}`; }
+
+  function handleGridSlotKeydown(e, dayIdx, slotIdx) {
+    const action = slotKeyAction(e, { slotIdx, dayIdx, dayCount: dates.length });
+    if (!action) return;
+    e.preventDefault();
+    if (action.type === 'noop') return;
+    if (action.type === 'move') {
+      const next = clampGridFocus(
+        { dayIdx: dayIdx + action.dayDelta, slotIdx: slotIdx + action.slotDelta },
+        { dayCount: dates.length },
+      );
+      focusSlotEl(next.dayIdx, next.slotIdx);
+      const date = dates[next.dayIdx];
+      announce(ariaSlotLabel(date, next.slotIdx, is12h));
+      return;
+    }
+    if (action.type === 'create') {
+      const d = dateAtSlot(dates[dayIdx], slotIdx);
+      onclickSlot(d);
+    }
+  }
+
+  async function handleEventKeydown(e, event) {
+    const action = eventKeyAction(e, {
+      snapMinutes: prefs.values.dragSnapMinutes || 15,
+    });
+    if (!action) return;
+    e.preventDefault();
+    if (action.type === 'edit') { oneditEvent(event); return; }
+    if (action.type === 'context') {
+      // Synthesize a position-aware event so the existing context menu
+      // anchors correctly even though there's no mouse position.
+      const el = gridEl?.querySelector(`[data-grid-event="${CSS.escape(eventKeyFor(event))}"]`);
+      const rect = el?.getBoundingClientRect();
+      const fakeEvent = {
+        clientX: rect ? rect.left + 8 : 0,
+        clientY: rect ? rect.bottom + 4 : 0,
+        preventDefault: () => {},
+        stopPropagation: () => {},
+      };
+      oncontextEvent(event, fakeEvent);
+      return;
+    }
+    if (action.type === 'escape') {
+      // Move focus back to the slot under the event's start time.
+      const start = new Date(event.start);
+      const dayIdx = dates.findIndex(d => isSameDay(d, start));
+      if (dayIdx >= 0) focusSlotEl(dayIdx, slotIndexForDate(start));
+      return;
+    }
+    if (action.type === 'delete') {
+      const ok = await confirmAction({
+        title: 'Delete event?',
+        body: `"${event.summary || '(No title)'}" will be removed from your calendar.`,
+        confirmLabel: 'Delete',
+        danger: true,
+      });
+      if (!ok) return;
+      announce(`Deleted ${event.summary || 'event'}`);
+      // After delete, return focus to the surrounding slot before the
+      // chip disappears from the DOM (otherwise focus jumps to <body>).
+      const start = new Date(event.start);
+      const dayIdx = dates.findIndex(d => isSameDay(d, start));
+      if (dayIdx >= 0) focusSlotEl(dayIdx, slotIndexForDate(start));
+      await deleteEvent(event.calendarId, event.id);
+      return;
+    }
+    if (action.type === 'move' || action.type === 'resize') {
+      const start = new Date(event.start);
+      const end = new Date(event.end);
+      const minDelta = action.minuteDelta || 0;
+      const dayDelta = action.dayDelta || 0;
+      let newStart, newEnd;
+      if (action.type === 'resize') {
+        newStart = start;
+        newEnd = new Date(end.getTime() + minDelta * 60000);
+        // Don't allow zero/negative duration.
+        if (newEnd.getTime() - newStart.getTime() < 5 * 60000) return;
+      } else {
+        newStart = new Date(start.getTime() + minDelta * 60000);
+        newEnd = new Date(end.getTime() + minDelta * 60000);
+        if (dayDelta) {
+          newStart.setDate(newStart.getDate() + dayDelta);
+          newEnd.setDate(newEnd.getDate() + dayDelta);
+        }
+      }
+      const isoStart = newStart.toISOString();
+      const isoEnd = newEnd.toISOString();
+      // Optimistic patch — same pattern as drag onCommit.
+      applyLocalPatch(event.id, { start: isoStart, end: isoEnd });
+      announce(action.type === 'resize'
+        ? `Resized to end at ${formatTime(newEnd, is12h)}`
+        : `Moved to ${ariaEventLabel({ ...event, start: isoStart, end: isoEnd }, is12h)}`);
+      try {
+        await updateEvent(event.calendarId, event.id, {
+          summary: event.summary,
+          start: isoStart,
+          end: isoEnd,
+          allDay: false,
+          location: event.location,
+          description: event.description,
+          calendarId: event.calendarId,
+        });
+      } catch (err) {
+        announce('Could not update event. Reverting.');
+        applyLocalPatch(event.id, { start: event.start, end: event.end });
+      }
+    }
   }
 
   // --- Event drag/resize state ---
@@ -486,6 +667,18 @@
 </script>
 
 <div class="time-grid-wrapper">
+  <!--
+    Polite-mode live region for keyboard-driven navigation feedback. When
+    the user moves between slots or nudges an event, a description like
+    "9:30 AM, Tuesday May 12" or "Moved to ..." is written here so screen
+    readers narrate the change. visually-hidden so sighted users don't
+    see it. role=status (polite) lets the SR finish current speech first,
+    avoiding chatter on rapid arrow-presses.
+  -->
+  <div class="sr-only" role="status" aria-live="polite" aria-atomic="true">
+    {liveAnnouncement}
+  </div>
+
   <!-- Header -->
   <div class="grid-header" style="--cols: {dates.length}">
     <div class="hour-gutter-header"></div>
@@ -526,7 +719,21 @@
       {/each}
 
       <!-- Day columns -->
-      <div class="day-columns" bind:this={dayColumnsEl} style="--cols: {dates.length}">
+      <!--
+        Accessibility: this is the WAI-ARIA grid surface. Each day-column is a
+        row, each hour-slot is a gridcell. Roving tabindex means only one
+        descendant has tabindex=0 at a time; arrow keys move it. See
+        ../utils/timegridKeyboard.js for the key→action mapping.
+      -->
+      <div
+        class="day-columns"
+        bind:this={dayColumnsEl}
+        style="--cols: {dates.length}"
+        role="grid"
+        aria-label="Calendar time grid. Use arrow keys to navigate, Enter to create an event, Tab to leave the grid."
+        aria-rowcount={SLOTS_PER_DAY}
+        aria-colcount={dates.length}
+      >
       {#each dates as date, colIdx}
         <div
           class="day-column"
@@ -538,7 +745,9 @@
           ondragover={(e) => handleColumnDragOver(e, date)}
           ondragleave={handleColumnDragLeave}
           ondrop={(e) => handleColumnDrop(e, date)}
-          role="presentation"
+          role="row"
+          aria-rowindex={colIdx + 1}
+          aria-label={new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).format(date)}
         >
           <!-- Focus blocks (background bands) -->
           {#each focusBlocksForDate(date) as fb (fb.id)}
@@ -582,17 +791,26 @@
               style="top: {(taskDropTarget.minutes / 60) * 48}px; height: {(dur / 60) * 48}px;"></div>
           {/if}
 
-          <!-- Hour slots -->
-          {#each hours as hour}
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <!-- Hour slots — one per hour, focusable via roving tabindex.
+               Keyboard users land on these cells, then Enter/Space opens
+               the new-event flow at that time. Mouse users keep using
+               drag-to-create (handled by onmousedown). -->
+          {#each hours as hour, slotIdx}
             <div
               class="hour-slot"
               class:no-hover={prefs.values.showHoverSlot === false}
+              role="gridcell"
+              aria-colindex={slotIdx + 1}
+              tabindex={focusedEventId === null && focusedDay === colIdx && focusedSlot === slotIdx ? 0 : -1}
+              data-grid-slot="{colIdx}-{slotIdx}"
+              aria-label={ariaSlotLabel(date, slotIdx, is12h)}
               ondblclick={() => handleSlotClick(date, hour)}
+              onclick={() => { focusedDay = colIdx; focusedSlot = slotIdx; focusedEventId = null; }}
               onmousedown={(e) => handleSlotMouseDown(e, date)}
               onmouseenter={() => prefs.values.showHoverSlot !== false && handleSlotHover(date, hour)}
               onmouseleave={handleSlotLeave}
+              onkeydown={(e) => handleGridSlotKeydown(e, colIdx, slotIdx)}
+              onfocus={() => { focusedDay = colIdx; focusedSlot = slotIdx; focusedEventId = null; }}
             ></div>
           {/each}
 
@@ -625,8 +843,6 @@
                 </span>
               </div>
             {/if}
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
             {@const isEditing = editingId === item.event.id}
             {@const myRsvp = (item.event.attendees || []).find(a => a.self)?.responseStatus}
             {@const calName = cals.items.find(c => c.id === item.event.calendarId)?.summary || ''}
@@ -637,10 +853,17 @@
               class:link-drop-target={dropTargetEventId === item.event.id}
               use:tooltip={tipText}
               style="{eventStyle(item.event)} left: {item.left}; width: {item.width};"
+              role="gridcell"
+              tabindex={focusedEventId === eventKeyFor(item.event) ? 0 : -1}
+              data-grid-event={eventKeyFor(item.event)}
+              aria-label={ariaEventLabel(item.event, is12h) +
+                '. Press Enter to edit, arrows to move, Alt+arrow to resize, Delete to remove.'}
               onmousedown={(e) => { if (!isEditing) handleEventMouseDown(e, item.event); }}
               onclick={(e) => { e.stopPropagation(); if (!isEditing) handleEventClickGuarded(item.event, e); }}
               ondblclick={(e) => { e.stopPropagation(); e.preventDefault(); oneditEvent(item.event); }}
               oncontextmenu={(e) => { e.preventDefault(); e.stopPropagation(); oncontextEvent(item.event, e); }}
+              onkeydown={(e) => { if (!isEditing) handleEventKeydown(e, item.event); }}
+              onfocus={() => { focusedEventId = eventKeyFor(item.event); }}
               ondragover={(e) => handleEventDragOver(e, item.event)}
               ondragleave={handleEventDragLeave}
               ondrop={(e) => handleEventDrop(e, item.event)}
@@ -688,17 +911,26 @@
 
           <!-- Timed task chips: thin overlay positioned by dueDatetime.
                Draggable so the user can re-time across the grid or drop on
-               the all-day row to clear the time. Click opens the editor. -->
+               the all-day row to clear the time. Click opens the editor.
+               Keyboard: Enter opens the editor. Arrow navigation continues
+               to traverse hour slots (chips are a secondary surface). -->
           {#each tasksForDate(date) as task (task.id)}
             {@const m = taskMinutes(task)}
             {@const dur = task.estimatedMinutes || prefs.values.defaultTaskDuration || 30}
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
               class="task-chip"
+              role="button"
+              tabindex="0"
+              aria-label={`Task: ${task.content}. Press Enter to edit.`}
               draggable="true"
               ondragstart={(e) => handleTaskChipDragStart(e, task)}
               onclick={(e) => { e.stopPropagation(); appCtx?.editTask?.(task); }}
+              onkeydown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  appCtx?.editTask?.(task);
+                }
+              }}
               style="top: {(m / 60) * 48}px; height: {Math.max((dur / 60) * 48, 18)}px;"
               use:tooltip={task.content}
             >
@@ -927,6 +1159,28 @@
     border-bottom: 1px solid color-mix(in srgb, var(--border-light) 50%, transparent);
     cursor: pointer;
     transition: background 0.08s;
+    /* Outline rather than border on focus: no layout shift. Inset slightly
+       so the ring isn't bisected by the row divider above/below. */
+    outline: none;
+  }
+  .hour-slot:focus-visible {
+    box-shadow: inset 0 0 0 2px var(--accent);
+    background: color-mix(in srgb, var(--accent-light) 35%, transparent);
+    z-index: 3;
+    position: relative;
+  }
+  /* Visually-hidden utility for the aria-live region. Position absolute so
+     it's removed from layout but still in the accessibility tree. */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
   /* Hover bg is now drawn by .hover-band (sub-hour, snap-aware). The
      hour-slot stays as a click/drag target only. */
@@ -969,6 +1223,11 @@
     overflow: hidden;
   }
   .task-chip:active { cursor: grabbing; }
+  .task-chip:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+    z-index: 6;
+  }
   .task-chip:hover {
     background: color-mix(in srgb, var(--accent) 14%, var(--surface));
   }
@@ -988,8 +1247,18 @@
     padding: 0 2px;
     box-sizing: border-box;
     cursor: grab;
+    outline: none;
   }
   .event-positioned:active { cursor: grabbing; }
+  /* When a keyboard user focuses an event chip, draw a ring AROUND the
+     chip's border-left bar (which is the visual "this is an event" cue).
+     Use focus-visible so mouse users don't see a halo on every click. */
+  .event-positioned:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+    z-index: 25;
+  }
   .event-positioned.link-drop-target {
     outline: 2px solid var(--accent);
     outline-offset: 1px;

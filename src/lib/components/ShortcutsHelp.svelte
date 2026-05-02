@@ -43,6 +43,28 @@
       ],
     },
     {
+      title: 'Calendar grid (keyboard)',
+      rows: [
+        ['↑  ↓', 'Move focus by an hour'],
+        ['←  →', 'Previous / next day'],
+        ['Page Up  /  Page Down', 'Jump 4 hours'],
+        ['Home  /  End', 'Top / bottom of day'],
+        ['Enter  /  Space', 'Create event at focused time'],
+      ],
+    },
+    {
+      title: 'Focused event (keyboard)',
+      rows: [
+        ['↑  ↓', 'Nudge time by 15 min (Shift = 5 min)'],
+        ['←  →', 'Move ± 1 day'],
+        ['Alt  +  ↑↓', 'Resize end time'],
+        ['Enter  /  E', 'Open editor'],
+        ['Delete  /  Backspace', 'Delete event'],
+        ['Shift  +  F10', 'Open right-click menu'],
+        ['Esc', 'Return focus to surrounding hour'],
+      ],
+    },
+    {
       title: 'Other',
       rows: [
         ['Cmd/Ctrl  +  1-3', 'Switch calendar set'],
