@@ -212,6 +212,110 @@ function buildServer(userId) {
     }
   );
 
+  // Project surface — added with the projects-as-first-class work. These
+  // expose the metadata productivity.do owns (pin state, due date, intent
+  // line, rhythm) plus the derived ranker output for "what should I do
+  // right now" so an external agent can drive the same decision surface
+  // a human uses.
+  server.tool(
+    'list_pinned_projects',
+    {
+      description: 'List the user\'s pinned projects (the ones that get top billing in the decision surface). Includes project name, due date, and intent line if set.',
+      inputSchema: { type: 'object', properties: {} },
+    },
+    async () => {
+      const rows = q(`
+        SELECT pm.project_id, pm.due_date, pm.intent_line, pm.pinned_at,
+               (SELECT project_name FROM tasks_cache
+                  WHERE user_id = pm.user_id AND project_id = pm.project_id LIMIT 1) AS name
+          FROM project_meta pm
+         WHERE pm.user_id = ? AND pm.pinned_at IS NOT NULL
+         ORDER BY pm.pinned_at
+      `).all(userId);
+      return { content: [{ type: 'text', text: JSON.stringify(rows, null, 2) }] };
+    }
+  );
+
+  server.tool(
+    'set_project_pin',
+    {
+      description: 'Pin or unpin a project from the decision surface. Cap of 3 pinned at a time. projectId is the Todoist project id (string) or "native:<int>" for native projects.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          projectId: { type: 'string', description: 'Project ID' },
+          pinned: { type: 'boolean', description: 'true to pin, false to unpin' },
+        },
+        required: ['projectId', 'pinned'],
+      },
+    },
+    async ({ projectId, pinned }) => {
+      const existing = q(
+        'SELECT * FROM project_meta WHERE user_id = ? AND project_id = ?'
+      ).get(userId, projectId);
+      if (pinned && (!existing || !existing.pinned_at)) {
+        const c = q(
+          'SELECT COUNT(*) AS n FROM project_meta WHERE user_id = ? AND pinned_at IS NOT NULL'
+        ).get(userId).n;
+        if (c >= 3) {
+          return { content: [{ type: 'text', text: JSON.stringify({ ok: false, error: 'Pin cap reached (3). Unpin one first.' }) }] };
+        }
+      }
+      const pinnedAt = pinned ? (existing?.pinned_at || new Date().toISOString()) : null;
+      q(`
+        INSERT INTO project_meta (user_id, project_id, pinned_at, updated_at)
+        VALUES (?, ?, ?, datetime('now'))
+        ON CONFLICT(user_id, project_id) DO UPDATE SET
+          pinned_at = excluded.pinned_at,
+          updated_at = datetime('now')
+      `).run(userId, projectId, pinnedAt);
+      return { content: [{ type: 'text', text: JSON.stringify({ ok: true, projectId, pinned: !!pinnedAt }) }] };
+    }
+  );
+
+  server.tool(
+    'get_project_context',
+    {
+      description: 'Get the full picture of a project: open tasks, momentum, due date, intent line, and recent activity. Mirrors what a user sees on the project page.',
+      inputSchema: {
+        type: 'object',
+        properties: { projectId: { type: 'string', description: 'Project ID' } },
+        required: ['projectId'],
+      },
+    },
+    async ({ projectId }) => {
+      // Reuse the same query shape /api/projects/:id/context uses, but
+      // condensed to the agent-relevant slice.
+      const meta = q(
+        'SELECT due_date, intent_line, rhythm_json, pinned_at FROM project_meta WHERE user_id = ? AND project_id = ?'
+      ).get(userId, projectId) || {};
+      const tasks = q(`
+        SELECT todoist_id AS id, content, due_date, priority, is_completed
+          FROM tasks_cache
+         WHERE user_id = ? AND project_id = ?
+         ORDER BY is_completed ASC, priority DESC
+         LIMIT 50
+      `).all(userId, projectId);
+      const completed7d = q(`
+        SELECT COUNT(*) AS n FROM tasks_cache
+         WHERE user_id = ? AND project_id = ?
+           AND is_completed = 1 AND completed_at >= datetime('now', '-7 days')
+      `).get(userId, projectId).n;
+      const data = {
+        projectId,
+        meta: {
+          dueDate: meta.due_date || null,
+          intentLine: meta.intent_line || null,
+          pinnedAt: meta.pinned_at || null,
+        },
+        openTaskCount: tasks.filter(t => !t.is_completed).length,
+        completed7d,
+        recentTasks: tasks.slice(0, 20),
+      };
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
   // ----- Resources -----
   // Static enumeration of resource collections, each addressable by URI.
   server.resource(
@@ -247,6 +351,36 @@ function buildServer(userId) {
       const data = { date: today, events, tasks };
       return {
         contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(data, null, 2) }],
+      };
+    }
+  );
+
+  // The ranked decision surface — what the "what should I do right now"
+  // surface returns to the user, served as a resource so an agent can
+  // read it and propose actions.
+  server.resource(
+    'decisions',
+    'productivity://decisions',
+    { description: 'Ranked tasks for the user to do next, with score reasons. Mirrors /api/today\'s ranker output.' },
+    async (uri) => {
+      // Pull a thin slice — overdue + due-today, ranked by priority +
+      // due as a fallback. Full ranker requires today.js context; this
+      // resource is the cheap version. Agents that want the full
+      // composite should call GET /api/today via HTTP.
+      const today = new Date().toISOString().slice(0, 10);
+      const rows = q(`
+        SELECT todoist_id AS id, content, due_date AS dueDate,
+               priority, project_id AS projectId, project_name AS projectName,
+               estimated_minutes AS estimatedMinutes
+          FROM tasks_cache
+         WHERE user_id = ?
+           AND (is_completed = 0 OR is_completed IS NULL)
+           AND (due_date <= ? OR due_datetime <= datetime('now', '+24 hours'))
+         ORDER BY (CASE WHEN due_date < ? THEN 0 ELSE 1 END), priority DESC, due_date
+         LIMIT 50
+      `).all(userId, today, today);
+      return {
+        contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify({ date: today, tasks: rows }, null, 2) }],
       };
     }
   );

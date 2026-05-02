@@ -125,7 +125,7 @@ Two surfaces from the strategy doc's voice section:
 | C2 | `/api/voice/route` — capture router | ✅ Done | Claude Haiku classifier (task/event/note/comment/unsure) + structured fields. JSON-only response, tolerant parsing. |
 | C3 | Voice button on TodayPanel | ✅ Done | VoiceCapture component in head-actions; preview modal lets user confirm before creating |
 | C4 | Voice capture button on the main toolbar | ✅ Done | Same VoiceCapture component, mounted next to search button |
-| C5 | MCP tool surface expansion | ⏳ Pending | Optional follow-up; the existing MCP already covers tasks/events/today via the MCP server route. |
+| C5 | MCP tool surface expansion | ✅ Done | New tools: list_pinned_projects, set_project_pin, get_project_context. New resource: productivity://decisions. |
 
 Build order: C1 first (substrate). C3 + C4 in parallel. C2 wraps C4. C5 is independent and can ship anytime.
 

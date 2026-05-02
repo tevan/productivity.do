@@ -259,7 +259,7 @@ router.get('/api/weekly-review', async (req, res) => {
          WHERE user_id = ? AND project_id IN (${placeholders})
            AND is_completed = 1
            AND completed_at >= ? AND completed_at < ?
-      `).all(userId, ...ids, weekStartUtc.toISOString(), weekEndUtc.toISOString());
+      `).all(userId, ...ids, weekStartUtc, weekEndUtc);
       for (const r of rows) progressedSet.add(r.project_id);
     }
     // Hydrate project names from tasks_cache (cheaper than another Todoist call).
