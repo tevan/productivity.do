@@ -99,8 +99,13 @@ input { width: 100%; padding: 10px 12px; border: 1px solid #e2e5e9; border-radiu
 button.primary { width: 100%; padding: 10px; background: #3b82f6; color: #fff; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
 .ok { padding: 24px; text-align: center; }
 .err { color: #dc2626; margin-top: 12px; }
+.powered-by { display: block; text-align: center; margin-top: 16px; font-size: 12px; color: #6b7280; text-decoration: none; }
+.powered-by:hover { color: #111827; }
+.powered-by strong { color: #111827; font-weight: 600; }
+@media (prefers-color-scheme: dark) { .powered-by { color: #9aa0a8; } .powered-by:hover, .powered-by strong { color: #e8eaed; } }
 </style></head><body>
 <div class="card" id="root"></div>
+<a class="powered-by" href="https://productivity.do/signup" target="_blank" rel="noopener">Powered by <strong>productivity.do</strong> — make your own free</a>
 <script>
 const ID = ${idJson};
 const root = document.getElementById('root');

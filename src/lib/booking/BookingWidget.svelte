@@ -257,6 +257,9 @@
       <a class="btn-secondary" href={confirmation.cancelUrl}>Cancel booking</a>
       <a class="btn-secondary" href={confirmation.rescheduleUrl}>Reschedule</a>
     </div>
+    <a class="powered-by" href="https://productivity.do/signup" target="_blank" rel="noopener">
+      Make your own free booking page →
+    </a>
   </div>
 {:else}
   <div class="layout">
@@ -461,6 +464,9 @@
       {/if}
     </section>
   </div>
+  <a class="powered-by below-card" href="https://productivity.do/signup" target="_blank" rel="noopener">
+    Powered by <strong>productivity.do</strong> — make your own free
+  </a>
 {/if}
 
 <script module>
@@ -847,5 +853,21 @@
     display: flex;
     gap: 8px;
     justify-content: center;
+  }
+  .powered-by {
+    display: inline-block;
+    margin-top: 20px;
+    font-size: 12px;
+    color: #6b7280;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .powered-by:hover { color: #111827; }
+  .powered-by strong { color: #111827; font-weight: 600; }
+  .powered-by.below-card {
+    display: block;
+    text-align: center;
+    margin: 16px auto 0;
+    padding: 8px 12px;
   }
 </style>

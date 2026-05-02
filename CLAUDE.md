@@ -219,7 +219,7 @@ Account + sessions (protected, except confirm-email):
   DELETE /api/account/sessions/:id             (revoke one device)
   POST /api/account/sessions/revoke-others
   POST /api/account/delete                     (soft-delete; 30-day recovery; ?mode=immediate skips)
-  GET  /api/account/export                     (full data ZIP)
+  GET  /api/account/export                     (full data JSON; every user-owned row, secrets redacted)
 
 Admin metrics (admin-only — user_id=1 OR is_team_admin=1):
   GET  /api/admin/metrics                      (signups/activation/WAU/plans/retention/booking-conv)
@@ -407,9 +407,23 @@ AI support chat at `POST /api/support-chat` (Settings → Help → AI assistant)
 
 ## Account, sessions, soft-delete
 
-Profile management at `/api/account/*` (route: `routes/account.js`, UI: `ProfileTab.svelte` in Settings → Account → Profile). New columns on `users`: `avatar_path`, `pending_email`, `pending_email_token`, `pending_email_sent_at`, `deleted_at`, `permanently_purge_at`. New table `user_sessions` (one row per active sign-in; cookie carries `req.session.sessionId`). Sensitive ops (delete, change email, change password) require current password verified via `bcrypt.compare`.
+Profile management at `/api/account/*` (route: `routes/account.js`, UI: `ProfileTab.svelte` in Settings → Account → Profile). New columns on `users`: `avatar_path`, `pending_email`, `pending_email_token`, `pending_email_sent_at`, `deleted_at`, `permanently_purge_at`, `original_email`. New table `user_sessions` (one row per active sign-in; cookie carries `req.session.sessionId`). Sensitive ops (delete, change email, change password) require current password verified via `bcrypt.compare`.
 
-**Email change** sends confirmation to the NEW address (not old) — old address gets a security notice. **Soft-delete** sets `deleted_at` + 30-day `permanently_purge_at`, revokes all sessions, clears cookie. Signing in with old credentials within the window auto-recovers (`auth.js` clears the flags and returns `{ recovered: true }`). `mode: 'immediate'` skips the window. **Password change** auto-revokes all OTHER sessions (current device stays). **Avatars** uploaded via multer, hashed filename `${userId}-${sha256-16}.${ext}`, served from `/avatars/<file>` (public; on requireAuth bypass list since filenames are unguessable). Gravatar fallback when `avatar_path` is null.
+**Email change** sends confirmation to the NEW address (not old) — old address gets a security notice. **Soft-delete** sets `deleted_at` + 30-day `permanently_purge_at`, revokes all sessions, clears cookie. **Email gets renamed at delete time** (suffixed `+deleted-<id>-<ts>`) and the original is stashed in `users.original_email` so the column-level `email UNIQUE` constraint doesn't block someone re-signing up with the same address during the 30-day window. Login matches both `email` and `original_email`, restores the original on recovery, and refuses recovery (409) if a fresh active account has since claimed the address. `createUser`, `authenticate`, and `getUserByEmail` all filter `deleted_at IS NULL` so deleted rows can't satisfy active-user lookups. `mode: 'immediate'` skips the window. **Password change** auto-revokes all OTHER sessions (current device stays). **Avatars** uploaded via multer, hashed filename `${userId}-${sha256-16}.${ext}`, served from `/avatars/<file>` (public; on requireAuth bypass list since filenames are unguessable). Gravatar fallback when `avatar_path` is null.
+
+**GDPR/portability export** (`GET /api/account/export`) walks every user-owned row in the schema and returns a single JSON document. Includes: profile (creds redacted), all native + integration metadata, notes + comments, tasks (kanban + focus blocks + hidden events), booking pages with every child resource (event_types, custom_questions, booking_workflows, booking_invites, booking_page_views, time_polls, bookings), routing forms, quick slots, calendar sets + members, event templates, subscribed calendars + events, preferences, links, integrations (tokens redacted), feedback submissions, AI support transcripts, notifications, revisions, operations, sessions, API keys + webhook subscriptions (secrets redacted). Excludes: caches (events_cache, weather_cache, sync_state, idempotency keys, rate buckets), webhook delivery logs, secrets/tokens. **When adding a new user-owned table, add it to `account.js#/api/account/export`** — the audit lives at the bottom of `routes/account.js`. The export covers the full schema as of 2026-05-02; if it drifts, GDPR portability is incomplete.
+
+## Tenancy audit (2026-05-02)
+
+Pre-launch sweep of every authenticated route. The pattern in this codebase is: ownership is verified either by a SELECT with `WHERE id = ? AND user_id = ?` (or a join through an owned parent), then mutation runs. Two defense-in-depth issues were found and fixed: (1) `links.js` DELETE used a separate ownership SELECT then a `DELETE WHERE id = ?` — collapsed into one `DELETE WHERE id = ? AND user_id = ?` so the row count tells the story atomically; (2) `booking-pages.js` PUT verified ownership via `getOwnedPage()` then ran `UPDATE booking_pages WHERE id = ?` — added `AND user_id = ?` for defense-in-depth. Everywhere else the post-write `SELECT * FROM x WHERE id = ?` pattern is safe because either the id came from `lastInsertRowid` (just-created row) or ownership was verified earlier in the handler. **When writing new authenticated routes, the rule is: scope every mutation by user_id directly in SQL, even if you've SELECTed for ownership above.** A separate ownership SELECT + a non-scoped UPDATE/DELETE is one missed code-path away from a tenancy bug.
+
+## Booking widget acquisition CTA
+
+Every public booking surface (`/book/:slug`, `/q/:id`, cancellation/reschedule widget) renders a "Powered by productivity.do — make your own free" link to `/signup`. Per onboarding research (Hulick + OpenView), every distribution surface that doesn't funnel back to signup is a wasted PLG slot. CTA appears: (a) on the booking success state, (b) below the booking card, (c) on the cancellation success state, (d) on the reschedule success state, (e) below the quick-slots widget. Don't strip it on the assumption "the host already brands the page" — the link is for the *invitee*, not the host.
+
+## Stripe configuration gate
+
+`isStripeConfigured()` requires BOTH `STRIPE_SECRET_KEY` AND at least one of the four `STRIPE_PRICE_*` env vars to be set. Returning true with the secret key alone surfaces a 500 mid-checkout when `priceIdFor()` returns null. New helper `isStripePlanConfigured(plan, period)` lets the SPA disable an individual upgrade button when its price isn't wired (e.g., Pro is configured but Team isn't yet) without disabling the whole pricing page.
 
 ## Optimistic drag pattern
 

@@ -130,6 +130,9 @@
   <div class="card center">
     <h1>Booking cancelled</h1>
     <p>The host has been notified.</p>
+    <a class="powered-by" href="https://productivity.do/signup" target="_blank" rel="noopener">
+      Make your own free booking page →
+    </a>
   </div>
 {:else if booking.status !== 'confirmed'}
   <div class="card center">
@@ -141,6 +144,9 @@
     <h1>Rescheduled ✓</h1>
     <p class="when">New time: {fmt(booking.startIso)}</p>
     <p>The host has been notified. A confirmation email is on the way.</p>
+    <a class="powered-by" href="https://productivity.do/signup" target="_blank" rel="noopener">
+      Make your own free booking page →
+    </a>
   </div>
 {:else if reschedule}
   <div class="card">
@@ -303,4 +309,13 @@
     .slots { grid-template-columns: repeat(2, 1fr); }
     .slot, .btn-primary, .btn-secondary { min-height: 44px; }
   }
+  .powered-by {
+    display: inline-block;
+    margin-top: 20px;
+    font-size: 12px;
+    color: #6b7280;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .powered-by:hover { color: #111827; }
 </style>

@@ -272,7 +272,7 @@ router.put('/api/booking-pages/:id', (req, res) => {
         has_event_types = ?, enable_ics = ?, send_emails = ?, reminder_24h = ?,
         assignment_strategy = ?, host_user_ids = ?,
         updated_at = datetime('now')
-      WHERE id = ?
+      WHERE id = ? AND user_id = ?
     `).run(
       slug,
       merged.title, merged.description,
@@ -289,7 +289,7 @@ router.put('/api/booking-pages/:id', (req, res) => {
       merged.host_name, merged.host_email,
       merged.has_event_types, merged.enable_ics, merged.send_emails, merged.reminder_24h,
       merged.assignment_strategy, merged.host_user_ids,
-      req.params.id
+      req.params.id, req.user.id
     );
     const row = db.prepare('SELECT * FROM booking_pages WHERE id = ?').get(req.params.id);
     res.json({ ok: true, page: rowToPage(row) });

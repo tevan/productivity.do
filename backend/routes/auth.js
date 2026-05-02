@@ -62,22 +62,40 @@ router.post('/api/auth', async (req, res) => {
     // If no email provided, fall back to the seed user so the legacy single-user
     // login keeps working.
     const lookupEmail = email || (process.env.SEED_USER_EMAIL || 'owner@productivity.do');
+    // Active users match `email`; soft-deleted users had `email` suffixed and
+    // their original stashed in `original_email`. Login matches either so the
+    // 30-day recovery window keeps working with the address the user remembers.
     const row = db.prepare(
-      'SELECT id, password_hash, deleted_at, permanently_purge_at FROM users WHERE email = ?'
-    ).get(lookupEmail);
+      `SELECT id, password_hash, deleted_at, permanently_purge_at, original_email
+       FROM users
+       WHERE email = ? OR (deleted_at IS NOT NULL AND original_email = ?)`
+    ).get(lookupEmail, lookupEmail);
     if (!row) return res.status(401).json({ ok: false, error: 'Wrong password' });
 
     const valid = await bcrypt.compare(password, row.password_hash);
     if (!valid) return res.status(401).json({ ok: false, error: 'Wrong password' });
 
     // Soft-deleted account: signing in recovers it (within the 30-day window).
+    // Restore the original email + clear the deletion flags.
     let recovered = false;
     if (row.deleted_at) {
       const purgeAt = row.permanently_purge_at ? new Date(row.permanently_purge_at).getTime() : 0;
       if (purgeAt && purgeAt < Date.now()) {
         return res.status(403).json({ ok: false, error: 'Account deletion window has ended' });
       }
-      db.prepare('UPDATE users SET deleted_at = NULL, permanently_purge_at = NULL WHERE id = ?').run(row.id);
+      // If someone else has signed up with this email in the meantime, recovery
+      // is no longer possible — fail closed. Filter by deleted_at IS NULL so
+      // we don't compare against this row's own suffixed email.
+      const taken = db.prepare(
+        'SELECT id FROM users WHERE email = ? AND deleted_at IS NULL AND id != ?'
+      ).get(row.original_email || lookupEmail, row.id);
+      if (taken) {
+        return res.status(409).json({ ok: false, error: 'That email is already in use by another account' });
+      }
+      db.prepare(`UPDATE users SET deleted_at = NULL, permanently_purge_at = NULL,
+                                   email = COALESCE(original_email, email),
+                                   original_email = NULL
+                  WHERE id = ?`).run(row.id);
       recovered = true;
     }
 

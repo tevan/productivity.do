@@ -76,9 +76,8 @@ router.delete('/api/links/:id', (req, res) => {
   const userId = req.user?.id || req.session?.userId;
   if (!userId) return res.status(401).json({ ok: false, error: 'Unauthorized' });
   const db = getDb();
-  const row = db.prepare('SELECT * FROM links WHERE id = ? AND user_id = ?').get(req.params.id, userId);
-  if (!row) return res.status(404).json({ ok: false, error: 'Not found' });
-  db.prepare('DELETE FROM links WHERE id = ?').run(req.params.id);
+  const r = db.prepare('DELETE FROM links WHERE id = ? AND user_id = ?').run(req.params.id, userId);
+  if (r.changes === 0) return res.status(404).json({ ok: false, error: 'Not found' });
   res.json({ ok: true });
 });
 

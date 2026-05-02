@@ -26,7 +26,23 @@ export function getStripe() {
 }
 
 export function isStripeConfigured() {
-  return !!process.env.STRIPE_SECRET_KEY;
+  // Both the secret key AND at least one price ID need to be present for
+  // checkout to actually succeed. Returning true with the secret key alone
+  // would surface a 500 mid-checkout when priceIdFor returns null.
+  if (!process.env.STRIPE_SECRET_KEY) return false;
+  return !!(
+    process.env.STRIPE_PRICE_PRO_MONTHLY ||
+    process.env.STRIPE_PRICE_PRO_ANNUAL ||
+    process.env.STRIPE_PRICE_TEAM_MONTHLY ||
+    process.env.STRIPE_PRICE_TEAM_ANNUAL
+  );
+}
+
+// Per-plan check so the SPA can disable a specific upgrade button when its
+// price isn't configured (e.g., Pro is wired but Team isn't yet).
+export function isStripePlanConfigured(plan, period = 'monthly') {
+  if (!process.env.STRIPE_SECRET_KEY) return false;
+  return !!priceIdFor(plan, period);
 }
 
 /**

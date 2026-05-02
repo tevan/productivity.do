@@ -292,11 +292,17 @@ router.post('/api/account/delete', async (req, res) => {
     return res.json({ ok: true, mode: 'immediate' });
   }
 
-  // Soft-delete: set deleted_at + 30-day purge timestamp.
+  // Soft-delete: set deleted_at + 30-day purge timestamp. Rename email to a
+  // suffixed variant so the column-level UNIQUE doesn't block someone re-
+  // signing up with the same address; stash original in `original_email` so
+  // recovery on login can restore it.
   const purgeAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const orig = q('SELECT email FROM users WHERE id = ?').get(user.id);
+  const suffixed = `${orig.email}+deleted-${user.id}-${Date.now()}`;
   q(`UPDATE users SET deleted_at = datetime('now'), permanently_purge_at = ?,
+        original_email = ?, email = ?,
         updated_at = datetime('now')
-     WHERE id = ?`).run(purgeAt, user.id);
+     WHERE id = ?`).run(purgeAt, orig.email, suffixed, user.id);
   // Revoke every session
   q(`UPDATE user_sessions SET revoked_at = datetime('now')
      WHERE user_id = ?`).run(user.id);
@@ -309,19 +315,108 @@ router.post('/api/account/delete', async (req, res) => {
 
 // ---------------------------------------------------------------------------
 // GET /api/account/export — JSON dump of the user's data
+//
+// GDPR/portability promise: every user-owned row in the schema. Excludes
+// security-sensitive credentials (password_hash, OAuth tokens, integration
+// access_tokens, API key secrets, webhook signing secrets) and ephemeral
+// caches (events_cache, weather_cache, sync_state, rate buckets, idempotency
+// keys, webhook delivery logs). Includes everything the user themselves
+// produced.
 // ---------------------------------------------------------------------------
 router.get('/api/account/export', (req, res) => {
   const userId = req.user.id;
+  const all = (sql) => q(sql).all(userId);
   const dump = {
-    user: q('SELECT id, email, display_name, plan, timezone, created_at FROM users WHERE id = ?').get(userId),
-    events_native: q('SELECT * FROM events_native WHERE user_id = ?').all(userId),
-    tasks_native: q('SELECT * FROM tasks_native WHERE user_id = ?').all(userId),
-    projects_native: q('SELECT * FROM projects_native WHERE user_id = ?').all(userId),
-    notes: q('SELECT * FROM notes WHERE user_id = ?').all(userId),
-    booking_pages: q('SELECT * FROM booking_pages WHERE user_id = ?').all(userId),
+    // Profile (credentials redacted)
+    user: q(`SELECT id, email, display_name, plan, timezone, created_at,
+                    avatar_path, email_verified, last_login_at
+             FROM users WHERE id = ?`).get(userId),
+
+    // Native primary stores
+    events_native: all('SELECT * FROM events_native WHERE user_id = ?'),
+    tasks_native: all('SELECT * FROM tasks_native WHERE user_id = ?'),
+    projects_native: all('SELECT * FROM projects_native WHERE user_id = ?'),
+
+    // Notes + history + comments
+    notes: all('SELECT * FROM notes WHERE user_id = ?'),
+    note_comments: all('SELECT * FROM note_comments WHERE user_id = ?'),
+
+    // Tasks supplementary (kanban + custom columns + focus blocks)
+    task_columns: all('SELECT * FROM task_columns WHERE user_id = ?'),
+    focus_blocks: all('SELECT * FROM focus_blocks WHERE user_id = ?'),
+    hidden_events: all('SELECT * FROM hidden_events WHERE user_id = ?'),
+
+    // Booking pages + child resources
+    booking_pages: all('SELECT * FROM booking_pages WHERE user_id = ?'),
     bookings: q(`SELECT b.* FROM bookings b
                  JOIN booking_pages p ON p.id = b.page_id
                  WHERE p.user_id = ?`).all(userId),
+    event_types: q(`SELECT et.* FROM event_types et
+                    JOIN booking_pages p ON p.id = et.page_id
+                    WHERE p.user_id = ?`).all(userId),
+    custom_questions: q(`SELECT cq.* FROM custom_questions cq
+                         JOIN booking_pages p ON p.id = cq.page_id
+                         WHERE p.user_id = ?`).all(userId),
+    booking_workflows: q(`SELECT w.* FROM booking_workflows w
+                          JOIN booking_pages p ON p.id = w.page_id
+                          WHERE p.user_id = ?`).all(userId),
+    booking_invites: q(`SELECT i.* FROM booking_invites i
+                        JOIN booking_pages p ON p.id = i.page_id
+                        WHERE p.user_id = ?`).all(userId),
+    booking_page_views: q(`SELECT v.* FROM booking_page_views v
+                           JOIN booking_pages p ON p.id = v.page_id
+                           WHERE p.user_id = ?`).all(userId),
+    time_polls: q(`SELECT tp.* FROM time_polls tp
+                   JOIN booking_pages p ON p.id = tp.page_id
+                   WHERE p.user_id = ?`).all(userId),
+    routing_forms: all('SELECT * FROM routing_forms WHERE user_id = ?'),
+    quick_slots: all('SELECT * FROM quick_slots WHERE user_id = ?'),
+
+    // Calendar metadata (no GCal access tokens)
+    calendar_sets: all('SELECT * FROM calendar_sets WHERE user_id = ?'),
+    calendar_set_members: q(`SELECT m.* FROM calendar_set_members m
+                             JOIN calendar_sets cs ON cs.id = m.set_id
+                             WHERE cs.user_id = ?`).all(userId),
+    event_templates: all('SELECT * FROM event_templates WHERE user_id = ?'),
+    subscribed_calendars: all('SELECT * FROM subscribed_calendars WHERE user_id = ?'),
+    subscribed_events: q(`SELECT se.* FROM subscribed_events se
+                          JOIN subscribed_calendars sc ON sc.id = se.calendar_id
+                          WHERE sc.user_id = ?`).all(userId),
+
+    // Preferences + links
+    preferences: all('SELECT * FROM preferences WHERE user_id = ?'),
+    links: all('SELECT * FROM links WHERE user_id = ?'),
+
+    // Integrations metadata (tokens redacted)
+    integrations: q(`SELECT id, user_id, provider, status, account_email,
+                            metadata_json, last_synced_at, last_error,
+                            created_at, updated_at
+                     FROM integrations WHERE user_id = ?`).all(userId),
+
+    // In-app feedback + AI support transcripts (user's own data)
+    feedback_submissions: all('SELECT * FROM feedback_submissions WHERE user_id = ?'),
+    support_chat_messages: all('SELECT * FROM support_chat_messages WHERE user_id = ?'),
+    support_chat_usage: all('SELECT * FROM support_chat_usage WHERE user_id = ?'),
+
+    // Notifications + activity history
+    notifications: all('SELECT * FROM notifications WHERE user_id = ?'),
+    revisions: all('SELECT * FROM revisions WHERE user_id = ?'),
+    operations: all('SELECT * FROM operations WHERE user_id = ?'),
+
+    // Sessions (revoked + active; tokens redacted)
+    user_sessions: q(`SELECT id, user_id, user_agent, ip, created_at,
+                             last_seen_at, revoked_at
+                      FROM user_sessions WHERE user_id = ?`).all(userId),
+
+    // Developer surface (api keys + webhook subs; secrets redacted)
+    api_keys: q(`SELECT id, user_id, name, prefix, scopes, last_used_at,
+                        created_at, revoked_at
+                 FROM api_keys WHERE user_id = ?`).all(userId),
+    webhook_subscriptions: q(`SELECT id, user_id, url, events, active,
+                                     created_at
+                              FROM webhook_subscriptions WHERE user_id = ?`).all(userId),
+
+    exported_at: new Date().toISOString(),
   };
   res.set('Content-Disposition', `attachment; filename="productivity-do-${userId}-${Date.now()}.json"`);
   res.type('application/json').send(JSON.stringify(dump, null, 2));

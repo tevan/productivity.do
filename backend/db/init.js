@@ -333,6 +333,11 @@ function applyMigrations(database) {
   ensureColumn(database, 'users', 'pending_email_sent_at', 'TEXT');
   ensureColumn(database, 'users', 'deleted_at',     'TEXT');                 // soft-delete timestamp; NULL = active
   ensureColumn(database, 'users', 'permanently_purge_at', 'TEXT');           // when the soft-deleted row gets purged
+  // Soft-delete UNIQUE-collision fix: on soft-delete we rename `email` to a
+  // suffixed variant (`<orig>+deleted-<id>-<ts>@<domain>`) and stash the
+  // original here so re-signup with the same address works AND recovery on
+  // login can restore the correct email. NULL for active users.
+  ensureColumn(database, 'users', 'original_email', 'TEXT');
 
   // Booking analytics: per-page view counter + no-show flag on bookings.
   ensureColumn(database, 'bookings', 'no_show', 'INTEGER NOT NULL DEFAULT 0');

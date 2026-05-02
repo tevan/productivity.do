@@ -15,7 +15,12 @@ export async function createUser({ email, password, plan = 'free' }) {
   if (!/^[^@]+@[^@]+\.[^@]+$/.test(normalized)) throw new Error('Invalid email');
 
   const db = getDb();
-  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(normalized);
+  // Only block on active accounts. Soft-deleted rows hold their original
+  // email in `original_email` and a suffixed value in `email`, so a literal
+  // match here means a live account already owns this address.
+  const existing = db.prepare(
+    'SELECT id FROM users WHERE email = ? AND deleted_at IS NULL'
+  ).get(normalized);
   if (existing) throw new Error('An account with that email already exists');
 
   const hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
@@ -36,7 +41,9 @@ export async function createUser({ email, password, plan = 'free' }) {
 export async function authenticate({ email, password }) {
   const db = getDb();
   const normalized = String(email || '').trim().toLowerCase();
-  const row = db.prepare('SELECT id, email, password_hash, plan FROM users WHERE email = ?').get(normalized);
+  const row = db.prepare(
+    'SELECT id, email, password_hash, plan FROM users WHERE email = ? AND deleted_at IS NULL'
+  ).get(normalized);
   if (!row) return null;
   const ok = await bcrypt.compare(password, row.password_hash);
   if (!ok) return null;
@@ -56,7 +63,9 @@ export function getUserById(id) {
 
 export function getUserByEmail(email) {
   const db = getDb();
-  return db.prepare('SELECT * FROM users WHERE email = ?').get(String(email).trim().toLowerCase()) || null;
+  return db.prepare(
+    'SELECT * FROM users WHERE email = ? AND deleted_at IS NULL'
+  ).get(String(email).trim().toLowerCase()) || null;
 }
 
 export function verifyEmail(token) {
