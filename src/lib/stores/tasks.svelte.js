@@ -1,5 +1,6 @@
 import { api } from '../api.js';
 import { isSameDay, startOfDay, parseTaskDue, parseAllDayDate } from '../utils/dates.js';
+import { toastSuccess, toastError, toastUndo } from '../utils/toast.svelte.js';
 
 // localStorage hydration. Without this, refreshing the page shows an empty
 // task list for ~500ms (the API round-trip) which looks like every task got
@@ -224,16 +225,45 @@ export async function reorderTasksInColumn(positions) {
   ));
 }
 
-export async function deleteTask(id) {
+export async function deleteTask(id, { silent = false } = {}) {
+  const removed = tasks.find(t => String(t.id) === String(id));
+  const isNative = removed?.provider === 'native';
   try {
     const res = await api(taskUrl(id), { method: 'DELETE' });
     if (res.ok) {
       commitTasks(tasks.filter(t => t.id !== id));
+      if (!silent && removed) {
+        const title = removed.content || 'Task';
+        const trunc = (s, n) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
+        if (isNative) {
+          // Native tasks soft-delete; undo restores the same row.
+          toastUndo(`Deleted “${trunc(title, 40)}”`, async () => {
+            try {
+              const r = await api('/api/trash/restore', {
+                method: 'POST',
+                body: JSON.stringify({ resource: 'tasks_native', id }),
+              });
+              if (r?.ok) {
+                commitTasks([...tasks, removed]);
+                toastSuccess('Restored');
+              } else {
+                toastError('Could not restore task');
+              }
+            } catch {
+              toastError('Could not restore task');
+            }
+          });
+        } else {
+          toastSuccess(`Deleted “${trunc(title, 40)}”`);
+        }
+      }
       return true;
     }
+    if (!silent) toastError('Could not delete task');
     return false;
   } catch (e) {
     console.error('Failed to delete task:', e);
+    if (!silent) toastError('Could not delete task. Check your connection.');
     return false;
   }
 }

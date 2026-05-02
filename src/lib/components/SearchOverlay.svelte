@@ -13,21 +13,38 @@
     if (inputEl) inputEl.focus();
   });
 
+  // Backend cap is 50; default is 20. Start at 20, let the user click
+  // "Show more" to bump to 50 if they need to.
+  let limit = $state(20);
+  let totalShown = $derived(results.length);
+  let canShowMore = $derived(results.length === limit && limit < 50);
+
   let debounceId = null;
   $effect(() => {
     const q = query.trim();
     if (debounceId) clearTimeout(debounceId);
-    if (q.length < 2) { results = []; return; }
+    if (q.length < 2) { results = []; limit = 20; return; }
     debounceId = setTimeout(async () => {
       loading = true;
       try {
-        const res = await api(`/api/events/search?q=${encodeURIComponent(q)}`);
+        const res = await api(`/api/events/search?q=${encodeURIComponent(q)}&limit=${limit}`);
         if (res.ok) results = res.events || [];
       } finally {
         loading = false;
       }
     }, 200);
   });
+
+  async function showMore() {
+    limit = 50;
+    loading = true;
+    try {
+      const res = await api(`/api/events/search?q=${encodeURIComponent(query.trim())}&limit=50`);
+      if (res.ok) results = res.events || [];
+    } finally {
+      loading = false;
+    }
+  }
 
   function jumpTo(ev) {
     setDate(new Date(ev.start));
@@ -51,11 +68,14 @@
     autocomplete="off"
     spellcheck="false"
   />
-  {#if loading}
+  {#if loading && results.length === 0}
     <div class="status">Searching…</div>
   {:else if results.length === 0 && query.trim().length >= 2}
-    <div class="status">No matches.</div>
+    <div class="status">No matches. Try a different word, or check Google Calendar — events sync every few minutes.</div>
   {:else if results.length > 0}
+    <div class="result-count">
+      {totalShown} {totalShown === 1 ? 'result' : 'results'}{limit === 50 && totalShown === 50 ? ' (max)' : ''}
+    </div>
     <ul class="results">
       {#each results as r (r.id)}
         <li>
@@ -71,6 +91,11 @@
         </li>
       {/each}
     </ul>
+    {#if canShowMore}
+      <button class="show-more" onclick={showMore} disabled={loading}>
+        {loading ? 'Loading…' : 'Show more'}
+      </button>
+    {/if}
   {/if}
 </div>
 
@@ -101,8 +126,23 @@
     font-size: 15px;
   }
   input:focus { outline: none; border-color: var(--accent); }
-  .status { padding: 12px; color: var(--text-tertiary); font-size: 13px; }
-  .results { list-style: none; padding: 4px 0 0; margin: 8px 0 0; max-height: 60vh; overflow-y: auto; }
+  .status { padding: 12px; color: var(--text-tertiary); font-size: 13px; line-height: 1.5; }
+  .result-count {
+    font-size: 11px; color: var(--text-tertiary);
+    padding: 8px 4px 0; font-weight: 500;
+  }
+  .results { list-style: none; padding: 4px 0 0; margin: 4px 0 0; max-height: 50vh; overflow-y: auto; }
+  .show-more {
+    display: block; width: 100%;
+    padding: 8px; margin-top: 6px;
+    background: var(--surface-hover); border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-size: 12px; font-weight: 500;
+    cursor: pointer;
+  }
+  .show-more:hover { background: var(--accent-light); color: var(--accent); }
+  .show-more:disabled { opacity: 0.6; cursor: wait; }
   .results li { margin: 0; }
   .results button {
     display: block; width: 100%; text-align: left;

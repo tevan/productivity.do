@@ -25,6 +25,8 @@ export const TRASH_TABLES = {
   booking_pages: 'booking_pages',
   event_templates: 'event_templates',
   calendar_sets: 'calendar_sets',
+  events_native: 'events_native',
+  tasks_native: 'tasks_native',
 };
 
 // Identifier-quote helper — table names are never user-controlled here
@@ -107,6 +109,29 @@ export function listTrashed(db, userId) {
   `).all(userId)) {
     out.push({ resource: 'calendar_sets', id: r.id, label: r.name,
       preview: '', deletedAt: r.deleted_at, purgeAt: r.permanently_purge_at });
+  }
+  // Native events — the row itself is the source-of-truth (no upstream).
+  for (const r of db.prepare(`
+    SELECT id, summary, start_at, deleted_at, permanently_purge_at
+      FROM events_native WHERE user_id = ? AND deleted_at IS NOT NULL
+      ORDER BY deleted_at DESC
+  `).all(userId)) {
+    out.push({ resource: 'events_native', id: r.id,
+      label: r.summary || '(untitled event)',
+      preview: r.start_at || '',
+      deletedAt: r.deleted_at, purgeAt: r.permanently_purge_at });
+  }
+  // Native tasks — same. Todoist tasks are not in this list because they
+  // live upstream and Todoist owns the soft-delete (and restore) flow.
+  for (const r of db.prepare(`
+    SELECT id, content, due_date, deleted_at, permanently_purge_at
+      FROM tasks_native WHERE user_id = ? AND deleted_at IS NOT NULL
+      ORDER BY deleted_at DESC
+  `).all(userId)) {
+    out.push({ resource: 'tasks_native', id: r.id,
+      label: r.content || '(untitled task)',
+      preview: r.due_date || '',
+      deletedAt: r.deleted_at, purgeAt: r.permanently_purge_at });
   }
   // Resort across resources so the user sees deletions in chronological
   // order (most recent first), regardless of which kind it was.

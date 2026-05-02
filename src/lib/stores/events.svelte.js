@@ -1,4 +1,5 @@
 import { api } from '../api.js';
+import { toastSuccess, toastError, toastUndo } from '../utils/toast.svelte.js';
 
 let events = $state([]);
 let loading = $state(false);
@@ -242,10 +243,19 @@ if (typeof window !== 'undefined') {
   });
 }
 
-export async function createEvent(data) {
-  // Route to the appropriate backend. If no calendarId is provided OR the
-  // user explicitly picked the native calendar, write to /api/native/events.
-  // Anything else hits /api/events (Google).
+/**
+ * Create an event. Options:
+ *   { silent: true }  — suppress success toast (used for high-frequency ops
+ *                       like drag-to-create, where the user already saw the
+ *                       result land on the calendar).
+ *   { onView }        — optional callback for the "View" action. Default
+ *                       behavior is set by the caller; if omitted, no action
+ *                       button is rendered.
+ *
+ * Returns the created event on success; null on failure. Errors surface as
+ * a toast — call sites don't need to render their own error UI.
+ */
+export async function createEvent(data, { silent = false, onView } = {}) {
   const isNative = !data.calendarId || data.calendarId === 'native';
   const url = isNative ? '/api/native/events' : '/api/events';
   try {
@@ -253,18 +263,45 @@ export async function createEvent(data) {
     if (res.ok && res.event) {
       events = [...events, res.event];
       invalidateRangesOverlapping(res.event.start, res.event.end);
+      if (!silent) {
+        const title = res.event.summary || 'Event';
+        const action = onView
+          ? { label: 'View', onClick: () => onView(res.event) }
+          : null;
+        toastSuccess(`Created “${truncate(title, 40)}”`, action ? { action } : {});
+      }
       return res.event;
     }
+    // Backend returned {ok:false}. Pull a useful message from `error` or
+    // `code`; fall back to a generic line so the user always sees feedback
+    // instead of a silently-closed modal.
+    if (!silent) toastError(extractErrorMessage(res, 'Could not create event'));
     return null;
   } catch (e) {
     console.error('Failed to create event:', e);
+    if (!silent) toastError('Could not create event. Check your connection.');
     return null;
   }
 }
 
-export async function updateEvent(calendarId, eventId, data) {
-  // Native events live at /api/native/events/:id and don't carry a calendarId
-  // on the URL. Google events are scoped by calendar.
+function truncate(s, n) {
+  s = String(s || '');
+  return s.length > n ? s.slice(0, n - 1) + '…' : s;
+}
+function extractErrorMessage(res, fallback) {
+  if (!res) return fallback;
+  if (typeof res.error === 'string' && res.error) return `${fallback}: ${res.error}`;
+  if (typeof res.message === 'string' && res.message) return `${fallback}: ${res.message}`;
+  return fallback;
+}
+
+/**
+ * Update an event. Errors surface as a toast. `silent: true` suppresses the
+ * "could not update" toast (used by drag handlers, which prefer to roll back
+ * the optimistic patch silently rather than spam toasts on every failed
+ * resize).
+ */
+export async function updateEvent(calendarId, eventId, data, { silent = false } = {}) {
   const url = (calendarId === 'native' || !calendarId)
     ? `/api/native/events/${eventId}`
     : `/api/events/${calendarId}/${eventId}`;
@@ -277,36 +314,74 @@ export async function updateEvent(calendarId, eventId, data) {
       events = events.map(ev =>
         ev.id === eventId ? { ...ev, ...res.event } : ev
       );
-      // Both the old window (in case the event moved out of a cached range)
-      // and the new window need invalidating.
       invalidateRangesOverlapping(data.start || res.event.start, data.end || res.event.end);
       if (res.event.start !== data.start || res.event.end !== data.end) {
         invalidateRangesOverlapping(res.event.start, res.event.end);
       }
       return res.event;
     }
+    if (!silent) toastError(extractErrorMessage(res, 'Could not update event'));
     return null;
   } catch (e) {
     console.error('Failed to update event:', e);
+    if (!silent) toastError('Could not update event. Check your connection.');
     return null;
   }
 }
 
-export async function deleteEvent(calendarId, eventId) {
+/**
+ * Delete an event. Shows an "Undo" toast for native events (where we can
+ * recreate from cached data) — Google events delete-then-recreate would
+ * lose attendees + invitee responses, so we only surface Undo for native.
+ *
+ * Returns true on success, false on failure.
+ */
+export async function deleteEvent(calendarId, eventId, { silent = false } = {}) {
+  const removed = events.find(ev => ev.id === eventId);
+  const isNative = (calendarId === 'native' || !calendarId);
+  const url = isNative
+    ? `/api/native/events/${eventId}`
+    : `/api/events/${calendarId}/${eventId}`;
   try {
-    const removed = events.find(ev => ev.id === eventId);
-    const url = (calendarId === 'native' || !calendarId)
-      ? `/api/native/events/${eventId}`
-      : `/api/events/${calendarId}/${eventId}`;
     const res = await api(url, { method: 'DELETE' });
     if (res.ok) {
       events = events.filter(ev => ev.id !== eventId);
       if (removed) invalidateRangesOverlapping(removed.start, removed.end);
+      if (!silent && removed) {
+        const title = removed.summary || 'Event';
+        if (isNative) {
+          // Native events soft-delete to trash, so undo restores the same
+          // row (preserving the original id, attendees, recurrence, etc).
+          // Google events can't be undone — the upstream delete is final.
+          toastUndo(`Deleted “${truncate(title, 40)}”`, async () => {
+            try {
+              const r = await api('/api/trash/restore', {
+                method: 'POST',
+                body: JSON.stringify({ resource: 'events_native', id: eventId }),
+              });
+              if (r?.ok) {
+                events = [...events, removed];
+                invalidateRangesOverlapping(removed.start, removed.end);
+                toastSuccess('Restored');
+              } else {
+                toastError('Could not restore event');
+              }
+            } catch {
+              toastError('Could not restore event');
+            }
+          });
+        } else {
+          // Plain success toast for Google (no Undo).
+          toastSuccess(`Deleted “${truncate(title, 40)}”`);
+        }
+      }
       return true;
     }
+    if (!silent) toastError(extractErrorMessage(res, 'Could not delete event'));
     return false;
   } catch (e) {
     console.error('Failed to delete event:', e);
+    if (!silent) toastError('Could not delete event. Check your connection.');
     return false;
   }
 }

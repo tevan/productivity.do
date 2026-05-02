@@ -109,6 +109,7 @@ function extractLabel(resource, afterJson) {
     const a = JSON.parse(afterJson);
     if (resource === 'notes')  return a.title || a.body?.slice(0, 60) || '(untitled)';
     if (resource === 'tasks')  return a.content || '(task)';
+    if (resource === 'events') return a.summary || '(no title)';
     return '';
   } catch { return ''; }
 }

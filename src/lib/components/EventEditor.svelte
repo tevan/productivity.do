@@ -2,6 +2,7 @@
   import { getContext } from 'svelte';
   import { createEvent, updateEvent } from '../stores/events.svelte.js';
   import { getCalendars } from '../stores/calendars.svelte.js';
+  import { setDate } from '../stores/view.svelte.js';
   import { getPrefs } from '../stores/prefs.svelte.js';
   import { PASTEL_COLORS } from '../utils/colors.js';
   import { api } from '../api.js';
@@ -156,12 +157,19 @@
     };
     if (isEdit && isRecurring) data.scope = recurrenceScope;
 
+    // Only close on success. If create/update fails, the store toasts an
+    // error and we keep the modal open so the user can fix the input or
+    // retry — losing the work to a silently-closed modal was the bug
+    // that surfaced "Missing time zone definition" the first time.
+    let result;
     if (isEdit) {
-      await updateEvent(event.calendarId, event.id, data);
+      result = await updateEvent(event.calendarId, event.id, data);
     } else {
-      await createEvent(data);
+      result = await createEvent(data, {
+        onView: (ev) => setDate(new Date(ev.start)),
+      });
     }
-    onclose();
+    if (result) onclose();
   }
 
   function handleKeydown(e) {

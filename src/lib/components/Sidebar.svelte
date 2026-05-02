@@ -8,6 +8,7 @@
   import { getAppView } from '../stores/appView.svelte.js';
   import CalendarSets from './CalendarSets.svelte';
   import NotificationBell from './NotificationBell.svelte';
+  import ActivityBell from './ActivityBell.svelte';
   import { getCalendars, toggleCalendar } from '../stores/calendars.svelte.js';
   import {
     getSubscriptions, fetchSubscriptions, toggleSubscriptionVisible,
@@ -522,6 +523,7 @@
   </div>
   <div class="sidebar-footer">
     <div class="footer-actions">
+      <ActivityBell />
       <NotificationBell />
       <button class="footer-btn" onclick={onhelp} use:tooltip={'Keyboard shortcuts (?)'} aria-label="Keyboard shortcuts">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

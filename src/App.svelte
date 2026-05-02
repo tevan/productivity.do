@@ -15,6 +15,7 @@
   import { loadLinks } from './lib/stores/links.svelte.js';
   import ConfirmRoot from './lib/components/ConfirmRoot.svelte';
   import UpgradeRoot from './lib/components/UpgradeRoot.svelte';
+  import ToastRoot from './lib/components/ToastRoot.svelte';
   import NextDaysView from './lib/views/NextDaysView.svelte';
   import WeekView from './lib/views/WeekView.svelte';
   import MonthView from './lib/views/MonthView.svelte';
@@ -732,6 +733,8 @@
   <ConfirmRoot />
   <!-- Plan-required upgrade modal -->
   <UpgradeRoot />
+  <!-- Bottom-center toast stack (success / error / undo) -->
+  <ToastRoot />
 {/if}
 
 <style>

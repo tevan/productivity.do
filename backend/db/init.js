@@ -580,12 +580,14 @@ function applyMigrations(database) {
   ensureColumn(database, 'notes', 'color', 'TEXT');
 
   // ---- Trash / soft-delete (added 2026-05-02) ----
-  // Five tables get a `deleted_at` (when the user pressed delete) and a
+  // Six tables get a `deleted_at` (when the user pressed delete) and a
   // `permanently_purge_at` (deleted_at + 30d). Standard LIST queries skip
   // rows with deleted_at IS NOT NULL. POST <resource>/:id/restore clears
   // the flags. The daily sweeper hard-deletes rows past purge time.
-  // Geewax Ch 25 §Soft delete. Tasks live in Todoist so they're not here.
-  for (const t of ['notes', 'booking_pages', 'event_templates', 'calendar_sets']) {
+  // Geewax Ch 25 §Soft delete. Native events + tasks added 2026-05-02 so
+  // a misclick on the calendar / task list is recoverable for 30 days.
+  // Google events + Todoist tasks aren't here — they're upstream-owned.
+  for (const t of ['notes', 'booking_pages', 'event_templates', 'calendar_sets', 'events_native', 'tasks_native']) {
     ensureColumn(database, t, 'deleted_at', 'TEXT');
     ensureColumn(database, t, 'permanently_purge_at', 'TEXT');
   }
@@ -594,6 +596,8 @@ function applyMigrations(database) {
     CREATE INDEX IF NOT EXISTS idx_booking_pages_trash ON booking_pages(user_id, deleted_at);
     CREATE INDEX IF NOT EXISTS idx_event_templates_trash ON event_templates(user_id, deleted_at);
     CREATE INDEX IF NOT EXISTS idx_calendar_sets_trash ON calendar_sets(user_id, deleted_at);
+    CREATE INDEX IF NOT EXISTS idx_events_native_trash ON events_native(user_id, deleted_at);
+    CREATE INDEX IF NOT EXISTS idx_tasks_native_trash ON tasks_native(user_id, deleted_at);
   `);
 
   // ---- Integrations / sources abstraction ----

@@ -16,4 +16,20 @@ router.get('/api/activity', (req, res) => {
   res.json({ ok: true, items });
 });
 
+// One revision's full payload (after-state). Used by the activity dropdown
+// when "jump to event" needs the start time — the list endpoint returns just
+// label + meta to keep the response small. Scoped by user so a stolen
+// revision id can't leak someone else's payload.
+import { getDb } from '../db/init.js';
+router.get('/api/activity/:id/payload', (req, res) => {
+  const row = getDb().prepare(
+    'SELECT after_json FROM revisions WHERE id = ? AND user_id = ?'
+  ).get(req.params.id, req.user.id);
+  if (!row) return res.status(404).json({ ok: false, error: 'Not found' });
+  let payload = null;
+  try { payload = row.after_json ? JSON.parse(row.after_json) : null; }
+  catch {}
+  res.json({ ok: true, payload });
+});
+
 export default router;

@@ -8,7 +8,39 @@
 
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
-import { q } from '../db/init.js';
+import { q, getDb } from '../db/init.js';
+import { recordRevision } from '../lib/revisions.js';
+import { softDelete } from '../lib/trash.js';
+
+// Slim projection for the activity feed. Mirrors the shape used by the
+// Google-events path in `routes/calendar.js#eventProjection` — keep them
+// in sync if either changes.
+function nativeEventProj(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    calendarId: 'native',
+    summary: row.summary,
+    description: row.description,
+    location: row.location,
+    start: row.start_at,
+    end: row.end_at,
+    allDay: !!row.all_day,
+  };
+}
+function nativeTaskProj(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    content: row.content,
+    description: row.description,
+    projectId: row.project_id,
+    priority: row.priority,
+    dueDate: row.due_date,
+    dueDatetime: row.due_datetime,
+    isCompleted: !!row.is_completed,
+  };
+}
 
 const router = Router();
 
@@ -20,6 +52,7 @@ router.get('/api/native/events', (req, res) => {
   const rows = q(`
     SELECT * FROM events_native
     WHERE user_id = ?
+      AND deleted_at IS NULL
       AND (? IS NULL OR end_at >= ?)
       AND (? IS NULL OR start_at <= ?)
     ORDER BY start_at
@@ -42,6 +75,12 @@ router.post('/api/native/events', (req, res) => {
     recurrence ? JSON.stringify(recurrence) : null
   );
   const row = q('SELECT * FROM events_native WHERE id = ?').get(id);
+  try {
+    recordRevision({
+      userId: req.user.id, resource: 'events', resourceId: id,
+      op: 'create', before: null, after: nativeEventProj(row),
+    });
+  } catch (e) { console.warn('native event create revision:', e.message); }
   res.json({ ok: true, event: toEvent(row) });
 });
 
@@ -49,6 +88,7 @@ router.put('/api/native/events/:id', (req, res) => {
   const existing = q('SELECT * FROM events_native WHERE id = ? AND user_id = ?')
     .get(req.params.id, req.user.id);
   if (!existing) return res.status(404).json({ ok: false, error: 'Not found' });
+  const beforeProj = nativeEventProj(existing);
   const m = {
     summary: req.body.summary !== undefined ? String(req.body.summary) : existing.summary,
     description: req.body.description !== undefined ? req.body.description : existing.description,
@@ -69,13 +109,42 @@ router.put('/api/native/events/:id', (req, res) => {
   `).run(m.summary, m.description, m.location, m.start_at, m.end_at,
          m.all_day, m.color, m.recurrence_json, req.params.id, req.user.id);
   const row = q('SELECT * FROM events_native WHERE id = ?').get(req.params.id);
+  try {
+    recordRevision({
+      userId: req.user.id, resource: 'events', resourceId: req.params.id,
+      op: 'update', before: beforeProj, after: nativeEventProj(row),
+    });
+  } catch (e) { console.warn('native event update revision:', e.message); }
   res.json({ ok: true, event: toEvent(row) });
 });
 
 router.delete('/api/native/events/:id', (req, res) => {
-  const r = q('DELETE FROM events_native WHERE id = ? AND user_id = ?')
-    .run(req.params.id, req.user.id);
-  if (r.changes === 0) return res.status(404).json({ ok: false, error: 'Not found' });
+  // Pull a snapshot first so the activity feed (and undo) have the row's
+  // contents.
+  const before = q('SELECT * FROM events_native WHERE id = ? AND user_id = ?')
+    .get(req.params.id, req.user.id);
+  if (!before) return res.status(404).json({ ok: false, error: 'Not found' });
+
+  // ?permanent=1 hard-deletes immediately (matches the notes pattern).
+  // Default flips deleted_at + permanently_purge_at; the daily sweeper or
+  // the user purging trash hard-deletes later.
+  const permanent = req.query.permanent === '1';
+  let ok;
+  if (permanent) {
+    const r = q('DELETE FROM events_native WHERE id = ? AND user_id = ?')
+      .run(req.params.id, req.user.id);
+    ok = r.changes > 0;
+  } else {
+    ok = softDelete(getDb(), 'events_native', req.params.id, req.user.id);
+  }
+  if (!ok) return res.status(404).json({ ok: false, error: 'Not found' });
+  try {
+    recordRevision({
+      userId: req.user.id, resource: 'events', resourceId: req.params.id,
+      op: permanent ? 'delete' : 'soft_delete',
+      before: nativeEventProj(before), after: null,
+    });
+  } catch (e) { console.warn('native event delete revision:', e.message); }
   res.json({ ok: true });
 });
 
@@ -101,7 +170,7 @@ function toEvent(row) {
 
 router.get('/api/native/tasks', (req, res) => {
   const rows = q(`
-    SELECT * FROM tasks_native WHERE user_id = ?
+    SELECT * FROM tasks_native WHERE user_id = ? AND deleted_at IS NULL
     ORDER BY is_completed, COALESCE(due_date, '9999'), priority DESC
   `).all(req.user.id);
   res.json({ ok: true, tasks: rows.map(toTask) });
@@ -182,9 +251,26 @@ router.post('/api/native/tasks/:id/reopen', (req, res) => {
 });
 
 router.delete('/api/native/tasks/:id', (req, res) => {
-  const r = q('DELETE FROM tasks_native WHERE id = ? AND user_id = ?')
-    .run(req.params.id, req.user.id);
-  if (r.changes === 0) return res.status(404).json({ ok: false, error: 'Not found' });
+  const before = q('SELECT * FROM tasks_native WHERE id = ? AND user_id = ?')
+    .get(req.params.id, req.user.id);
+  if (!before) return res.status(404).json({ ok: false, error: 'Not found' });
+  const permanent = req.query.permanent === '1';
+  let ok;
+  if (permanent) {
+    const r = q('DELETE FROM tasks_native WHERE id = ? AND user_id = ?')
+      .run(req.params.id, req.user.id);
+    ok = r.changes > 0;
+  } else {
+    ok = softDelete(getDb(), 'tasks_native', req.params.id, req.user.id);
+  }
+  if (!ok) return res.status(404).json({ ok: false, error: 'Not found' });
+  try {
+    recordRevision({
+      userId: req.user.id, resource: 'tasks', resourceId: req.params.id,
+      op: permanent ? 'delete' : 'soft_delete',
+      before: nativeTaskProj(before), after: null,
+    });
+  } catch (e) { console.warn('native task delete revision:', e.message); }
   res.json({ ok: true });
 });
 

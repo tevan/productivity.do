@@ -14,8 +14,69 @@ import {
 import { generatePrep, inputHash, isConfigured as isPrepConfigured } from '../lib/prep.js';
 import { createOperation, runOperation } from '../lib/operations.js';
 import { findFreeSlots, expandFocusBlocks } from '../lib/autoSchedule.js';
+import { recordRevision } from '../lib/revisions.js';
 
 const router = Router();
+
+/**
+ * Resolve the user's primary timezone (IANA), with fallbacks. Used to populate
+ * Google Calendar's required `timeZone` field on event create/update when the
+ * incoming `dateTime` strings don't carry an offset (e.g. `2026-05-02T14:00:00`
+ * from the form). Without this, Google rejects with "Missing time zone
+ * definition for start time" and the event silently fails to save.
+ */
+function isValidTz(tz) {
+  if (!tz || typeof tz !== 'string') return false;
+  try { new Intl.DateTimeFormat('en-US', { timeZone: tz }); return true; }
+  catch { return false; }
+}
+function resolveUserTimezone(userId, override = null) {
+  if (isValidTz(override)) return override;
+  const row = q(`SELECT value FROM preferences WHERE user_id = ? AND key = ?`)
+    .get(userId, 'primaryTimezone');
+  if (row) {
+    try {
+      const parsed = JSON.parse(row.value);
+      if (isValidTz(parsed)) return parsed;
+    } catch {}
+  }
+  // Last-resort fallback to the user row, then UTC. The user's `users.timezone`
+  // is the column populated at signup; preferences.primaryTimezone is the
+  // user-editable override.
+  const userRow = q('SELECT timezone FROM users WHERE id = ?').get(userId);
+  if (userRow && isValidTz(userRow.timezone)) return userRow.timezone;
+  return 'UTC';
+}
+/**
+ * True when an ISO-ish datetime string already has a timezone offset
+ * (so Google won't need a separate `timeZone` field). Matches `Z`, `+HH:MM`,
+ * `-HH:MM`, `+HHMM`, `-HHMM` at the end.
+ */
+function hasOffset(s) {
+  if (!s || typeof s !== 'string') return false;
+  return /(Z|[+-]\d{2}:?\d{2})$/.test(s);
+}
+
+/**
+ * Build the revision-projection of an event. The activity feed and version
+ * history serialize this — keep it slim (just the user-visible fields, no
+ * internal flags). `id` here is the event id (Google id or native id);
+ * we store calendarId alongside so the activity feed can render a "View"
+ * link without a second lookup.
+ */
+function eventProjection(ev, { calendarId } = {}) {
+  if (!ev) return null;
+  return {
+    id: ev.id,
+    calendarId: calendarId || ev.calendarId || null,
+    summary: ev.summary || '',
+    description: ev.description || null,
+    location: ev.location || null,
+    start: ev.start?.dateTime || ev.start?.date || ev.start || null,
+    end: ev.end?.dateTime || ev.end?.date || ev.end || null,
+    allDay: !!(ev.start?.date || ev.allDay),
+  };
+}
 
 /**
  * Translate a friendly recurrence value into the Google Calendar `recurrence`
@@ -536,8 +597,17 @@ router.post('/api/events', async (req, res) => {
       eventBody.start = { date: sd };
       eventBody.end = { date: ed };
     } else {
-      eventBody.start = { dateTime: start };
-      eventBody.end = { dateTime: end };
+      // Google requires either a full offset on `dateTime` (e.g. `...-06:00`)
+      // OR a separate `timeZone` field. The SPA sends naive local datetimes
+      // (`YYYY-MM-DDTHH:MM:SS`), so we attach the user's primary timezone.
+      // If the client did include an offset, keep it as-is.
+      const tz = resolveUserTimezone(userId);
+      const startBlock = { dateTime: start };
+      const endBlock = { dateTime: end };
+      if (!hasOffset(start)) startBlock.timeZone = tz;
+      if (!hasOffset(end)) endBlock.timeZone = tz;
+      eventBody.start = startBlock;
+      eventBody.end = endBlock;
     }
 
     // Recurrence: accept either a preset string (daily|weekly|monthly|yearly|weekdays)
@@ -573,22 +643,28 @@ router.post('/api/events', async (req, res) => {
       userId
     );
 
-    res.json({
-      ok: true,
-      event: {
-        id: created.id,
-        calendarId,
-        summary: created.summary,
-        description: created.description,
-        location: created.location,
-        start: created.start?.dateTime || created.start?.date,
-        end: created.end?.dateTime || created.end?.date,
-        allDay: !!allDay,
-        colorId: created.colorId,
-        conferenceUrl,
-        status: created.status,
-      },
-    });
+    const eventOut = {
+      id: created.id,
+      calendarId,
+      summary: created.summary,
+      description: created.description,
+      location: created.location,
+      start: created.start?.dateTime || created.start?.date,
+      end: created.end?.dateTime || created.end?.date,
+      allDay: !!allDay,
+      colorId: created.colorId,
+      conferenceUrl,
+      status: created.status,
+    };
+    // Record in the activity feed.
+    try {
+      recordRevision({
+        userId, resource: 'events', resourceId: created.id,
+        op: 'create', before: null, after: eventProjection(eventOut),
+      });
+    } catch (e) { console.warn('events recordRevision (create):', e.message); }
+
+    res.json({ ok: true, event: eventOut });
   } catch (err) {
     console.error('POST /api/events error:', err.message);
     res.status(500).json({ ok: false, error: err.message });
@@ -622,11 +698,25 @@ router.put('/api/events/:calendarId/:eventId', async (req, res) => {
       const dt = new Date(y, m - 1, d + 1);
       return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
     };
+    // Same timezone-attachment rule as POST: timed events need either an
+    // offset on the dateTime string OR a separate `timeZone` field, or
+    // Google rejects with "Missing time zone definition".
+    const tz = (start !== undefined || end !== undefined) && !allDay
+      ? resolveUserTimezone(userId)
+      : null;
     if (start !== undefined) {
-      eventBody.start = allDay ? { date: toAllDayDate(start) } : { dateTime: start };
+      if (allDay) {
+        eventBody.start = { date: toAllDayDate(start) };
+      } else {
+        eventBody.start = hasOffset(start) ? { dateTime: start } : { dateTime: start, timeZone: tz };
+      }
     }
     if (end !== undefined) {
-      eventBody.end = allDay ? { date: bumpEndExclusive(end) } : { dateTime: end };
+      if (allDay) {
+        eventBody.end = { date: bumpEndExclusive(end) };
+      } else {
+        eventBody.end = hasOffset(end) ? { dateTime: end } : { dateTime: end, timeZone: tz };
+      }
     }
 
     // Recurrence handling. `scope` is one of:
@@ -697,6 +787,22 @@ router.put('/api/events/:calendarId/:eventId', async (req, res) => {
     ) || (updated.conferenceData?.entryPoints?.[0]?.uri || null);
 
     const db = getDb();
+    // Pull the pre-update snapshot before we overwrite. Used for the
+    // revisions log so the activity feed can render a diff.
+    const beforeRow = db.prepare(
+      'SELECT * FROM events_cache WHERE google_event_id = ? AND user_id = ?'
+    ).get(eventId, userId);
+    const beforeProj = beforeRow ? {
+      id: beforeRow.google_event_id,
+      calendarId: beforeRow.calendar_id,
+      summary: beforeRow.summary,
+      description: beforeRow.description,
+      location: beforeRow.location,
+      start: beforeRow.start_time,
+      end: beforeRow.end_time,
+      allDay: !!beforeRow.all_day,
+    } : null;
+
     db.prepare(`
       UPDATE events_cache SET
         summary = ?, description = ?, location = ?,
@@ -713,22 +819,27 @@ router.put('/api/events/:calendarId/:eventId', async (req, res) => {
       eventId, userId
     );
 
-    res.json({
-      ok: true,
-      event: {
-        id: updated.id,
-        calendarId,
-        summary: updated.summary,
-        description: updated.description,
-        location: updated.location,
-        start: updated.start?.dateTime || updated.start?.date,
-        end: updated.end?.dateTime || updated.end?.date,
-        allDay: !!(updated.start?.date && !updated.start?.dateTime),
-        colorId: updated.colorId,
-        conferenceUrl,
-        status: updated.status,
-      },
-    });
+    const eventOut = {
+      id: updated.id,
+      calendarId,
+      summary: updated.summary,
+      description: updated.description,
+      location: updated.location,
+      start: updated.start?.dateTime || updated.start?.date,
+      end: updated.end?.dateTime || updated.end?.date,
+      allDay: !!(updated.start?.date && !updated.start?.dateTime),
+      colorId: updated.colorId,
+      conferenceUrl,
+      status: updated.status,
+    };
+    try {
+      recordRevision({
+        userId, resource: 'events', resourceId: updated.id,
+        op: 'update', before: beforeProj, after: eventProjection(eventOut),
+      });
+    } catch (e) { console.warn('events recordRevision (update):', e.message); }
+
+    res.json({ ok: true, event: eventOut });
   } catch (err) {
     console.error('PUT /api/events error:', err.message, err.stack?.slice(0, 300));
     res.status(500).json({ ok: false, error: err.message });
@@ -746,10 +857,31 @@ router.delete('/api/events/:calendarId/:eventId', async (req, res) => {
     }
 
     const { calendarId, eventId } = req.params;
-    await gcalDeleteEvent(userId, calendarId, eventId);
-
     const db = getDb();
+    // Snapshot for the activity feed before we wipe the cache row.
+    const beforeRow = db.prepare(
+      'SELECT * FROM events_cache WHERE google_event_id = ? AND user_id = ?'
+    ).get(eventId, userId);
+    const beforeProj = beforeRow ? {
+      id: beforeRow.google_event_id,
+      calendarId: beforeRow.calendar_id,
+      summary: beforeRow.summary,
+      description: beforeRow.description,
+      location: beforeRow.location,
+      start: beforeRow.start_time,
+      end: beforeRow.end_time,
+      allDay: !!beforeRow.all_day,
+    } : null;
+
+    await gcalDeleteEvent(userId, calendarId, eventId);
     db.prepare('DELETE FROM events_cache WHERE google_event_id = ? AND user_id = ?').run(eventId, userId);
+
+    try {
+      recordRevision({
+        userId, resource: 'events', resourceId: eventId,
+        op: 'delete', before: beforeProj, after: null,
+      });
+    } catch (e) { console.warn('events recordRevision (delete):', e.message); }
 
     res.json({ ok: true });
   } catch (err) {
