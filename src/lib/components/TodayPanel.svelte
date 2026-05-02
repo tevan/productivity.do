@@ -278,6 +278,31 @@
     </button>
   </header>
 
+  {#snippet taskRow(t)}
+    <li class="task" class:overdue={t.slipRisk === 'overdue'}>
+      <button class="task-tap" onclick={() => openTask(t)}>
+        <div class="task-title">{t.content}</div>
+        <div class="task-meta-line">
+          <span class="due" class:due-late={t.slipRisk === 'overdue'}>{dueLabel(t)}</span>
+          <span class="dot">·</span>
+          <span class="est">{t.estimatedMinutes}m</span>
+          {#if t.priority && t.priority >= 3}
+            <span class="dot">·</span>
+            <span class="prio">priority</span>
+          {/if}
+        </div>
+      </button>
+      <div class="task-actions" role="group" aria-label="Task actions">
+        {#if t.slipRisk === 'overdue'}
+          <button onclick={() => moveToToday(t)} class="ta-primary">Move to today</button>
+        {/if}
+        <button onclick={() => pushTomorrow(t)}>Tomorrow</button>
+        <button onclick={() => jumpToTaskOnCalendar(t)}>Calendar</button>
+        <button onclick={() => dropTask(t)} class="ta-danger">Drop</button>
+      </div>
+    </li>
+  {/snippet}
+
   <div class="body" bind:this={bodyEl}>
     <!-- ===== Today ===== -->
     <section id="syn-today" class="section section-today">
@@ -290,6 +315,9 @@
       {:else if today}
         <p class="meta">{todayHeadline()}</p>
         <h2 class="hero hero-{heroAccent}">{today.hero.sentence}</h2>
+        {#if today.hero.support}
+          <p class="hero-support">{today.hero.support}</p>
+        {/if}
 
         {#if today.hero.kind !== 'no_work_hours'}
           <div class="capacity">
@@ -321,33 +349,26 @@
         {/if}
 
         {#if today.tasks.length > 0}
-          <h3 class="sub">On your plate</h3>
-          <ul class="task-list">
-            {#each today.tasks as t (t.id)}
-              <li class="task" class:overdue={t.slipRisk === 'overdue'}>
-                <button class="task-tap" onclick={() => openTask(t)}>
-                  <div class="task-meta-line">
-                    <span class="due" class:due-late={t.slipRisk === 'overdue'}>{dueLabel(t)}</span>
-                    <span class="dot">·</span>
-                    <span class="est">{t.estimatedMinutes} min</span>
-                    {#if t.priority && t.priority >= 3}
-                      <span class="dot">·</span>
-                      <span class="prio">priority</span>
-                    {/if}
-                  </div>
-                  <div class="task-title">{t.content}</div>
-                </button>
-                <div class="task-actions" role="group" aria-label="Task actions">
-                  {#if t.slipRisk === 'overdue'}
-                    <button onclick={() => moveToToday(t)} class="ta-primary">Move to today</button>
-                  {/if}
-                  <button onclick={() => pushTomorrow(t)}>Tomorrow</button>
-                  <button onclick={() => jumpToTaskOnCalendar(t)}>Calendar</button>
-                  <button onclick={() => dropTask(t)} class="ta-danger">Drop</button>
-                </div>
-              </li>
-            {/each}
-          </ul>
+          {@const overdueTasks = today.tasks.filter(t => t.slipRisk === 'overdue')}
+          {@const todayTasks = today.tasks.filter(t => t.slipRisk !== 'overdue')}
+
+          {#if overdueTasks.length > 0}
+            <h3 class="sub sub-overdue">Already overdue</h3>
+            <ul class="task-list">
+              {#each overdueTasks as t (t.id)}
+                {@render taskRow(t)}
+              {/each}
+            </ul>
+          {/if}
+
+          {#if todayTasks.length > 0}
+            <h3 class="sub">Due today</h3>
+            <ul class="task-list">
+              {#each todayTasks as t (t.id)}
+                {@render taskRow(t)}
+              {/each}
+            </ul>
+          {/if}
         {/if}
       {:else}
         <p class="hero hero-neutral">A quiet today.</p>
@@ -592,6 +613,16 @@
   .hero-rest { color: var(--text-primary); }
   .hero-neutral { color: var(--text-primary); }
 
+  /* Support line — second voice underneath the hero. Stays Inter (the
+     hero is Fraunces); reads as the "what to do" prompt. */
+  .hero-support {
+    margin: -10px 0 22px;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    font-weight: 400;
+  }
+
   /* ---- Capacity gauge ---- */
   .capacity { margin: 8px 0 32px; }
   .capacity-numbers {
@@ -667,13 +698,18 @@
     font-weight: 500;
     margin: 26px 0 10px;
   }
+  .sub-overdue { color: #c25e4d; }
   .task-list { list-style: none; padding: 0; margin: 0; }
+
+  /* Each task row reserves space for its action strip below the title so
+     the row's height doesn't change on hover. The strip sits in normal
+     flow but invisible/non-interactive when not hovered. Rows do not
+     push siblings around when actions reveal. */
   .task {
     border-top: 1px solid var(--border-light, var(--border));
-    padding: 14px 0;
+    padding: 12px 0;
     display: flex;
     flex-direction: column;
-    gap: 8px;
   }
   .task:last-child { border-bottom: 1px solid var(--border-light, var(--border)); }
   .task-tap {
@@ -686,47 +722,95 @@
     font: inherit;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 3px;
     width: 100%;
   }
-  .task-meta-line {
-    font-size: 11px;
-    color: var(--text-tertiary);
-    display: flex;
-    gap: 6px;
-    align-items: center;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-  }
-  .due { color: var(--text-secondary); }
-  .due-late { color: #c25e4d; font-weight: 500; }
-  .dot { opacity: 0.5; }
-  .prio { color: #c25e4d; }
   .task-title {
     font-size: 15px;
     font-weight: 450;
     color: var(--text-primary);
-    line-height: 1.4;
+    line-height: 1.45;
     word-break: break-word;
   }
   .task.overdue .task-title { color: var(--text-primary); }
 
-  /* Action row — quiet by default; reveals on hover/focus */
-  .task-actions {
+  /* Meta line — secondary information. Drop the uppercase/letterspaced
+     treatment that made everything read as a navigation breadcrumb;
+     keep "Xd late" as the only signal that gets weight + color. */
+  .task-meta-line {
+    font-size: 12px;
+    color: var(--text-tertiary);
     display: flex;
-    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    margin-top: 2px;
+  }
+  .due { color: var(--text-tertiary); }
+  .due-late {
+    color: #c25e4d;
+    font-weight: 500;
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    padding: 1px 6px;
+    background: rgba(194, 94, 77, 0.10);
+    border-radius: 3px;
+  }
+  .dot { opacity: 0.5; }
+  .prio { color: #c25e4d; }
+
+  /* Actions float in from the right of the row on hover. Absolute-
+     positioned so they don't affect row height — siblings don't move.
+     On a narrow viewport (< 520px), fall back to inline layout. */
+  .task { position: relative; }
+  .task-actions {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%) translateX(8px);
+    display: flex;
+    flex-wrap: nowrap;
     gap: 4px;
+    background: linear-gradient(
+      90deg,
+      transparent 0,
+      var(--surface) 18px,
+      var(--surface) 100%
+    );
+    padding-left: 24px;
     opacity: 0;
-    max-height: 0;
-    overflow: hidden;
+    visibility: hidden;
+    pointer-events: none;
     transition:
       opacity var(--motion-soft) var(--motion-ease),
-      max-height var(--motion-soft) var(--motion-ease);
+      transform var(--motion-soft) var(--motion-ease),
+      visibility 0s linear var(--motion-soft, 220ms);
   }
   .task:hover .task-actions,
   .task:focus-within .task-actions {
     opacity: 1;
-    max-height: 60px;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(-50%) translateX(0);
+    transition:
+      opacity var(--motion-soft) var(--motion-ease),
+      transform var(--motion-soft) var(--motion-ease),
+      visibility 0s linear 0s;
+  }
+  /* Narrow viewport: no room to float; show actions below the row,
+     pushing layout (acceptable trade-off on mobile/sheet view). */
+  @media (max-width: 520px) {
+    .task-actions {
+      position: static;
+      transform: none;
+      background: none;
+      padding-left: 0;
+      margin-top: 8px;
+      flex-wrap: wrap;
+      pointer-events: auto;
+      visibility: visible;
+      opacity: 1;
+    }
   }
   .task-actions button {
     background: none;

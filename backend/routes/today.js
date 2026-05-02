@@ -319,37 +319,48 @@ function composeHero({
     return `${h.toFixed(1)} hours`;
   };
 
+  // Each branch returns at most one hero sentence and one support line.
+  // The hero is the focal thought; the support is the prompt for action.
+  // Frontend renders them in different weights / colors.
+
   if (!hasWorkHours) {
-    return {
-      kind: 'no_work_hours',
-      sentence: committedTaskCount
-        ? `You have ${committedTaskCount} ${plural('task', committedTaskCount)} on your plate today, but no work hours are set. Add them in Settings to see capacity.`
-        : 'No work hours set today, and nothing on your plate. Quiet day.',
-    };
+    return committedTaskCount
+      ? {
+          kind: 'no_work_hours',
+          sentence: `${committedTaskCount} ${plural('task', committedTaskCount)} on your plate today.`,
+          support: 'Set work hours in Settings to see what fits.',
+        }
+      : {
+          kind: 'no_work_hours',
+          sentence: 'A quiet day.',
+          support: 'Set work hours in Settings to see capacity when it matters.',
+        };
   }
 
   if (committedTaskCount === 0 && freeMinutes > 0) {
     return {
       kind: 'free',
-      sentence: `You have ${fmtH(freeMinutes)} of free time today and nothing committed. Pick something to start, or close the laptop.`,
+      sentence: `${fmtH(freeMinutes)} free, nothing committed.`,
+      support: 'Pick something to start, or close the laptop.',
     };
   }
 
   if (committedTaskCount === 0 && freeMinutes === 0) {
     return {
       kind: 'free',
-      sentence: 'No tasks due today, and your day is fully booked with meetings. Survive it.',
+      sentence: 'No tasks today. Day is fully booked.',
+      support: 'Survive it.',
     };
   }
 
   // Lots of tasks, few estimates → the math is approximate. Only call this
-  // out when the answer isn't already obvious. If there's clearly no free
-  // time, "fits or not" is settled regardless of estimate precision.
+  // out when the answer isn't already obvious.
   const obvious = freeMinutes <= 15 && committedMinutes >= 30;
   if (!obvious && committedTaskCount >= 3 && estimatesPresent / Math.max(1, estimatesTotal) < 0.4) {
     return {
       kind: 'no_estimates',
-      sentence: `${committedTaskCount} ${plural('task', committedTaskCount)} on your plate, ${fmtH(freeMinutes)} free today. Set time estimates and the math gets sharper.`,
+      sentence: `${committedTaskCount} ${plural('task', committedTaskCount)} on your plate, ${fmtH(freeMinutes)} free.`,
+      support: 'Set time estimates and the math gets sharper.',
     };
   }
 
@@ -357,23 +368,28 @@ function composeHero({
 
   if (diff > 30) {
     const over = fmtH(diff);
-    const overdueHint = overdueCount > 0 ? ` ${overdueCount} ${plural('item', overdueCount)} already overdue.` : '';
+    const overdueClause = overdueCount > 0
+      ? `${overdueCount} ${plural('item', overdueCount)} already overdue.`
+      : `Drop or move ${over} of work.`;
     return {
       kind: 'overcommitted',
-      sentence: `You have ${fmtH(freeMinutes)} of free time today. Committed work needs ${fmtH(committedMinutes)} — ${over} more than fits. Drop or move ${over} of work.${overdueHint}`,
+      sentence: `Today's plate needs ${over} more than fits.`,
+      support: overdueClause,
     };
   }
 
   if (diff < -30) {
     return {
       kind: 'fits',
-      sentence: `You have ${fmtH(freeMinutes)} free today and ${fmtH(committedMinutes)} of committed work. Room to spare — pick up something from this week or rest.`,
+      sentence: `It fits, with room to spare.`,
+      support: `${fmtH(committedMinutes)} of work, ${fmtH(freeMinutes)} free.`,
     };
   }
 
   return {
     kind: 'fits',
-    sentence: `You have ${fmtH(freeMinutes)} free today and ${fmtH(committedMinutes)} of committed work. It fits. Begin.`,
+    sentence: `It fits.`,
+    support: `${fmtH(committedMinutes)} of work in ${fmtH(freeMinutes)} of free time. Begin.`,
   };
 }
 
