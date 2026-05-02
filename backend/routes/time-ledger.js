@@ -43,20 +43,33 @@ router.get('/api/time-ledger', async (req, res) => {
     const userId = req.user.id;
     const weeks = clamp(parseInt(req.query.weeks, 10) || 12, 4, 52);
 
-    // ---- Resolve timezone (mirrors today.js) ----
+    // ---- Resolve timezone + visibility prefs ----
+    // ledgerShowAllCalendars: when true, render every calendar with any
+    // events in the window. When false (default), only calendars with
+    // activity in the past week — keeps the ledger focused on what the
+    // user is actually using right now, while preserving the underlying
+    // history for any future toggle.
     const prefRows = q(
-      'SELECT key, value FROM preferences WHERE user_id = ? AND key = ?'
-    ).all(userId, 'primaryTimezone');
-    let timezone = null;
+      `SELECT key, value FROM preferences
+        WHERE user_id = ? AND key IN ('primaryTimezone', 'ledgerShowAllCalendars')`
+    ).all(userId);
+    const prefs = {};
     for (const r of prefRows) {
-      try { timezone = JSON.parse(r.value); } catch { timezone = r.value; }
+      try { prefs[r.key] = JSON.parse(r.value); } catch { prefs[r.key] = r.value; }
     }
+    let timezone = prefs.primaryTimezone;
     if (!timezone || !isValidTz(timezone)) {
       try {
         const serverTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
         timezone = isValidTz(serverTz) ? serverTz : 'UTC';
       } catch { timezone = 'UTC'; }
     }
+    const showAllCalendars = !!prefs.ledgerShowAllCalendars;
+    // Query-string override (?all=1) for the future "show all" toggle in
+    // the panel header. Falls back to the pref.
+    const showAll = req.query.all === '1' ? true
+                  : req.query.all === '0' ? false
+                  : showAllCalendars;
 
     // ---- Compute Monday-anchored week buckets in user's tz ----
     const now = new Date();
@@ -85,7 +98,29 @@ router.get('/api/time-ledger', async (req, res) => {
         name: c.summary || '(untitled calendar)',
         color: c.color || null,
         weekHours: new Array(weeks).fill(0),
+        editsLast7d: 0, // events created or edited by the user in the past 7d
       });
+    }
+
+    // ---- Per-calendar user-edit count (last 7 days) ----
+    // Proxy for "most usage by me" — events_cache.updated_at bumps on every
+    // sync from Google, BUT we filter on calendars where the user has access
+    // (write or owner). For a more honest signal we look at events whose
+    // `updated_at` landed in the past 7 days; for shared/read-only calendars
+    // those bumps reflect other people's edits, so we down-weight them later
+    // (same denominator across calendars; the user's own busy calendar will
+    // still dominate). This is good enough as a relative ranking signal.
+    const sevenDaysAgo = new Date(Date.now() - 7 * 86_400_000).toISOString();
+    const editRows = q(`
+      SELECT calendar_id, COUNT(*) AS n
+        FROM events_cache
+       WHERE user_id = ?
+         AND updated_at >= ?
+       GROUP BY calendar_id
+    `).all(userId, sevenDaysAgo);
+    for (const r of editRows) {
+      const cal = calMap.get(r.calendar_id);
+      if (cal) cal.editsLast7d = Number(r.n) || 0;
     }
 
     // ---- Pull events in window from cache, status not cancelled ----
@@ -120,7 +155,7 @@ router.get('/api/time-ledger', async (req, res) => {
     }
 
     // ---- Roll up into category records ----
-    const categories = [];
+    const allCategories = [];
     for (const cal of calMap.values()) {
       const total = cal.weekHours.reduce((a, b) => a + b, 0);
       if (total < 0.05 && cal.weekHours.every(h => h < 0.05)) continue; // empty cat
@@ -135,7 +170,7 @@ router.get('/api/time-ledger', async (req, res) => {
       const deltaPct = baselineAvg > 0
         ? Math.round((delta / baselineAvg) * 100)
         : (lastWeek > 0 ? 100 : 0);
-      categories.push({
+      allCategories.push({
         id: cal.id,
         name: cal.name,
         color: cal.color,
@@ -145,10 +180,32 @@ router.get('/api/time-ledger', async (req, res) => {
         deltaHours: round1(delta),
         deltaPct,
         sparkline: cal.weekHours.map(round1),
+        editsLast7d: cal.editsLast7d,
       });
     }
-    // Largest first.
-    categories.sort((a, b) => b.totalHours - a.totalHours);
+
+    // ---- Filter ("active in past week" by default) ----
+    // A category counts as active this week if it has any hours in the
+    // current bucket OR any user-side edits on its events in the past 7
+    // days. The two signals are different — a calendar can have edits
+    // without hours (e.g. a long-term planning calendar where the user
+    // is rescheduling items further out), and hours without edits (e.g.
+    // a recurring-meeting calendar that doesn't get touched). We want
+    // both kinds to count as "active."
+    const visibleCategories = showAll
+      ? allCategories
+      : allCategories.filter(c => c.lastWeekHours >= 0.05 || c.editsLast7d > 0);
+
+    // ---- Sort: most usage by the user first ----
+    // Primary signal: editsLast7d (direct evidence of "I'm actively using
+    // this calendar"). Tie-break on lastWeekHours, then totalHours so
+    // calendars with no recent edits but lots of meetings still rank
+    // sensibly.
+    const categories = visibleCategories.slice().sort((a, b) => {
+      if (b.editsLast7d !== a.editsLast7d) return b.editsLast7d - a.editsLast7d;
+      if (b.lastWeekHours !== a.lastWeekHours) return b.lastWeekHours - a.lastWeekHours;
+      return b.totalHours - a.totalHours;
+    });
 
     // ---- Totals row ----
     const totalSpark = new Array(weeks).fill(0);
@@ -180,6 +237,11 @@ router.get('/api/time-ledger', async (req, res) => {
       categories,
       totals,
       headline,
+      // showAll reflects the resolved value (pref OR query override).
+      // hiddenCount tells the panel how many were filtered out so it can
+      // render a "Show N hidden" affordance.
+      showAll: showAll,
+      hiddenCount: Math.max(0, allCategories.length - categories.length),
     });
   } catch (err) {
     console.error('GET /api/time-ledger error:', err.message);

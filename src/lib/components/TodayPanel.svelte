@@ -24,7 +24,8 @@
   import { setAppView } from '../stores/appView.svelte.js';
   import { showToast } from '../utils/toast.svelte.js';
   import { confirmAction } from '../utils/confirmModal.svelte.js';
-  import { getSynthesis, refreshToday, clearObservation } from '../stores/synthesis.svelte.js';
+  import { getSynthesis, refreshToday, clearObservation, refreshLedger } from '../stores/synthesis.svelte.js';
+  import { getPrefs, updatePrefs } from '../stores/prefs.svelte.js';
 
   let { onclose = () => {} } = $props();
 
@@ -158,6 +159,18 @@
       showToast({ kind: 'error', message: 'Could not move.' });
     }
   }
+  // Ledger filter toggle. Default is "active this week only" — keeping the
+  // panel focused on calendars the user is currently using. The pref
+  // persists so the choice carries across reloads.
+  async function toggleLedgerShowAll(showAll) {
+    try {
+      await updatePrefs({ ledgerShowAllCalendars: !!showAll });
+      refreshLedger();
+    } catch {
+      showToast?.('Could not update ledger preference', 'error');
+    }
+  }
+
   async function dismissObservation() {
     if (!observation) return;
     try {
@@ -505,6 +518,22 @@
               </li>
             {/each}
           </ul>
+          {#if ledger.hiddenCount > 0 && !ledger.showAll}
+            <button class="ledger-toggle" onclick={() => toggleLedgerShowAll(true)}>
+              Show {ledger.hiddenCount} {ledger.hiddenCount === 1 ? 'calendar' : 'calendars'} inactive this week
+            </button>
+          {:else if ledger.showAll && ledger.categories.length > 1}
+            <button class="ledger-toggle" onclick={() => toggleLedgerShowAll(false)}>
+              Hide calendars inactive this week
+            </button>
+          {/if}
+        {:else if ledger.hiddenCount > 0}
+          <p class="caption">
+            No active calendars this week.
+            <button class="ledger-toggle inline" onclick={() => toggleLedgerShowAll(true)}>
+              Show all {ledger.hiddenCount} {ledger.hiddenCount === 1 ? 'calendar' : 'calendars'}
+            </button>
+          </p>
         {:else}
           <p class="caption">
             No time on visible calendars yet. Connect Google Calendar or schedule a few events to see this populate.
@@ -996,6 +1025,26 @@
   }
   .spark-bar.current {
     background: var(--text-secondary);
+  }
+  .ledger-toggle {
+    margin: 14px 0 0;
+    background: none;
+    border: none;
+    padding: 4px 0;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, var(--text-tertiary) 40%, transparent);
+    text-underline-offset: 3px;
+  }
+  .ledger-toggle:hover {
+    color: var(--text-secondary);
+    text-decoration-color: var(--text-secondary);
+  }
+  .ledger-toggle.inline {
+    margin: 0 0 0 4px;
+    padding: 0;
   }
 
   /* Narrow viewport: no room to float; show actions below the row,

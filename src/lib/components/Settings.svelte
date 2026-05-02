@@ -520,6 +520,17 @@
           </div>
           <div class="setting-row">
             <label>
+              Show all calendars in Time Ledger
+              <span class="setting-hint">By default the Time Ledger (Y panel) only lists calendars with hours or edits in the past week, so it stays focused on what you're using right now. The 12-week history is preserved either way — turn this on to see every calendar.</span>
+            </label>
+            <input
+              type="checkbox"
+              checked={!!prefs.values.ledgerShowAllCalendars}
+              onchange={(e) => updatePref('ledgerShowAllCalendars', e.target.checked)}
+            />
+          </div>
+          <div class="setting-row">
+            <label>
               Hide working locations
               <span class="setting-hint">Working-location events from Google ("In office", "Working from home") still appear on your calendar by default. Turn on to hide them entirely.</span>
             </label>

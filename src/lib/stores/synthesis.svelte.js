@@ -111,6 +111,7 @@ export function refreshSynthesis() {
 }
 
 export function refreshToday() { fetchToday(true); }
+export function refreshLedger() { fetchLedger(true); }
 export function clearObservation() {
   observation = null;
   fetchObservation(true);
