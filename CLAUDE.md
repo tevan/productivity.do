@@ -16,7 +16,7 @@ Fantastical-inspired web calendar with Google Calendar + Todoist sync. Svelte 5 
 
 ## Auth
 
-- **Layer 1 (dev only):** nginx IP allowlist (69.131.127.243). Will be removed for public launch.
+- **Layer 1 (private beta):** site-gate password screen (`/site-gate/login.html`, password env: `SITE_PASSWORD=launch2026`). HMAC-signed cookie via `SITE_AUTH_SECRET`, 30-day TTL. nginx `auth_request` hits Express `/site-gate/verify`. 3 failed attempts within 15min → 1-hour IP block (in-memory). `SITE_GATE_BYPASS_IPS` env (comma-separated) bypasses both password and lockout — owner's home IP `69.131.127.243` is on it. Mounted at `backend/routes/site-gate.js`; nginx routes site-gate, marketing pages (`/home.html`, etc.), `/book/*`, `/q/*`, `/developers`, `/developers/explorer`, `/api/v1/{ping,openapi.json,error-codes}`, `/api/public/*`, `/api/stripe/webhook`, `/api/email-inbox/inbound`, `/ics/u/*` PUBLIC. Replaces the prior IP-allowlist setup. **Whole gate to be deleted at public launch** — remove route mount + nginx auth_request block + env vars. Pattern modeled on resourcingtools.com staging gate.
 - **Layer 2:** `users` table with bcrypt password hashes, cookie-session with `req.session.userId`. Legacy sessions (`authenticated=true` with no userId) bridge to seed user id=1.
 - **Signup:** `POST /api/signup` with email + password + plan. Auto-login on success, best-effort verification email via Resend (`GET /api/verify/:token`).
 - **Login:** `POST /api/auth` with `{email, password}`. Falls back to seed user `SEED_USER_EMAIL` (env, defaults to `owner@productivity.do`) if no email supplied — preserves the legacy single-password login during the transition.

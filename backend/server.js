@@ -10,6 +10,7 @@ import express from 'express';
 import compression from 'compression';
 import cookieSession from 'cookie-session';
 import authRoutes from './routes/auth.js';
+import siteGateRoutes from './routes/site-gate.js';
 import accountRoutes from './routes/account.js';
 import supportChatRoutes from './routes/support-chat.js';
 import calendarRoutes from './routes/calendar.js';
@@ -128,6 +129,9 @@ app.use(cookieSession({
 // API routes — auth (unprotected)
 // ---------------------------------------------------------------------------
 app.use(authRoutes);
+// Site-gate (private-beta password). Public — must be reachable
+// unauthenticated so the login page can render.
+app.use(siteGateRoutes);
 
 // ---------------------------------------------------------------------------
 // Login page (served before auth middleware for unauthenticated users)
@@ -245,6 +249,7 @@ function requireAuth(req, res, next) {
     req.path === '/api/v1/openapi.json' ||
     req.path === '/api/v1/ping' ||
     req.path === '/api/v1/error-codes' ||
+    req.path.startsWith('/site-gate/') ||
     // Plan catalog — read-only marketing/SaaS metadata; consumed by
     // /pricing.html so the copy can't drift from server enforcement.
     req.path === '/api/plans' ||
