@@ -3,6 +3,9 @@ import { q } from '../db/init.js';
 import { fetchBusyIntervals } from '../lib/booking.js';
 import { expandFocusBlocks, DEFAULT_WORK_HOURS } from '../lib/autoSchedule.js';
 import { projectLoad, getTaskRatio, getProjectRatios } from '../lib/estimation.js';
+import { rankTasks } from '../lib/ranker.js';
+import { getProjectMomentum } from '../lib/projects.js';
+import * as todoist from '../lib/todoist.js';
 
 const router = Router();
 
@@ -227,6 +230,68 @@ router.get('/api/today', async (req, res) => {
       }
     }
 
+    // ---- Decision ranker ----
+    // Rank tasks (overdue + due-today) using the composite score over
+    // priority, project favorite, project pin, project order, project
+    // momentum, project rhythm, project deadline, due urgency, and
+    // estimation-fit. Returns the same task list with a `score` and
+    // `scoreReasons` per item so the UI can show "why is this first?".
+    let projectMetaMap = new Map();
+    try {
+      const rows = q(`
+        SELECT project_id, due_date, intent_line, rhythm_json, pinned_at
+          FROM project_meta
+         WHERE user_id = ?
+      `).all(userId);
+      for (const r of rows) {
+        let rhythm = null;
+        try { rhythm = r.rhythm_json ? JSON.parse(r.rhythm_json) : null; } catch {}
+        projectMetaMap.set(r.project_id, {
+          dueDate: r.due_date,
+          intentLine: r.intent_line,
+          rhythm,
+          pinnedAt: r.pinned_at,
+        });
+      }
+    } catch {}
+
+    const momentumMap = getProjectMomentum(userId);
+
+    let projectsList = [];
+    try {
+      projectsList = await todoist.listProjects(userId);
+    } catch { /* fallback: empty — ranker still runs but loses favorite/order signal */ }
+
+    const tasksForRank = tasks.map(t => ({
+      id: t.id, content: t.content, projectId: null, // filled below
+      dueDate: t.dueDate, dueDatetime: t.dueDatetime,
+      priority: t.priority, estimatedMinutes: t.estimatedMinutes,
+      slipRisk: t.slipRisk,
+    }));
+    // Hydrate projectId by looking up the cache row again — the original
+    // SELECT didn't include project_id. (Cheap; small set.)
+    if (tasks.length) {
+      const idList = tasks.map(t => t.id);
+      const placeholders = idList.map(() => '?').join(',');
+      const projRows = q(`
+        SELECT todoist_id, project_id FROM tasks_cache
+         WHERE user_id = ? AND todoist_id IN (${placeholders})
+      `).all(userId, ...idList);
+      const projById = new Map(projRows.map(r => [r.todoist_id, r.project_id]));
+      for (const t of tasksForRank) t.projectId = projById.get(t.id) || null;
+    }
+
+    const ranked = rankTasks({
+      tasks: tasksForRank,
+      projectMeta: projectMetaMap,
+      momentum: momentumMap,
+      projects: projectsList,
+      freeMinutes,
+      timezone,
+      now,
+      mode: req.query.mode === 'pinned' ? 'pinned' : 'default',
+    });
+
     // ---- The hero sentence ----
     const hero = composeHero({
       freeMinutes,
@@ -264,6 +329,13 @@ router.get('/api/today', async (req, res) => {
         hasHistory: load.hasHistory,
       },
       taskRatios,
+      // Decision ranker output. `ranked` is the same task list re-sorted
+      // by composite score, with `score` and `scoreReasons` per task. Mode
+      // tells the UI whether pinned-mode is in effect; pinnedProjectIds
+      // lets the UI surface a "showing only pinned" badge.
+      ranked: ranked.tasks,
+      rankerMode: ranked.mode,
+      pinnedProjectIds: ranked.pinnedProjectIds,
     });
   } catch (err) {
     console.error('GET /api/today error:', err.message);

@@ -23,6 +23,11 @@ export function getRoute() {
     },
     get isAdminMetrics() { return path === '/admin/metrics'; },
     get isAdminIntegrations() { return path === '/admin/integrations'; },
+    get isProject() { return path.startsWith('/projects/'); },
+    get projectId() {
+      const m = path.match(/^\/projects\/([^/?#]+)/);
+      return m ? decodeURIComponent(m[1]) : null;
+    },
   };
 }
 

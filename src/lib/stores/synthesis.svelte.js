@@ -34,7 +34,17 @@ async function fetchToday(force = false) {
   inFlight.today = true;
   try {
     const t = tz();
-    const res = await api(`/api/today${t ? `?tz=${encodeURIComponent(t)}` : ''}`);
+    let mode = null;
+    try {
+      mode = typeof window !== 'undefined'
+        ? window.localStorage.getItem('productivity_ranker_mode')
+        : null;
+    } catch {}
+    const params = new URLSearchParams();
+    if (t) params.set('tz', t);
+    if (mode === 'pinned') params.set('mode', 'pinned');
+    const qs = params.toString();
+    const res = await api(`/api/today${qs ? `?${qs}` : ''}`);
     if (res?.ok) {
       today = res;
       lastFetched.today = Date.now();

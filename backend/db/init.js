@@ -825,5 +825,23 @@ function applyMigrations(database) {
       slack_user_id TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    -- Per-project metadata that Todoist doesn't model. project_id is a
+    -- string so it works for both Todoist projects (their string id) and
+    -- native projects (we store as 'native:<int>'). One row per
+    -- (user, project); UPSERT semantics throughout.
+    CREATE TABLE IF NOT EXISTS project_meta (
+      user_id      INTEGER NOT NULL,
+      project_id   TEXT NOT NULL,
+      due_date     TEXT,
+      intent_line  TEXT,
+      rhythm_json  TEXT,
+      pinned_at    TEXT,
+      created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at   TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (user_id, project_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_project_meta_user ON project_meta(user_id);
+    CREATE INDEX IF NOT EXISTS idx_project_meta_pinned ON project_meta(user_id, pinned_at) WHERE pinned_at IS NOT NULL;
   `);
 }

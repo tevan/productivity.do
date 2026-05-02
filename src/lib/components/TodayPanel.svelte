@@ -159,6 +159,17 @@
       showToast({ kind: 'error', message: 'Could not move.' });
     }
   }
+  // Decision-surface mode toggle. When the user has pinned projects,
+  // they can press "focus" to see ONLY tasks from those projects in the
+  // ranked list. State lives in localStorage so the choice persists
+  // across reloads. The /api/today refetch re-ranks server-side.
+  async function togglePinnedMode() {
+    const current = window.localStorage.getItem('productivity_ranker_mode') || 'default';
+    const next = current === 'pinned' ? 'default' : 'pinned';
+    window.localStorage.setItem('productivity_ranker_mode', next);
+    refreshToday();
+  }
+
   // Ledger filter toggle. Default is "active this week only" — keeping the
   // panel focused on calendars the user is currently using. The pref
   // persists so the choice carries across reloads.
@@ -343,7 +354,22 @@
           <div class="sk-line w50"></div>
         </div>
       {:else if today}
-        <p class="meta">{todayHeadline()}</p>
+        <p class="meta">
+          {todayHeadline()}
+          {#if today.pinnedProjectIds && today.pinnedProjectIds.length > 0}
+            <span class="pin-badge">
+              <span>·</span>
+              {today.rankerMode === 'pinned' ? 'pinned only' : `${today.pinnedProjectIds.length} pinned`}
+              <button
+                class="pin-toggle"
+                onclick={togglePinnedMode}
+                title={today.rankerMode === 'pinned' ? 'Show all projects' : 'Show only pinned projects'}
+              >
+                {today.rankerMode === 'pinned' ? 'show all' : 'focus'}
+              </button>
+            </span>
+          {/if}
+        </p>
         <h2 class="hero hero-{heroAccent}">{today.hero.sentence}</h2>
         {#if today.hero.support}
           <p class="hero-support">{today.hero.support}</p>
@@ -709,6 +735,30 @@
     margin-top: 28px;
     margin-bottom: 14px;
     font-weight: 500;
+  }
+  .pin-badge {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    margin-left: 6px;
+    color: var(--text-tertiary);
+  }
+  .pin-toggle {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--accent, #3b82f6);
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, var(--accent, #3b82f6) 40%, transparent);
+    text-underline-offset: 3px;
+    font-size: 11px;
+    text-transform: lowercase;
+    letter-spacing: normal;
+    padding: 0;
+    font-weight: 500;
+  }
+  .pin-toggle:hover {
+    text-decoration-color: var(--accent, #3b82f6);
   }
   .hero {
     font-family: var(--font-display, 'Fraunces', serif);

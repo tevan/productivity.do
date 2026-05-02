@@ -33,6 +33,10 @@
   let IntegrationsPage = $state(null);
   let AdminMetricsPage = $state(null);
   let AdminIntegrationsPage = $state(null);
+  let ProjectPage = $state(null);
+  function loadProjectPage() {
+    if (!ProjectPage) import('./lib/views/ProjectPage.svelte').then(m => ProjectPage = m.default);
+  }
   let TodayPanel = $state(null);
   function loadTodayPanel() {
     if (!TodayPanel) import('./lib/components/TodayPanel.svelte').then(m => TodayPanel = m.default);
@@ -105,6 +109,7 @@
   $effect(() => { if (route.isIntegrations) loadIntegrationsPage(); });
   $effect(() => { if (route.isAdminMetrics) loadAdminMetricsPage(); });
   $effect(() => { if (route.isAdminIntegrations) loadAdminIntegrationsPage(); });
+  $effect(() => { if (route.isProject) loadProjectPage(); });
 
   // If the user hides the active tab in Settings, bounce to the first
   // visible tab so they're not left staring at an invisible view.
@@ -562,6 +567,12 @@
 {:else if route.isAdminIntegrations}
   {#if AdminIntegrationsPage}
     <AdminIntegrationsPage />
+  {:else}
+    <div class="loading-screen" aria-hidden="true"></div>
+  {/if}
+{:else if route.isProject}
+  {#if ProjectPage}
+    <ProjectPage />
   {:else}
     <div class="loading-screen" aria-hidden="true"></div>
   {/if}

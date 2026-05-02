@@ -53,6 +53,8 @@ import weeklyReviewRoutes from './routes/weekly-review.js';
 import observationsRoutes from './routes/observations.js';
 import timeLedgerRoutes from './routes/time-ledger.js';
 import noteContextRoutes from './routes/note-context.js';
+import projectMetaRoutes from './routes/project-meta.js';
+import projectContextRoutes from './routes/project-context.js';
 import { startRevisionsSweeper } from './lib/revisions.js';
 import { sweepRotatedKeys } from './lib/apiKeys.js';
 import { startLateTaskSweeper } from './lib/lateTaskSweeper.js';
@@ -329,6 +331,8 @@ app.use(weeklyReviewRoutes);
 app.use(observationsRoutes);
 app.use(timeLedgerRoutes);
 app.use(noteContextRoutes);
+app.use(projectMetaRoutes);
+app.use(projectContextRoutes);
 app.use(notesRoutes);
 app.use(linksRoutes);
 app.use(inboxAdmin);
@@ -366,7 +370,8 @@ if (isProd || existsSync(distPath)) {
       req.path === '/integrations' ||
       req.path.startsWith('/integrations/') ||
       req.path === '/admin/metrics' ||
-      req.path === '/admin/integrations'
+      req.path === '/admin/integrations' ||
+      req.path.startsWith('/projects/')
     ) {
       return res.sendFile(join(distPath, 'index.html'));
     }
