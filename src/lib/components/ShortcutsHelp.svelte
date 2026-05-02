@@ -65,6 +65,13 @@
       ],
     },
     {
+      title: 'Synthesis',
+      rows: [
+        ['Y', 'Today, honestly — what fits, what slips, what to drop'],
+        ['F', 'Find a free time across calendars'],
+      ],
+    },
+    {
       title: 'Other',
       rows: [
         ['Cmd/Ctrl  +  1-3', 'Switch calendar set'],

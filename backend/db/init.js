@@ -556,6 +556,48 @@ function applyMigrations(database) {
   ensureColumn(database, 'tasks_cache', 'local_status',   'TEXT');
   ensureColumn(database, 'tasks_cache', 'local_position', 'INTEGER');
 
+  // Synthesis layer (added 2026-05-02): when the task was completed.
+  // Todoist itself doesn't expose a completed_at on the task row that survives
+  // resync, and the `revisions` log records updates but not completions, so
+  // weekly review / observations need a stable timestamp here. Set on
+  // POST /api/tasks/:id/complete; cleared on /reopen. NULL means open (or
+  // legacy completion before this column existed).
+  ensureColumn(database, 'tasks_cache', 'completed_at', 'TEXT');
+
+  // When the task was first seen by us. Used by the synthesis layer to
+  // compute "task age at completion" and surface drifting tasks. We don't
+  // get this from Todoist (their `added_at` is per-resync), so we record
+  // it on first INSERT and never update. Backfill: existing rows take
+  // their `updated_at` value as a best-effort starting point — the only
+  // user-visible effect is that older tasks may report a younger age the
+  // first week after this column is added. Acceptable.
+  ensureColumn(database, 'tasks_cache', 'created_at', 'TEXT');
+  // No backfill. Existing rows keep created_at = NULL forever. The synthesis
+  // layer treats NULL as "unknown age" — better than backfilling with a
+  // poisoned value (since updated_at gets bumped on every sync, all rows
+  // would report "1 day old" the instant the migration ran).
+  // The data clock starts at the moment a task is freshly inserted post-
+  // migration. New users start clean; existing users see incomplete data
+  // for 30-90 days, then it stabilizes.
+
+  // Observations (synthesis #3): a tiny dismiss log so we never re-surface
+  // something the user has dismissed. Two key shapes:
+  //   key = 'id:<observation_id>'   — suppress that specific observation
+  //   key = 'kind:<observation_kind>' — suppress the whole family (after 3 dismissals)
+  // dismissed_at lets us decay specific-id suppressions after 60 days
+  // (so the same task that was once dismissed can resurface if it gets
+  // pushed forward another 4 times). Kind suppressions are permanent.
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS observation_dismissals (
+      user_id INTEGER NOT NULL,
+      key TEXT NOT NULL,
+      dismiss_count INTEGER NOT NULL DEFAULT 1,
+      dismissed_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (user_id, key)
+    );
+    CREATE INDEX IF NOT EXISTS idx_obs_dismiss_user ON observation_dismissals(user_id);
+  `);
+
   database.exec(`
     CREATE TABLE IF NOT EXISTS task_columns (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

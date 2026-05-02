@@ -199,8 +199,8 @@ router.post('/api/v1/tasks', requireApi(['write:tasks']), async (req, res) => {
       const v = Number(b.estimatedMinutes);
       const status = b.localStatus === '' ? null : b.localStatus;
       db.prepare(`
-        INSERT INTO tasks_cache (user_id, todoist_id, content, priority, is_completed, estimated_minutes, local_status, updated_at)
-        VALUES (?, ?, ?, ?, 0, ?, ?, datetime('now'))
+        INSERT INTO tasks_cache (user_id, todoist_id, content, priority, is_completed, estimated_minutes, local_status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, 0, ?, ?, datetime('now'), datetime('now'))
         ON CONFLICT(user_id, todoist_id) DO UPDATE SET
           estimated_minutes = excluded.estimated_minutes,
           local_status = excluded.local_status,

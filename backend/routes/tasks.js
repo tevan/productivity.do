@@ -81,8 +81,8 @@ router.get('/api/tasks', async (req, res) => {
 
     // Update cache
     const upsert = db.prepare(`
-      INSERT INTO tasks_cache (user_id, todoist_id, content, description, project_id, priority, due_date, due_datetime, parent_id, is_completed, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'))
+      INSERT INTO tasks_cache (user_id, todoist_id, content, description, project_id, priority, due_date, due_datetime, parent_id, is_completed, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'), datetime('now'))
       ON CONFLICT(user_id, todoist_id) DO UPDATE SET
         content = excluded.content,
         description = excluded.description,
@@ -372,9 +372,39 @@ router.put('/api/tasks/:id', async (req, res) => {
 router.post('/api/tasks/:id/complete', async (req, res) => {
   try {
     const { id } = req.params;
+    // Snapshot before flipping so the revision (and the synthesis layer's
+    // age-at-completion query) has the prior shape.
+    const before = q(
+      'SELECT content, priority, due_date, due_datetime, estimated_minutes, created_at FROM tasks_cache WHERE user_id = ? AND todoist_id = ?'
+    ).get(req.user.id, id);
+
     await todoist.completeTask(id, req.user.id);
 
-    q("UPDATE tasks_cache SET is_completed = 1, updated_at = datetime('now') WHERE user_id = ? AND todoist_id = ?").run(req.user.id, id);
+    q(
+      "UPDATE tasks_cache SET is_completed = 1, completed_at = datetime('now'), updated_at = datetime('now') WHERE user_id = ? AND todoist_id = ?"
+    ).run(req.user.id, id);
+
+    // Record the completion in revisions so the activity feed + weekly review
+    // see it. Idempotent failure-tolerant — the task is already completed.
+    if (before) {
+      try {
+        recordRevision({
+          userId: req.user.id,
+          resource: 'tasks',
+          resourceId: id,
+          op: 'complete',
+          before: { isCompleted: false },
+          after: {
+            isCompleted: true,
+            content: before.content,
+            priority: before.priority,
+            dueDate: before.due_date,
+            dueDatetime: before.due_datetime,
+            estimatedMinutes: before.estimated_minutes,
+          },
+        });
+      } catch {}
+    }
 
     res.json({ ok: true });
   } catch (err) {
@@ -391,7 +421,9 @@ router.post('/api/tasks/:id/reopen', async (req, res) => {
     const { id } = req.params;
     await todoist.reopenTask(id, req.user.id);
 
-    q("UPDATE tasks_cache SET is_completed = 0, updated_at = datetime('now') WHERE user_id = ? AND todoist_id = ?").run(req.user.id, id);
+    q(
+      "UPDATE tasks_cache SET is_completed = 0, completed_at = NULL, updated_at = datetime('now') WHERE user_id = ? AND todoist_id = ?"
+    ).run(req.user.id, id);
 
     res.json({ ok: true });
   } catch (err) {

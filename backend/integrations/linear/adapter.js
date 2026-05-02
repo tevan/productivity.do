@@ -77,8 +77,8 @@ export const adapter = {
     const upsert = q(`
       INSERT INTO tasks_cache
         (user_id, provider, todoist_id, content, description, project_id, project_name,
-         priority, due_date, is_completed, updated_at)
-      VALUES (?, 'linear', ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+         priority, due_date, is_completed, created_at, updated_at)
+      VALUES (?, 'linear', ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
       ON CONFLICT(user_id, todoist_id) DO UPDATE SET
         content = excluded.content,
         description = excluded.description,

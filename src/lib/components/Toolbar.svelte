@@ -5,8 +5,19 @@
   import Dropdown from './Dropdown.svelte';
   import OfflineChip from './OfflineChip.svelte';
   import { tooltip } from '../actions/tooltip.js';
+  import { getSynthesis } from '../stores/synthesis.svelte.js';
 
-  let { onsettings = () => {}, onhelp = () => {}, onnewEvent = () => {}, onnewTask = () => {}, onnewNote = () => {}, onsearch = () => {}, ongotoDate = () => {}, ontoggleSidebar = () => {}, sidebarHidden = false } = $props();
+  // The synthesis icon shows a small dot when there's something worth a
+  // glance — overdue tasks today, or a fresh observation. No number, no
+  // animation; the dot just signals "there's something here." Press Y
+  // (or click) to see what.
+  const synth = getSynthesis();
+  const synthHasSignal = $derived(
+    (synth.today?.overdueCount ?? 0) > 0 ||
+    (synth.today?.hero?.kind === 'overcommitted')
+  );
+
+  let { onsettings = () => {}, onhelp = () => {}, onnewEvent = () => {}, onnewTask = () => {}, onnewNote = () => {}, onsearch = () => {}, ontoday = () => {}, ongotoDate = () => {}, ontoggleSidebar = () => {}, sidebarHidden = false } = $props();
 
   const view = getView();
   const appView = getAppView();
@@ -124,6 +135,19 @@
 
   <div class="toolbar-right">
     <OfflineChip />
+    <button
+      class="icon-btn mobile-hide synth-btn"
+      class:has-signal={synthHasSignal}
+      onclick={ontoday}
+      use:tooltip={'Today, honestly (Y)'}
+      aria-label="Today, honestly"
+    >
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3 13.5l3-3 2.5 2.5L13 8" />
+        <circle cx="13" cy="8" r="1.4" />
+        <path d="M2.5 15.5h13" />
+      </svg>
+    </button>
     <button class="icon-btn mobile-hide" onclick={onsearch} use:tooltip={'Search events (Cmd+F)'} aria-label="Search events">
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
         <circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.4"/>
@@ -447,4 +471,18 @@
     cursor: pointer;
   }
   .icon-btn:hover { background: var(--surface-hover); color: var(--text-primary); }
+
+  /* Synthesis icon signal dot — quiet pixel of red in the top-right corner
+     when there's something worth a glance (overdue tasks today, etc.).
+     No counter, no animation; just signals "there's something here." */
+  .synth-btn { position: relative; }
+  .synth-btn.has-signal::after {
+    content: '';
+    position: absolute;
+    top: 6px; right: 6px;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #c25e4d;
+    box-shadow: 0 0 0 2px var(--bg);
+  }
 </style>

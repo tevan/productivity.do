@@ -94,6 +94,15 @@ export function setupKeyboardShortcuts(handlers) {
           handlers.findTime();
         }
         break;
+      case 'y':
+      case 'Y':
+        // Synthesis layer — "today, honestly". Distinct from T (which
+        // navigates the calendar grid). Y opens the synthesis overlay.
+        if (handlers.todayPanel) {
+          e.preventDefault();
+          handlers.todayPanel();
+        }
+        break;
       case 'j':
       case 'J':
         if (handlers.next) handlers.next();

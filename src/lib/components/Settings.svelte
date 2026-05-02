@@ -925,6 +925,18 @@
             />
           </div>
 
+          <h3 style="margin-top:24px">Late tasks</h3>
+          <p class="help-text">When a task's due date has passed, what should happen? You can move them yourself in the Today panel, or have them carry forward automatically each morning.</p>
+          <label class="checkbox-row">
+            <input
+              type="checkbox"
+              checked={!!prefs.values.autoMoveLateTasks}
+              onchange={(e) => updatePref('autoMoveLateTasks', e.target.checked)}
+            />
+            <span>Auto-move late tasks to today</span>
+          </label>
+          <p class="help-text" style="margin-top:6px">When off, the task editor will surface a one-click "Move to today" prompt for each overdue task — so you stay in control of which ones carry forward.</p>
+
           <h3 style="margin-top:24px">Focus blocks</h3>
           <p class="help-text">Recurring weekly windows that auto-schedule will avoid. Rendered as a soft band on the calendar.</p>
           <FocusBlocksEditor />

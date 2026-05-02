@@ -4,6 +4,8 @@
   import { getPrefs } from '../stores/prefs.svelte.js';
   import { confirmAction } from '../utils/confirmModal.svelte.js';
   import { api } from '../api.js';
+  import { showToast } from '../utils/toast.svelte.js';
+  import { fetchTasks } from '../stores/tasks.svelte.js';
   import { parseTaskDue, todoistColor, todoistColorThemed, lowerAmPm } from '../utils/dates.js';
   import Dropdown from './Dropdown.svelte';
   import { tooltip } from '../actions/tooltip.js';
@@ -108,6 +110,34 @@
   }
 
   let scheduleStatus = $state(''); // '' | 'ok' | 'error'
+  let movingToToday = $state(false);
+
+  async function moveToToday() {
+    if (!task?.id || movingToToday) return;
+    movingToToday = true;
+    try {
+      const ymd = new Date().toISOString().slice(0, 10);
+      const res = await api(`/api/tasks/${task.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ dueDate: ymd }),
+      });
+      if (res?.ok) {
+        // Reflect locally so the overdue banner clears immediately.
+        dueDate = ymd;
+        task.dueDate = ymd;
+        task.dueDatetime = null;
+        showToast({ kind: 'success', message: 'Moved to today.' });
+        // Refetch so the sidebar / Today panel sees the change.
+        fetchTasks().catch(() => {});
+      } else {
+        showToast({ kind: 'error', message: 'Could not move task.' });
+      }
+    } catch (e) {
+      showToast({ kind: 'error', message: 'Could not move task.' });
+    } finally {
+      movingToToday = false;
+    }
+  }
 
   const isOverdue = $derived.by(() => {
     if (task?.isCompleted) return false;
@@ -227,7 +257,16 @@
           <circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.3"/>
           <path d="M6 3.4V6l1.8 1.2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
-        <span>{overdueLabel || 'Overdue'}</span>
+        <span class="overdue-text">{overdueLabel || 'Overdue'}</span>
+        {#if !prefs.values.autoMoveLateTasks}
+          <button
+            class="overdue-cta"
+            onclick={moveToToday}
+            disabled={movingToToday}
+            title="Set the due date to today">
+            {movingToToday ? 'Moving…' : 'Move to today'}
+          </button>
+        {/if}
       </div>
     {/if}
 
@@ -451,8 +490,8 @@
   .overdue-banner {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
+    gap: 10px;
+    padding: 8px 8px 8px 12px;
     border-radius: var(--radius-sm);
     background: color-mix(in srgb, var(--error) 12%, transparent);
     color: var(--error);
@@ -460,6 +499,22 @@
     font-weight: 500;
     border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
   }
+  .overdue-text { flex: 1; min-width: 0; }
+  .overdue-cta {
+    background: var(--error);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: filter var(--motion-quick, 140ms) var(--motion-ease, ease);
+    flex-shrink: 0;
+  }
+  .overdue-cta:hover { filter: brightness(1.06); }
+  .overdue-cta:disabled { opacity: 0.6; cursor: not-allowed; }
   .section-divider {
     height: 1px;
     background: var(--border-light);

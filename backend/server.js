@@ -48,8 +48,12 @@ import trashRoutes from './routes/trash.js';
 import { startTrashSweeper } from './lib/trash.js';
 import activityRoutes from './routes/activity.js';
 import feedbackRoutes from './routes/feedback.js';
+import todayRoutes from './routes/today.js';
+import weeklyReviewRoutes from './routes/weekly-review.js';
+import observationsRoutes from './routes/observations.js';
 import { startRevisionsSweeper } from './lib/revisions.js';
 import { sweepRotatedKeys } from './lib/apiKeys.js';
+import { startLateTaskSweeper } from './lib/lateTaskSweeper.js';
 import { startWeeklyDigest } from './lib/digest.js';
 import { startRetryLoop } from './lib/webhooks.js';
 import { startCalendarSyncRetry } from './lib/calendarSyncRetry.js';
@@ -318,6 +322,9 @@ app.use(operationsRoutes);
 app.use(trashRoutes);
 app.use(activityRoutes);
 app.use(feedbackRoutes);
+app.use(todayRoutes);
+app.use(weeklyReviewRoutes);
+app.use(observationsRoutes);
 app.use(notesRoutes);
 app.use(linksRoutes);
 app.use(inboxAdmin);
@@ -396,6 +403,8 @@ app.listen(PORT, '127.0.0.1', () => {
   startSyncRunner();
   // Weekly digest tick every hour, fires Mondays 8-9am server-local.
   startWeeklyDigest();
+  // Auto-move late tasks → today, hourly. Only for users with the pref on.
+  startLateTaskSweeper();
   // Sweep for bookings due a 24h reminder every 10 minutes.
   // Run once on startup so a missed window during a deploy gets caught.
   processReminderSweep(getDb, fireWorkflows).catch(() => {});

@@ -33,6 +33,10 @@
   let IntegrationsPage = $state(null);
   let AdminMetricsPage = $state(null);
   let AdminIntegrationsPage = $state(null);
+  let TodayPanel = $state(null);
+  function loadTodayPanel() {
+    if (!TodayPanel) import('./lib/components/TodayPanel.svelte').then(m => TodayPanel = m.default);
+  }
   function loadTasksView() {
     if (!TasksView) import('./lib/views/TasksView.svelte').then(m => TasksView = m.default);
   }
@@ -75,6 +79,9 @@
   import { getPrefs, fetchPrefs } from './lib/stores/prefs.svelte.js';
   import { fetchFocusBlocks } from './lib/stores/focusBlocks.svelte.js';
   import { fetchWeather } from './lib/stores/weather.svelte.js';
+  import { schedulePrefetch as schedulePrefetchSynth } from './lib/stores/synthesis.svelte.js';
+  // Re-export with the local name expected below.
+  const schedulePrefetch = schedulePrefetchSynth;
   import { setupKeyboardShortcuts } from './lib/utils/keyboard.js';
   import { scheduleReminders, clearReminders } from './lib/utils/reminders.js';
   import { api } from './lib/api.js';
@@ -112,6 +119,7 @@
   $effect(() => { if (showShortcuts) loadShortcutsHelp(); });
   $effect(() => { if (showGotoDate) loadGotoDate(); });
   $effect(() => { if (editorBookingPage) loadBookingPageEditor(); });
+  $effect(() => { if (showTodayPanel) loadTodayPanel(); });
 
   // Auth state
   let authenticated = $state(false);
@@ -124,6 +132,7 @@
   let showSearch = $state(false);
   let showFindTime = $state(false);
   let showFeedback = $state(false);
+  let showTodayPanel = $state(false);
   // Auto-hide on narrow viewports; respect the user's explicit preference
   // when they're on a wide enough screen to choose for themselves.
   const _initialSidebarHidden = (() => {
@@ -223,6 +232,13 @@
       loadLinks(),
     ]);
     loading = false;
+
+    // After the calendar canvas paints, warm the synthesis layer in the
+    // background. Reading three small SQL endpoints once costs single-digit
+    // ms; the user pays no perceived latency. The Y panel then opens
+    // instantly with real data instead of flickering through a loading
+    // state. See docs/internal/synthesis-layer.md.
+    schedulePrefetch(1500);
   }
 
   // Refetch events when view range changes
@@ -317,7 +333,9 @@
       searchEvents: () => { showSearch = true; },
       newNote: () => { editorNote = { title: '', body: '', pinned: false }; },
       findTime: () => { showFindTime = true; },
+      todayPanel: () => { showTodayPanel = true; },
       escape: () => {
+        if (showTodayPanel) { showTodayPanel = false; return; }
         if (showFindTime) { showFindTime = false; return; }
         if (showSearch) { showSearch = false; return; }
         if (contextEvent) { contextEvent = null; return; }
@@ -504,6 +522,9 @@
     },
     editBookingPage: (page) => { editorBookingPage = page; },
     editNote: (note) => { editorNote = note ?? { title: '', body: '', pinned: false }; },
+    // Open Settings (optionally to a specific tab — caller passes a string
+    // like 'tasks' or 'focus-blocks' which Settings.svelte interprets).
+    openSettings: (tab) => { showSettings = true; /* TODO: deep-link tab */ void tab; },
   });
 </script>
 
@@ -539,6 +560,7 @@
       onnewTask={handleNewTask}
       onnewNote={handleNewNote}
       onsearch={() => showSearch = true}
+      ontoday={() => showTodayPanel = true}
       ongotoDate={openGotoDate}
       ontoggleSidebar={toggleSidebar}
       {sidebarHidden}
@@ -712,6 +734,11 @@
         showEditor = true;
       }}
     />
+  {/if}
+
+  <!-- Today / synthesis overlay (Y shortcut) -->
+  {#if showTodayPanel && TodayPanel}
+    <svelte:component this={TodayPanel} onclose={() => showTodayPanel = false} />
   {/if}
 
   <!-- Task editor -->
