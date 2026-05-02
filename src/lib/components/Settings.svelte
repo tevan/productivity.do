@@ -52,12 +52,12 @@
     await fetchWeather();
   }
 
-  let { onclose = () => {}, onopenFeedback = () => {} } = $props();
+  let { onclose = () => {}, onopenFeedback = () => {}, initialTab = null } = $props();
 
   const prefs = getPrefs();
   const cals = getCalendars();
 
-  let activeTab = $state('general');
+  let activeTab = $state(initialTab || 'general');
   let tzSearch = $state('');
   let addTzSearch = $state('');
 

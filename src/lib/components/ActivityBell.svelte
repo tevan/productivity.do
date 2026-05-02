@@ -98,33 +98,127 @@
     }[res] || res;
   }
 
+  // ---------------------------------------------------------------------
+  // jumpTo — every activity row should DO something on click.
+  //
+  // Contract by (resource, op):
+  //   tasks         create/update/restore  → open TaskEditor
+  //   tasks         delete                 → DeletedRecordViewer (Todoist
+  //                                          hard-deletes; nothing live to open)
+  //   events        create/update          → calendar lands on that day +
+  //                                          opens the event popover if extant
+  //   events        delete                 → DeletedRecordViewer
+  //   notes         create/update/restore  → open NoteEditor
+  //   notes         soft_delete            → DeletedRecordViewer (offers Restore)
+  //   booking_pages create/update          → open BookingPageEditor
+  //   booking_pages soft_delete            → DeletedRecordViewer (offers Restore)
+  //   event_templates *                    → open Settings → Templates
+  //   calendar_sets   *                    → open Settings → Calendar sets
+  //   anything else                        → DeletedRecordViewer as a fallback
+  //                                          read-only record
+  // ---------------------------------------------------------------------
   async function jumpTo(item) {
     close();
+    const isDelete = item.op === 'delete' || item.op === 'soft_delete';
+
+    // ---- Tasks ----
+    if (item.resource === 'tasks') {
+      if (isDelete) {
+        appCtx?.viewDeletedRecord?.(item);
+        return;
+      }
+      // Look up the live task. If Todoist hard-deleted it since the
+      // revision was written, fall back to the deleted-record viewer.
+      const fetched = await api(`/api/tasks/${item.resourceId}`).catch(() => null);
+      if (fetched?.task && appCtx?.editTask) {
+        appCtx.editTask(fetched.task);
+      } else {
+        appCtx?.viewDeletedRecord?.(item);
+      }
+      return;
+    }
+
+    // ---- Events ----
     if (item.resource === 'events') {
-      // The activity row's `label` is just the title; we don't carry the
-      // start time on the row. Pull it from the latest revision instead.
+      // Always pull the after-state payload so we have a start time to
+      // jump to, plus enough fields to drive the editor if extant.
+      let payload = null;
       try {
         const res = await api(`/api/activity/${item.id}/payload`);
-        const start = res?.payload?.start;
-        if (start) setDate(new Date(start));
+        payload = res?.payload || null;
       } catch {}
-      setAppView('calendar');
+
+      if (isDelete) {
+        appCtx?.viewDeletedRecord?.(item);
+        return;
+      }
+      if (payload?.start) {
+        setDate(new Date(payload.start));
+        setAppView('calendar');
+        // Best-effort: open the event editor with the after-state. The
+        // editor is forgiving of missing fields and will hydrate from the
+        // events store if the event is still cached.
+        if (appCtx?.editEvent) {
+          appCtx.editEvent({
+            id: payload.id,
+            calendarId: payload.calendarId,
+            summary: payload.summary,
+            start: payload.start,
+            end: payload.end,
+            location: payload.location,
+            description: payload.description,
+          });
+        }
+      } else {
+        setAppView('calendar');
+      }
       return;
     }
+
+    // ---- Notes ----
     if (item.resource === 'notes') {
-      setAppView('notes');
-      // The NotesView reads ?note= from URL; the SPA route store handles it.
-      // Soft hand-off: we just switch view; user can pick the note from the list.
+      if (item.op === 'soft_delete' || item.op === 'delete') {
+        appCtx?.viewDeletedRecord?.(item);
+        return;
+      }
+      // Fetch the note and open the editor. If the note was deleted at
+      // the source (e.g. via the trash purge) we fall back to viewer.
+      const res = await api(`/api/notes/${item.resourceId}`).catch(() => null);
+      if (res?.note && appCtx?.editNote) {
+        appCtx.editNote(res.note);
+      } else {
+        appCtx?.viewDeletedRecord?.(item);
+      }
       return;
     }
-    if (item.resource === 'tasks') {
-      // Open the task editor via the app context. If the task has been hard-
-      // deleted there's nothing to open; the activity row stays as a record.
-      const fetched = await api(`/api/tasks/${item.resourceId}`).catch(() => null);
-      if (fetched?.task && appCtx?.editTask) appCtx.editTask(fetched.task);
+
+    // ---- Booking pages ----
+    if (item.resource === 'booking_pages') {
+      if (item.op === 'soft_delete' || item.op === 'delete') {
+        appCtx?.viewDeletedRecord?.(item);
+        return;
+      }
+      const res = await api(`/api/booking-pages/${item.resourceId}`).catch(() => null);
+      if (res?.page && appCtx?.editBookingPage) {
+        appCtx.editBookingPage(res.page);
+      } else {
+        appCtx?.viewDeletedRecord?.(item);
+      }
       return;
     }
-    // Other resources: no deep link yet.
+
+    // ---- Templates / Calendar sets — drop into the relevant Settings tab ----
+    if (item.resource === 'event_templates') {
+      appCtx?.openSettings?.('templates');
+      return;
+    }
+    if (item.resource === 'calendar_sets') {
+      appCtx?.openSettings?.('calendar');
+      return;
+    }
+
+    // ---- Fallback: read-only record viewer ----
+    appCtx?.viewDeletedRecord?.(item);
   }
 </script>
 

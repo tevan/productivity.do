@@ -945,6 +945,25 @@ function safeJson(s) {
 }
 
 // ---- Revision history ----------------------------------------------------
+// GET a single task by id. Reads from tasks_cache (the local mirror); the
+// activity feed uses this to hydrate the editor when the user clicks a
+// row. Returns 404 if the task no longer exists locally — the caller
+// falls back to the read-only deleted-record viewer in that case.
+router.get('/api/tasks/:id', (req, res) => {
+  const row = q(`
+    SELECT todoist_id AS id, content, description, due_date AS dueDate,
+           due_datetime AS dueDatetime, priority, project_id AS projectId,
+           project_name AS projectName, parent_id AS parentId,
+           is_completed AS isCompleted, estimated_minutes AS estimatedMinutes,
+           local_status AS localStatus, local_position AS localPosition,
+           color
+      FROM tasks_cache
+     WHERE user_id = ? AND todoist_id = ?
+  `).get(req.user.id, req.params.id);
+  if (!row) return res.status(404).json({ ok: false, error: 'Task not found' });
+  res.json({ ok: true, task: { ...row, isCompleted: !!row.isCompleted, labels: [] } });
+});
+
 router.get('/api/tasks/:id/revisions', (req, res) => {
   const revisions = listRevisions({
     userId: req.user.id, resource: 'tasks', resourceId: req.params.id,

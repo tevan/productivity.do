@@ -127,6 +127,7 @@
 
   // UI state
   let showSettings = $state(false);
+  let pendingSettingsTab = $state(null); // initial tab for Settings when opened
   let showShortcuts = $state(false);
   let showGotoDate = $state(false);
   let showSearch = $state(false);
@@ -178,6 +179,10 @@
   let editorTask = $state(null);
   let editorBookingPage = $state(null);
   let editorNote = $state(null);
+  // Read-only viewer for deleted records (opened from the Activity feed
+  // when the resource was hard-deleted at the source).
+  let deletedRecord = $state(null);
+  let DeletedRecordViewer = $state(null);
   let popoverEvent = $state(null);
   let popoverPosition = $state({ x: 0, y: 0 });
   let contextEvent = $state(null);
@@ -524,7 +529,19 @@
     editNote: (note) => { editorNote = note ?? { title: '', body: '', pinned: false }; },
     // Open Settings (optionally to a specific tab — caller passes a string
     // like 'tasks' or 'focus-blocks' which Settings.svelte interprets).
-    openSettings: (tab) => { showSettings = true; /* TODO: deep-link tab */ void tab; },
+    openSettings: (tab) => {
+      pendingSettingsTab = tab || null;
+      showSettings = true;
+    },
+    // Read-only viewer for a deleted resource. Lazy-loads the chunk on
+    // first use to keep the main bundle small.
+    viewDeletedRecord: async (rec) => {
+      if (!DeletedRecordViewer) {
+        const m = await import('./lib/components/DeletedRecordViewer.svelte');
+        DeletedRecordViewer = m.default;
+      }
+      deletedRecord = rec;
+    },
   });
 </script>
 
@@ -693,8 +710,22 @@
   <!-- Settings (lazy-loaded — heavy with all the tabs) -->
   {#if showSettings && Settings}
     <Settings
-      onclose={() => showSettings = false}
+      initialTab={pendingSettingsTab}
+      onclose={() => { showSettings = false; pendingSettingsTab = null; }}
       onopenFeedback={() => { showSettings = false; showFeedback = true; }}
+    />
+  {/if}
+
+  <!-- Deleted-record viewer (lazy) -->
+  {#if deletedRecord && DeletedRecordViewer}
+    <DeletedRecordViewer
+      activityId={deletedRecord.id}
+      resource={deletedRecord.resource}
+      resourceId={deletedRecord.resourceId}
+      op={deletedRecord.op}
+      label={deletedRecord.label}
+      createdAt={deletedRecord.createdAt}
+      onclose={() => deletedRecord = null}
     />
   {/if}
 
