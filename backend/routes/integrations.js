@@ -19,25 +19,61 @@ import { Router } from 'express';
 import { getAdapter, listAdapters } from '../integrations/registry.js';
 import { listUserIntegrations, getIntegration } from '../integrations/store.js';
 import { captureError } from '../lib/sentry.js';
+import { getDb } from '../db/init.js';
 
 const router = Router();
 
+// User-facing integrations list. Filters out stubs / coming-soon
+// adapters per the day-one strategy (see
+// docs/internal/community-and-integrations-strategy.md): we surface only
+// what we actually ship. The full 102-row catalog lives at
+// /api/admin/integrations for internal reference.
+//
+// Note: the adapter's own `status` field (stable/beta/coming_soon) is
+// preserved as `adapterStatus` so the frontend can distinguish from
+// the per-user connection status (also confusingly named `status` on
+// the integrations table). Renaming the connection status to
+// `connectionStatus` cleans up a long-standing field collision.
+const USER_VISIBLE_STATUSES = new Set(['stable', 'beta']);
+
 router.get('/api/integrations', (req, res) => {
-  const all = listAdapters();
+  const all = listAdapters().filter(a => USER_VISIBLE_STATUSES.has(a.status));
   const mine = listUserIntegrations(req.user.id);
   const byProvider = new Map(mine.map(i => [i.provider, i]));
   res.json({
     ok: true,
     available: all.map(a => ({
       ...a,
+      adapterStatus: a.status,
       connected: !!byProvider.get(a.provider),
-      status: byProvider.get(a.provider)?.status || null,
+      connectionStatus: byProvider.get(a.provider)?.status || null,
       account_email: byProvider.get(a.provider)?.account_email || null,
       last_synced_at: byProvider.get(a.provider)?.last_synced_at || null,
       last_error: byProvider.get(a.provider)?.last_error || null,
     })),
   });
 });
+
+// Admin-only catalog — full 102-row list including coming-soon stubs.
+// Read-only internal reference. Same admin guard as /admin/metrics.
+router.get('/api/admin/integrations', (req, res) => {
+  if (!isAdmin(req)) return res.status(403).json({ ok: false, error: 'Admin only' });
+  const all = listAdapters();
+  res.json({
+    ok: true,
+    total: all.length,
+    available: all,
+  });
+});
+
+function isAdmin(req) {
+  if (!req.session?.userId) return false;
+  if (req.session.userId === 1) return true;
+  try {
+    const row = getDb().prepare('SELECT is_team_admin FROM users WHERE id = ?').get(req.session.userId);
+    return !!row?.is_team_admin;
+  } catch { return false; }
+}
 
 router.post('/api/integrations/:provider/pat', async (req, res) => {
   const a = getAdapter(req.params.provider);

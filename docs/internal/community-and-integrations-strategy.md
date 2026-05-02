@@ -306,13 +306,78 @@ community-buy-in benefit outweighs the public-commitment cost.
 - Discord community server (not yet decided)
 - Discourse forum
 
-## Open questions for next session
+## Decisions captured 2026-05-02 (round 2)
 
-- Does the user want the in-app feedback widget shipped day-one, or
-  defer that too?
-- Is there a charter-user list yet, or is the Inspired-agent
-  recruitment item still pending? The private Discord channel
-  decision depends on that.
-- How prominent should the "Coming soon" labeling be? Today some
-  cards show "Coming soon" as a status badge. Do we want a stronger
-  visual treatment so users don't feel misled?
+After the strategy review, three decisions changed the day-one shape:
+
+### 1. In-app feedback widget — DAY ONE ✅
+
+A small modal accessible from the SPA (footer link or `?` shortcut)
+posting to a backend endpoint that emails the founder via Postmark.
+Captures private feedback without committing to a community surface.
+
+### 2. Charter-user recruitment — TODO INDEFINITELY 🟡
+
+Acknowledged as important per Cagan / *Inspired*, but explicitly not
+a priority for day-one launch. Stays in `applicable_insights.md` as
+a Pending action; will get done when it gets done. Not blocking
+public launch, not blocking community-surface decisions.
+
+### 3. Hide unimplemented integrations from users — DAY ONE ✅
+
+**This reverses the breadth-as-marketing strategy.** The marketplace
+will show ONLY the 12 day-one real adapters. Stubs are removed from
+the user-facing UI. Admin still sees the full 102-card catalog in an
+admin panel for internal reference (which adapters exist as scaffolds,
+which categories they fall under, etc.).
+
+**Why the reversal:** "promising something is not as effective as
+having it." Showing 102 cards with 90 marked "Coming soon" reads as
+*advertising aspirations*, not *advertising capability*. Users who
+need an integration we don't have should discover that absence cleanly
+("oh, they don't do Asana") instead of being teased ("Asana — Coming
+soon, click to express interest").
+
+This is closer to the "day surface" product philosophy in
+`docs/internal/product-philosophy.md`: be opinionated about what we DO,
+not about what we MIGHT do.
+
+**Consequences:**
+- The `interest_clicks` table proposed earlier is no longer needed.
+  Without stubs visible to users, there's nothing to click.
+- Admin demand-tracking shifts to a different signal — once charter
+  users exist, *direct conversation* is the source. Until then, we
+  guess.
+- The 102 stub adapters in `backend/integrations/` stay in the code
+  (they're cheap, and useful for the admin catalog) but lose their
+  user-facing manifestation.
+- Coming-soon labeling design questions are moot.
+
+### Updated needs-building list (day-one)
+
+Shipped 2026-05-02:
+1. ✅ **Hide non-shipped adapters from `/integrations`** — `GET /api/integrations` now filters to `status: stable | beta` only. The frontend `IntegrationsTab.svelte` had its `coming_soon` filter option + status confusion removed.
+2. ✅ **Admin catalog page** — `/admin/integrations` (SPA route) backed by `GET /api/admin/integrations`. Full 102-row table, status filters (all/stable/beta/coming_soon/deprecated), search, grouped by category. User-visible rows highlighted.
+7. ✅ **In-app feedback widget** — `FeedbackModal.svelte`, `POST /api/feedback`, `GET /api/admin/feedback`, `feedback_submissions` table, opened from Settings → Help → "Send feedback".
+
+Still TODO:
+3. **Google Meet adapter** (booking-page meeting-link integration)
+4. **Zoom adapter** (same)
+5. **Apple Calendar UI rename** (CalDAV in tooltip only)
+6. **Slack marketplace-card copy update** (IT-approval friction note)
+
+### Explicitly removed from the build list
+
+- `interest_clicks` schema + handler + admin ranking — no longer
+  needed (no stubs visible to users to click on).
+- "Interested?" button on Coming-soon cards — no Coming-soon cards.
+- Stronger visual treatment for Coming-soon labeling — no
+  Coming-soon items.
+
+## Resolved by these decisions
+
+- ✅ In-app feedback widget shipping decision
+- ✅ Charter-user list deferral
+- ✅ Coming-soon labeling design question (moot — no labels)
+- ✅ Whether to public-vote on integrations (no — and now we don't
+  even need the silent-tracking fallback)

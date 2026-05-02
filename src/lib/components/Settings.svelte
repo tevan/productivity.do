@@ -52,7 +52,7 @@
     await fetchWeather();
   }
 
-  let { onclose = () => {} } = $props();
+  let { onclose = () => {}, onopenFeedback = () => {} } = $props();
 
   const prefs = getPrefs();
   const cals = getCalendars();
@@ -1012,6 +1012,16 @@
 
       {:else if activeTab === 'help'}
         <div class="settings-section">
+          <h3>Send feedback</h3>
+          <p class="help-text">
+            Tell us what's broken, what's missing, or what's working. Goes
+            straight to the team. We read every one.
+          </p>
+          <button class="primary-action" onclick={onopenFeedback}>
+            Send feedback
+          </button>
+        </div>
+        <div class="settings-section">
           <h3>AI assistant</h3>
           <SupportChatTab />
         </div>
@@ -1396,7 +1406,21 @@
   .help-text {
     font-size: 13px;
     color: var(--text-tertiary);
+    margin: 4px 0 12px;
+    line-height: 1.55;
   }
+  .primary-action {
+    padding: 8px 16px;
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-sm);
+    background: var(--accent);
+    color: white;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .primary-action:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
   .page-link {
     display: inline-flex;
     align-items: center;

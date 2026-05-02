@@ -22,6 +22,7 @@ export function getRoute() {
       return m ? m[1] : null;
     },
     get isAdminMetrics() { return path === '/admin/metrics'; },
+    get isAdminIntegrations() { return path === '/admin/integrations'; },
   };
 }
 

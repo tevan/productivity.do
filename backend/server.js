@@ -47,6 +47,7 @@ import { startOperationsSweeper } from './lib/operations.js';
 import trashRoutes from './routes/trash.js';
 import { startTrashSweeper } from './lib/trash.js';
 import activityRoutes from './routes/activity.js';
+import feedbackRoutes from './routes/feedback.js';
 import { startRevisionsSweeper } from './lib/revisions.js';
 import { sweepRotatedKeys } from './lib/apiKeys.js';
 import { startWeeklyDigest } from './lib/digest.js';
@@ -316,6 +317,7 @@ app.use(focusBlocksRoutes);
 app.use(operationsRoutes);
 app.use(trashRoutes);
 app.use(activityRoutes);
+app.use(feedbackRoutes);
 app.use(notesRoutes);
 app.use(linksRoutes);
 app.use(inboxAdmin);
@@ -352,7 +354,8 @@ if (isProd || existsSync(distPath)) {
       req.path === '/' ||
       req.path === '/integrations' ||
       req.path.startsWith('/integrations/') ||
-      req.path === '/admin/metrics'
+      req.path === '/admin/metrics' ||
+      req.path === '/admin/integrations'
     ) {
       return res.sendFile(join(distPath, 'index.html'));
     }

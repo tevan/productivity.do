@@ -88,8 +88,7 @@
     return providers.filter(p => {
       if (activeCat !== 'all' && (p.category || p.kind) !== activeCat) return false;
       if (statusFilter === 'connected' && !p.connected) return false;
-      if (statusFilter === 'available' && (p.status === 'coming_soon' || p.connected)) return false;
-      if (statusFilter === 'coming_soon' && p.status !== 'coming_soon') return false;
+      if (statusFilter === 'available' && p.connected) return false;
       if (modeFilter !== 'all' && (p.mode || 'sync') !== modeFilter) return false;
       if (q && !`${p.name} ${p.description || ''}`.toLowerCase().includes(q)) return false;
       return true;
@@ -238,7 +237,6 @@
           { value: 'all', label: 'All' },
           { value: 'available', label: 'Available' },
           { value: 'connected', label: 'Connected' },
-          { value: 'coming_soon', label: 'Coming soon' },
         ]}
       />
       <Dropdown
@@ -276,22 +274,20 @@
         <h4>{categoryLabel(group.id)}</h4>
         <div class="provider-grid">
           {#each group.items as p (p.provider)}
-              <div class="provider-card" data-provider={p.provider} class:connected={p.connected} class:errored={p.status === 'error'} class:coming={p.status === 'coming_soon' && !p.connected}>
+              <div class="provider-card" data-provider={p.provider} class:connected={p.connected} class:errored={p.connectionStatus === 'error'}>
                 <div class="provider-head">
                   <img class="provider-logo" src={`/api/icons/${p.provider}.svg`} alt="" loading="lazy" />
                   <div class="provider-name">
                     {p.name}
-                    {#if p.recommended && !p.connected && p.status !== 'coming_soon'}
+                    {#if p.recommended && !p.connected}
                       <span class="rec-dot" use:tooltip={'Recommended'}></span>
                     {/if}
                   </div>
                   {#if p.connected}
-                    <span class="status-pill" class:err={p.status === 'error'}>
-                      {p.status === 'error' ? 'Error' : 'Connected'}
+                    <span class="status-pill" class:err={p.connectionStatus === 'error'}>
+                      {p.connectionStatus === 'error' ? 'Error' : 'Connected'}
                     </span>
-                  {:else if p.status === 'coming_soon'}
-                    <span class="status-pill soon">Coming soon</span>
-                  {:else if p.status === 'beta'}
+                  {:else if p.adapterStatus === 'beta'}
                     <span class="status-pill beta">Beta</span>
                   {/if}
                   {#if p.mode === 'import'}
@@ -301,11 +297,7 @@
                   {/if}
                 </div>
                 <p class="provider-desc">{p.description}</p>
-                {#if p.status === 'coming_soon' && !p.connected}
-                  <div class="soon-cta">
-                    <a class="docs" href={p.docsUrl} target="_blank" rel="noopener">Learn more</a>
-                  </div>
-                {:else if p.connected}
+                {#if p.connected}
                   <div class="provider-meta">
                     {#if p.account_email}<span>{p.account_email}</span>{/if}
                     {#if p.last_synced_at}

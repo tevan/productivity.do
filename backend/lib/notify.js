@@ -47,7 +47,7 @@ export async function sendVerificationEmail({ to, token }) {
 
 // Lower-level helper. Exported so account/security flows can send simple
 // transactional emails without going through a templated wrapper.
-export async function resendSend({ to, subject, html, text, attachments }) {
+export async function resendSend({ to, subject, html, text, attachments, replyTo }) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return { ok: false, reason: 'no_api_key' };
   const from = process.env.RESEND_FROM || 'Productivity <bookings@productivity.do>';
@@ -61,6 +61,7 @@ export async function resendSend({ to, subject, html, text, attachments }) {
       body: JSON.stringify({
         from, to, subject, html, text,
         attachments: attachments || undefined,
+        reply_to: replyTo || undefined,
       }),
     });
     const data = await res.json().catch(() => ({}));

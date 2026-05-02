@@ -5,6 +5,7 @@
   import Sidebar from './lib/components/Sidebar.svelte';
   import EventPopover from './lib/components/EventPopover.svelte';
   import SearchOverlay from './lib/components/SearchOverlay.svelte';
+  import FeedbackModal from './lib/components/FeedbackModal.svelte';
   import FindTimeModal from './lib/components/FindTimeModal.svelte';
   import EventContextMenu from './lib/components/EventContextMenu.svelte';
   import EventEditor from './lib/components/EventEditor.svelte';
@@ -30,6 +31,7 @@
   let BookingPageEditor = $state(null);
   let IntegrationsPage = $state(null);
   let AdminMetricsPage = $state(null);
+  let AdminIntegrationsPage = $state(null);
   function loadTasksView() {
     if (!TasksView) import('./lib/views/TasksView.svelte').then(m => TasksView = m.default);
   }
@@ -38,6 +40,9 @@
   }
   function loadAdminMetricsPage() {
     if (!AdminMetricsPage) import('./lib/views/AdminMetricsPage.svelte').then(m => AdminMetricsPage = m.default);
+  }
+  function loadAdminIntegrationsPage() {
+    if (!AdminIntegrationsPage) import('./lib/views/AdminIntegrationsPage.svelte').then(m => AdminIntegrationsPage = m.default);
   }
   function loadNotesView() {
     if (!NotesView) import('./lib/views/NotesView.svelte').then(m => NotesView = m.default);
@@ -91,6 +96,7 @@
   });
   $effect(() => { if (route.isIntegrations) loadIntegrationsPage(); });
   $effect(() => { if (route.isAdminMetrics) loadAdminMetricsPage(); });
+  $effect(() => { if (route.isAdminIntegrations) loadAdminIntegrationsPage(); });
 
   // If the user hides the active tab in Settings, bounce to the first
   // visible tab so they're not left staring at an invisible view.
@@ -116,6 +122,7 @@
   let showGotoDate = $state(false);
   let showSearch = $state(false);
   let showFindTime = $state(false);
+  let showFeedback = $state(false);
   // Auto-hide on narrow viewports; respect the user's explicit preference
   // when they're on a wide enough screen to choose for themselves.
   const _initialSidebarHidden = (() => {
@@ -513,6 +520,12 @@
   {:else}
     <div class="loading-screen" aria-hidden="true"></div>
   {/if}
+{:else if route.isAdminIntegrations}
+  {#if AdminIntegrationsPage}
+    <AdminIntegrationsPage />
+  {:else}
+    <div class="loading-screen" aria-hidden="true"></div>
+  {/if}
 {:else}
   {#if eventsStore.loading}
     <div class="top-progress" aria-hidden="true"><div class="top-progress-bar"></div></div>
@@ -656,7 +669,10 @@
 
   <!-- Settings (lazy-loaded — heavy with all the tabs) -->
   {#if showSettings && Settings}
-    <Settings onclose={() => showSettings = false} />
+    <Settings
+      onclose={() => showSettings = false}
+      onopenFeedback={() => { showSettings = false; showFeedback = true; }}
+    />
   {/if}
 
   <!-- Shortcuts help (lazy) -->
@@ -672,6 +688,11 @@
       onclose={() => { showGotoDate = false; gotoDateAnchor = null; }}
       ongo={handleGotoDate}
     />
+  {/if}
+
+  <!-- Feedback (footer button + Settings → Help link) -->
+  {#if showFeedback}
+    <FeedbackModal onclose={() => showFeedback = false} />
   {/if}
 
   <!-- Event search overlay (Cmd+F) -->

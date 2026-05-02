@@ -223,6 +223,11 @@ Account + sessions (protected, except confirm-email):
 
 Admin metrics (admin-only — user_id=1 OR is_team_admin=1):
   GET  /api/admin/metrics                      (signups/activation/WAU/plans/retention/booking-conv)
+  GET  /api/admin/integrations                 (full 102-row adapter catalog incl. stubs)
+  GET  /api/admin/feedback?limit=N             (recent feedback submissions for triage)
+
+Feedback (protected):
+  POST /api/feedback                           ({kind, body, url} → DB + best-effort Resend)
 
 Site-gate (no auth — private-beta password screen):
   GET  /site-gate/login.html
@@ -441,6 +446,22 @@ Task comments use the existing Todoist proxy at `/api/tasks/:id/comments` (GET/P
 ## Manual resync UX
 
 `manualResync()` in `events.svelte.js` MUST NOT delete the cache entry before refetching. Doing so blanks the in-memory `events` for the duration of the network round-trip — visually the calendar flashes empty on every Sync click. Instead, mark the cached entry stale (`fetchedAt = 0`) so events keep painting from cache while the request is in flight; only the new payload replaces them.
+
+## Integrations marketplace shape
+
+User-facing `/integrations` page shows ONLY adapters with `status: 'stable' | 'beta'` (12 day-one real adapters). Stubs (`status: 'coming_soon'`) are filtered out at `GET /api/integrations` — users never see "Coming soon" cards. The full 102-row catalog lives at `/admin/integrations` (SPA route, lazy-loaded `AdminIntegrationsPage.svelte`) backed by `GET /api/admin/integrations`. Admin-only, gated to `user_id=1` OR `is_team_admin=1`. Read-only — internal reference for what scaffolds exist.
+
+**Why:** "Promising something is not as effective as having it." Showing 102 cards with 90 marked "Coming soon" reads as advertising aspirations, not capability. Decided 2026-05-02 — see `docs/internal/community-and-integrations-strategy.md` and the `integration_breadth_vs_depth` memory entry.
+
+**Decision filter for promoting a stub to user-facing:** ALL of (1) charter user requested it directly, (2) value felt in first week, (3) <2 weeks of work, (4) clear maintenance owner. The `interest_clicks` schema was considered and rejected — there's nothing to click on without stubs visible.
+
+In `routes/integrations.js`, the per-user connection status field (from the `integrations` row) was renamed `connectionStatus` to disambiguate from the adapter classification field (`adapterStatus` ∈ stable/beta/coming_soon/deprecated). `IntegrationsTab.svelte` was updated accordingly. Don't conflate the two.
+
+## In-app feedback
+
+`POST /api/feedback` (auth) accepts `{kind, body, url}`, persists to `feedback_submissions` table, best-effort emails the founder via Resend with `reply_to: <user.email>` so replies route back natively. `GET /api/admin/feedback?limit=N` returns recent submissions for the founder to triage in one place. Rate-limit: 5 per user per hour. UI: `FeedbackModal.svelte` opened from Settings → Help → "Send feedback" button. ⌘+Enter sends, Esc closes. The DB row is the source of truth — Resend failure doesn't fail the user's submission. `SUPPORT_EMAIL` env (default `support@productivity.do`) is the destination.
+
+Why this surface day-one (and no public forum / Discord / GitHub Discussions yet): see `docs/internal/community-and-integrations-strategy.md`. In-app feedback captures private signal without the moderation overhead of a community surface; we can revisit once the founder can commit ~30 min/day for 6 months.
 
 ## Admin metrics dashboard
 

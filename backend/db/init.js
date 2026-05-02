@@ -722,6 +722,23 @@ function applyMigrations(database) {
     );
     CREATE INDEX IF NOT EXISTS idx_support_chat_messages_session ON support_chat_messages(session_id, created_at);
 
+    -- In-app feedback submissions. Captures whatever the user types in
+    -- the feedback widget. The DB row is the source of truth; the
+    -- emailed copy is convenience. Kept indefinitely (low volume).
+    CREATE TABLE IF NOT EXISTS feedback_submissions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      email TEXT NOT NULL,
+      display_name TEXT,
+      kind TEXT NOT NULL DEFAULT 'general',  -- 'general' | 'bug' | 'feature' | 'other'
+      body TEXT NOT NULL,
+      url TEXT,
+      user_agent TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_feedback_user ON feedback_submissions(user_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_feedback_recent ON feedback_submissions(created_at DESC);
+
     -- Slack app: per-workspace install tokens.
     CREATE TABLE IF NOT EXISTS slack_workspaces (
       team_id TEXT PRIMARY KEY,
