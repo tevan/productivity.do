@@ -162,7 +162,7 @@
               placeholder="Untitled"
             />
           {:else}
-            <h2 onclick={startEditTitle} title="Click to edit">
+            <h2 onclick={startEditTitle} aria-label="Note title — click to edit">
               {#if selected.color}
                 <span class="color-dot" style="background: var(--color-{selected.color}, {selected.color});" aria-hidden="true"></span>
               {/if}
@@ -197,7 +197,7 @@
             onkeydown={(e) => e.key === 'Enter' && startEditBody()}
             role="textbox"
             tabindex="0"
-            title="Click to edit"
+            aria-label="Note body — click to edit"
           >{@html selectedHtml}</div>
         {:else}
           <div
@@ -309,10 +309,15 @@
     margin-bottom: 16px;
   }
   .reader-head h2 {
-    font-size: 20px;
-    font-weight: 600;
+    /* Notes reader is a slow surface — Fraunces signals "receiving content,
+       not working." Editing swaps to .title-input which stays Inter so the
+       input affords typing. */
+    font-family: var(--font-display, 'Fraunces', serif);
+    font-variation-settings: 'opsz' 28;
+    font-size: 28px;
+    font-weight: 420;
+    letter-spacing: -0.005em;
     margin: 0;
-    letter-spacing: -0.01em;
     display: inline-flex;
     align-items: center;
     gap: 10px;
@@ -346,13 +351,14 @@
     color: var(--text-primary);
     word-wrap: break-word;
     cursor: text;
-    /* Subtle hover affordance — the body's clickable for edit. */
+    /* No hover background. The previous design painted a 760px-wide band
+       across the page on hover, which looked like a clipped rectangle.
+       cursor:text carries the affordance — matches Bear / Apple Notes /
+       Notion behavior. */
     border-radius: 4px;
     padding: 4px;
     margin: -4px;
-    transition: background 0.1s;
   }
-  .reader-body:hover { background: var(--surface-hover); }
   .empty-body { color: var(--text-tertiary); font-style: italic; }
   /* Textarea matches reader-body sizing so swap doesn't reflow. */
   .body-textarea {

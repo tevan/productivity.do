@@ -435,7 +435,10 @@
     >
       {#if selectedIds.size > 0}
         <div class="bulk-bar">
-          <span class="bulk-count">{selectedIds.size} selected</span>
+          <span class="bulk-count">
+            {selectedIds.size} selected
+            <span class="bulk-hint">⌘-click to add or remove · Shift-click for a range</span>
+          </span>
           <button class="bulk-btn" onclick={bulkComplete} use:tooltip={'Complete'}>✓ Complete</button>
           <button class="bulk-btn" onclick={bulkRescheduleToday} use:tooltip={'Move to today'}>Today</button>
           <button class="bulk-btn" onclick={bulkRescheduleTomorrow} use:tooltip={'Move to tomorrow'}>Tomorrow</button>
@@ -808,7 +811,9 @@
     font-size: 12px;
     border-radius: var(--radius-sm);
   }
-  .bulk-count { font-weight: 600; color: var(--accent); margin-right: 4px; font-size: 13px; }
+  .bulk-count { font-weight: 600; color: var(--accent); margin-right: 4px; font-size: 13px; display: inline-flex; align-items: baseline; gap: 10px; }
+  .bulk-hint { font-weight: 400; color: var(--text-tertiary); font-size: 11px; letter-spacing: 0.01em; }
+  @media (max-width: 760px) { .bulk-hint { display: none; } }
   .bulk-btn {
     background: var(--surface);
     border: 1px solid var(--border);

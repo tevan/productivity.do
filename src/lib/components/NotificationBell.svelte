@@ -6,6 +6,8 @@
   let items = $state([]);
   let open = $state(false);
   let loading = $state(false);
+  let anchor = $state({ left: 0, bottom: 0 });
+  let triggerEl;
 
   async function refresh() {
     try {
@@ -17,9 +19,19 @@
     } catch {}
   }
 
+  function updateAnchor() {
+    if (!triggerEl) return;
+    const rect = triggerEl.getBoundingClientRect();
+    anchor = {
+      left: rect.left,
+      bottom: window.innerHeight - rect.top,
+    };
+  }
+
   async function toggle() {
     open = !open;
     if (open) {
+      updateAnchor();
       loading = true;
       await refresh();
       loading = false;
@@ -59,6 +71,7 @@
 
 <div class="bell-wrap">
   <button
+    bind:this={triggerEl}
     class="icon-btn"
     class:has-unread={unread > 0}
     onclick={toggle}
@@ -78,7 +91,7 @@
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <div class="overlay" onclick={close}></div>
-    <div class="dropdown" role="menu">
+    <div class="dropdown" role="menu" style="left: {anchor.left}px; bottom: {anchor.bottom + 6}px;">
       <div class="dropdown-head">
         <span>Notifications</span>
       </div>
@@ -158,10 +171,7 @@
     z-index: 95;
   }
   .dropdown {
-    position: absolute;
-    top: 100%;
-    right: 0;
-    margin-top: 6px;
+    position: fixed;
     width: 320px;
     max-height: 400px;
     overflow-y: auto;

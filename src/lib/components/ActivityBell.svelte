@@ -25,6 +25,12 @@
   let items = $state([]);
   let open = $state(false);
   let loading = $state(false);
+  // Anchor coordinates for the fixed-positioned dropdown. The bell lives in
+  // the sidebar footer, which is inside .sidebar (overflow:hidden), so an
+  // absolute-positioned dropdown gets clipped. Fixed-positioning escapes the
+  // clip by being relative to the viewport.
+  let anchor = $state({ left: 0, bottom: 0 });
+  let triggerEl;
 
   // Allow callers (Toolbar, sidebar footer) to pass through any popover anchor
   // tweaks. Nothing today, but keep the prop slot open.
@@ -44,9 +50,21 @@
     }
   }
 
+  function updateAnchor() {
+    if (!triggerEl) return;
+    const rect = triggerEl.getBoundingClientRect();
+    anchor = {
+      left: rect.left,
+      bottom: window.innerHeight - rect.top, // distance from viewport bottom
+    };
+  }
+
   async function toggle() {
     open = !open;
-    if (open) await refresh();
+    if (open) {
+      updateAnchor();
+      await refresh();
+    }
   }
 
   function close() { open = false; }
@@ -112,6 +130,7 @@
 
 <div class="bell-wrap">
   <button
+    bind:this={triggerEl}
     class="icon-btn"
     onclick={toggle}
     use:tooltip={'Recent activity'}
@@ -125,7 +144,7 @@
 
   {#if open}
     <div class="overlay" onclick={close} role="presentation"></div>
-    <div class="dropdown" role="menu">
+    <div class="dropdown" role="menu" style="left: {anchor.left}px; bottom: {anchor.bottom + 6}px;">
       <div class="dropdown-head">
         <span>Recent activity</span>
       </div>
@@ -182,10 +201,7 @@
   .bell-wrap:has(.dropdown) .icon-btn { position: relative; z-index: 95; }
 
   .dropdown {
-    position: absolute;
-    top: 100%;
-    right: 0;
-    margin-top: 6px;
+    position: fixed;
     width: 340px;
     max-height: 440px;
     overflow-y: auto;

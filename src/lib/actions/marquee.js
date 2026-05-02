@@ -49,6 +49,13 @@ export function marquee(node, opts) {
     startX = e.clientX;
     startY = e.clientY;
     active = false; // turns true once we've moved >3px
+    // Suppress native text selection while we might be dragging. Important
+    // because preventDefault on mousemove alone doesn't stop selection in
+    // every browser. We add a class on <html> (cleared in cleanup()) so the
+    // global `.marquee-active` rule disables selection on every descendant
+    // — covers headings, empty states, and other chrome the user has been
+    // accidentally selecting through.
+    document.documentElement.classList.add('marquee-active');
     window.addEventListener('mousemove', onMousemove);
     window.addEventListener('mouseup', onMouseup, { once: true });
   }
@@ -112,6 +119,7 @@ export function marquee(node, opts) {
   function cleanup() {
     if (overlay) { overlay.remove(); overlay = null; }
     active = false;
+    document.documentElement.classList.remove('marquee-active');
   }
 
   node.addEventListener('mousedown', onMousedown);

@@ -2,7 +2,7 @@
    Productivity — Global Styles & Design System
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fraunces:opsz,wght,SOFT@9..144,300..600,0..100&display=swap');
 
 /* ---------- CSS Reset ---------- */
 *,
@@ -47,6 +47,21 @@ ul, ol {
 
 /* ---------- Custom Properties — Light Mode ---------- */
 :root {
+  /* Type — body stays Inter; --font-display is reserved for slow,
+     contemplative surfaces (synthesis layer). Don't use it on routine UI. */
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'Fraunces', 'Iowan Old Style', 'Georgia', serif;
+
+  /* Modal entrance — softer than abrupt. The `.scrim` class plus the
+     `[class$="-backdrop"]` and `[class$="-overlay"]` rules below soften
+     every existing modal in the app without per-component edits. */
+  --scrim: rgba(15, 17, 21, 0.22);
+  --scrim-strong: rgba(15, 17, 21, 0.42);
+  --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-quick: 140ms;
+  --motion-soft: 220ms;
+  --motion-slow: 360ms;
+
   /* Accent */
   --accent: #3b82f6;
   --accent-hover: #2563eb;
@@ -169,4 +184,109 @@ input[type='checkbox']:disabled,
 input[type='radio']:disabled {
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+/* ============================================================
+   Modal softening — global scrim + entrance animation.
+   Targets every existing modal (Settings, Shortcuts, FindTime,
+   Feedback, EventEditor, GotoDate, Confirm, Upgrade, Search) by
+   matching on the conventional class-suffixes used across the app.
+   Per-component CSS still controls position/size/shape; this rule
+   replaces the harsh black scrim with a gentler veil and stages the
+   entrance so modals don't snap into place.
+   ============================================================ */
+.settings-backdrop,
+.editor-backdrop,
+.help-backdrop,
+.ft-backdrop,
+.modal-backdrop,
+.goto-backdrop,
+.ctx-backdrop,
+.popover-backdrop,
+.sheet-backdrop,
+.overlay-backdrop,
+[class$="-backdrop"]:not(.editor-backdrop):not(.settings-backdrop) {
+  background: var(--scrim) !important;
+  backdrop-filter: blur(2px);
+  animation: scrim-fade-in var(--motion-soft) var(--motion-ease) both;
+}
+/* Dark mode modals get a slightly less-opaque scrim because the canvas
+   is already dark — same visual effect with less weight. */
+html.dark .settings-backdrop,
+html.dark .editor-backdrop,
+html.dark .help-backdrop,
+html.dark .ft-backdrop,
+html.dark .modal-backdrop,
+html.dark .goto-backdrop,
+html.dark [class$="-backdrop"] {
+  background: rgba(0, 0, 0, 0.34) !important;
+}
+
+/* Modal card entrance — opacity + a tiny perspective bloom.
+   We avoid animating `transform` because most cards already use
+   transform for centering (translate(-50%, -50%)) and overriding
+   it would shift the card's position. Animating opacity + filter
+   gives the same "settle into place" feel without touching layout. */
+.settings-modal,
+.editor-modal,
+.help-modal,
+.ft-modal,
+.feedback-modal,
+.confirm-card,
+.upgrade-card,
+.goto-modal,
+[class$="-modal"]:not(.editor-modal):not(.settings-modal) {
+  animation: card-bloom var(--motion-soft) var(--motion-ease) both;
+}
+
+@keyframes scrim-fade-in {
+  from { opacity: 0; backdrop-filter: blur(0px); }
+  to { opacity: 1; backdrop-filter: blur(2px); }
+}
+@keyframes card-bloom {
+  from { opacity: 0; filter: blur(2px); }
+  to   { opacity: 1; filter: blur(0); }
+}
+
+/* Empty states get the serif treatment — they're moments of pause, not
+   action. The `.empty-title` class is conventional across the app for the
+   primary line of an empty-state block. Per-component CSS sometimes still
+   sets size/color; we override font-family + size/weight here. */
+.empty-title {
+  font-family: var(--font-display, 'Fraunces', serif) !important;
+  font-variation-settings: 'opsz' 24;
+  font-size: 18px !important;
+  font-weight: 420 !important;
+  letter-spacing: -0.005em;
+}
+
+/* When a marquee selection is active, suppress text selection everywhere
+   so dragging across headings/empty-state/chrome doesn't blue-highlight
+   them. The class is added/removed by the marquee action. */
+html.marquee-active,
+html.marquee-active * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-backdrop,
+  .editor-backdrop,
+  .help-backdrop,
+  .ft-backdrop,
+  .modal-backdrop,
+  .goto-backdrop,
+  [class$="-backdrop"],
+  .settings-modal,
+  .editor-modal,
+  .help-modal,
+  .ft-modal,
+  .feedback-modal,
+  .confirm-card,
+  .upgrade-card,
+  [class$="-modal"] {
+    animation: none !important;
+    backdrop-filter: none !important;
+    filter: none !important;
+  }
 }
