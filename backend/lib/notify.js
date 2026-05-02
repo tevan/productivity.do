@@ -9,6 +9,7 @@
 
 import { buildIcs, googleCalendarUrl, outlookUrl } from './ics.js';
 import { getDb } from '../db/init.js';
+import { captureError } from './sentry.js';
 
 function fmtWhen(iso, tz) {
   try {
@@ -66,6 +67,7 @@ export async function resendSend({ to, subject, html, text, attachments }) {
     return { ok: res.ok, data };
   } catch (err) {
     console.warn('Resend send failed:', err.message);
+    captureError(err, { component: 'notify.resend', to, subject });
     return { ok: false, reason: err.message };
   }
 }
@@ -200,6 +202,7 @@ export async function processReminderSweep(getDb, fireWorkflowsFn) {
         await sendReminder24h({ page, booking: row, eventType });
       } catch (err) {
         console.warn(`reminder for booking ${row.id} failed:`, err.message);
+        captureError(err, { component: 'notify.reminder24h', bookingId: row.id });
       }
       // Fire workflow webhooks for this trigger as well.
       if (fireWorkflowsFn) {
@@ -221,6 +224,7 @@ export async function processReminderSweep(getDb, fireWorkflowsFn) {
     return { processed: due.length };
   } catch (err) {
     console.warn('reminder sweep failed:', err.message);
+    captureError(err, { component: 'notify.reminderSweep' });
     return { processed: 0, error: err.message };
   }
 }
@@ -300,6 +304,7 @@ export async function fireWorkflows(workflows, trigger, payload) {
       }
     } catch (err) {
       console.warn(`workflow ${w.id} failed:`, err.message);
+      captureError(err, { component: 'notify.workflow', workflowId: w.id, trigger });
     } finally {
       clearTimeout(timer);
     }
@@ -347,6 +352,7 @@ export async function sendUserEmail({ userId, subject, body }) {
     return await resendSend({ to: row.email, subject, html, text: body });
   } catch (err) {
     console.warn('sendUserEmail failed:', err.message);
+    captureError(err, { component: 'notify.userEmail', userId });
     return { ok: false, reason: err.message };
   }
 }
@@ -375,6 +381,7 @@ export async function sendUserSms({ to, message }) {
     return { ok: res.ok, data };
   } catch (err) {
     console.warn('sendUserSms failed:', err.message);
+    captureError(err, { component: 'notify.userSms' });
     return { ok: false, reason: err.message };
   }
 }

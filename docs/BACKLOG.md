@@ -56,20 +56,27 @@ Living document of features we've discussed but haven't built. Pull from the top
 - **Sync UI — preserve calendar contents during refresh** ✓ shipped
   2026-05-02. `manualResync()` now marks the cached range stale instead
   of deleting it.
-- **Note + task collaboration / comments**: scope A (note comments)
-  shipped 2026-05-02 — `note_comments` table + CRUD routes +
-  `NoteCommentsPanel` overlay in `NoteEditor`. Scope B (sharing) +
-  scope C (live multi-user) still deferred per
-  `docs/internal/collaboration-thinking.md`. Task comments surfacing in
-  the SPA editor + @-mentions in comments still TODO.
+- **Note + task collaboration / comments**: scope A FULLY shipped
+  2026-05-02. Note comments: `note_comments` table + CRUD + overlay
+  panel. Task comments: existing Todoist-backed routes surfaced via
+  `TaskCommentsPanel` overlay in TaskEditor. Scope B (sharing) + scope
+  C (live multi-user) still deferred per
+  `docs/internal/collaboration-thinking.md`. @-mentions in comments
+  still TODO — needs the user-list UI which requires multi-user data.
 - **Historical weather**: see `docs/internal/historical-weather-design.md`.
   Defer until ~20 paying Pro users to model cost.
 - **Subscriptions in the sidebar** ✓ shipped 2026-05-01.
 - **Mental-model copy refresh** ✓ shipped 2026-05-02 across home /
   features / about / pricing.
 - **Wire /pricing.html to /api/plans** ✓ shipped 2026-05-02.
-- **Drop indicator for sidebar task drag**: equivalent of the board
-  drop indicator we shipped, but for the list-view drag.
+- **Drop indicator for sidebar task drag** — punted 2026-05-02. The
+  list (sidebar AND Tasks → list mode) has no manual-reorder concept
+  today; tasks are grouped by date/project/label/priority via
+  `taskGrouping.js`. A drop indicator without a real drop target would
+  signal "you can drop here" when you can't. Build a "Manual" group-by
+  mode first (persists `localPosition` per task in list context with
+  drop-zone wiring), then add the indicator. Estimated 4-6 hours, not a
+  quick win.
 - **Activity log unification** ✓ shipped 2026-05-02.
 
 ## Tier 4 — Inspired (Cagan) book findings (2026-05-02)

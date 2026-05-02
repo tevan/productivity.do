@@ -14,6 +14,7 @@
 import Stripe from 'stripe';
 import { getUserById, setStripeIds } from './users.js';
 import { getDb } from '../db/init.js';
+import { captureError } from './sentry.js';
 
 let stripeClient = null;
 export function getStripe() {
@@ -289,6 +290,7 @@ export async function finalizePaidBookings(google, sendBookingConfirmation, emit
             .run(ev.id, page.calendar_id, row.id);
         } catch (err) {
           console.warn('paid-booking GCal create failed:', err.message);
+          captureError(err, { component: 'stripe.paidBookingGcal', bookingId: row.id });
           // Don't mark the row done — let it retry next sweep.
           continue;
         }
@@ -315,6 +317,7 @@ export async function finalizePaidBookings(google, sendBookingConfirmation, emit
     return { processed: due.length };
   } catch (err) {
     console.warn('finalize sweep failed:', err.message);
+    captureError(err, { component: 'stripe.finalizeSweep' });
     return { processed: 0 };
   }
 }

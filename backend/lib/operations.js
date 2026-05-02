@@ -17,6 +17,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../db/init.js';
+import { captureError } from './sentry.js';
 
 export function createOperation({ userId, kind, metadata = null }) {
   const id = randomUUID();
@@ -90,6 +91,7 @@ export function runOperation(opId, work) {
     .then((result) => completeOperation(opId, result))
     .catch((err) => {
       console.warn(`operation ${opId} failed:`, err.message || err);
+      captureError(err, { component: 'operations.runOperation', opId });
       failOperation(opId, err);
     });
 }
@@ -124,6 +126,7 @@ export function startOperationsSweeper({ intervalMs = 6 * 60 * 60_000 } = {}) {
       `).run();
     } catch (err) {
       console.warn('operations sweep:', err.message);
+      captureError(err, { component: 'operations.sweep' });
     }
   };
   sweep();

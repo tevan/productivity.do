@@ -21,6 +21,7 @@
 
 import { getDb } from '../db/init.js';
 import * as google from './google.js';
+import { captureError } from './sentry.js';
 
 const BACKOFF_MS = [
   60_000,        // 1 min
@@ -38,7 +39,7 @@ export function startCalendarSyncRetry({ intervalMs = 60_000 } = {}) {
   // Run once at startup, then on the configured interval.
   processOnce().catch(err => console.warn('calendar sync sweep:', err.message));
   timer = setInterval(() => {
-    processOnce().catch(err => console.warn('calendar sync sweep:', err.message));
+    processOnce().catch(err => { console.warn('calendar sync sweep:', err.message); captureError(err, { component: 'calendarSyncRetry.sweep' }); });
   }, intervalMs);
   timer.unref?.();
 }

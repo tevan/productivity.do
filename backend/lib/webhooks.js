@@ -9,6 +9,7 @@
 
 import { createHmac, randomBytes, randomUUID } from 'crypto';
 import { getDb } from '../db/init.js';
+import { captureError } from './sentry.js';
 
 const RETRY_DELAYS_MS = [60_000, 5 * 60_000, 30 * 60_000, 2 * 3600_000, 12 * 3600_000];
 const TIMEOUT_MS = 8_000;
@@ -159,6 +160,7 @@ export async function emitEvent(eventName, data, userId) {
       }
     } catch (err) {
       console.warn('notification record failed:', err.message);
+      captureError(err, { component: 'webhooks.notificationRecord', event: eventName });
     }
   }
 
@@ -263,7 +265,7 @@ let retryTimer = null;
 export function startRetryLoop(intervalMs = 60_000) {
   if (retryTimer) return;
   retryTimer = setInterval(() => {
-    processRetries().catch(err => console.warn('webhook retry sweep:', err.message));
+    processRetries().catch(err => { console.warn('webhook retry sweep:', err.message); captureError(err, { component: 'webhooks.retrySweep' }); });
   }, intervalMs);
   retryTimer.unref?.();
 }

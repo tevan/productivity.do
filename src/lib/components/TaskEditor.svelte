@@ -8,9 +8,11 @@
   import Dropdown from './Dropdown.svelte';
   import { tooltip } from '../actions/tooltip.js';
   import RevisionHistoryPanel from './RevisionHistoryPanel.svelte';
+  import TaskCommentsPanel from './TaskCommentsPanel.svelte';
 
   let { task = null, onclose = () => {} } = $props();
   let historyOpen = $state(false);
+  let commentsOpen = $state(false);
   const appCtx = getContext('app');
 
   function switchToEvent() {
@@ -342,6 +344,11 @@
       </svg>
     </button>
     {#if task?.id}
+      <button class="footer-btn" onclick={() => commentsOpen = true} use:tooltip={'Comments'} aria-label="Comments">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+      </button>
       <button class="footer-btn" onclick={() => historyOpen = true} use:tooltip={'Version history'} aria-label="Version history">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>
@@ -378,6 +385,12 @@
       resource="tasks"
       id={task.id}
       onclose={() => historyOpen = false}
+    />
+  {/if}
+  {#if commentsOpen && task?.id}
+    <TaskCommentsPanel
+      taskId={task.id}
+      onclose={() => commentsOpen = false}
     />
   {/if}
 </div>

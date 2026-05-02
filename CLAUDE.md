@@ -330,6 +330,10 @@ The SPA at `/` is offline-capable as a PWA. Booking widget at `/book/*` and mark
 
 `note_comments(user_id, note_id, body, created_at, updated_at, deleted_at)` — author-only for now. CRUD at `/api/notes/:id/comments` and `/api/notes/:id/comments/:commentId`. Soft-delete via `deleted_at`. UI: `NoteCommentsPanel.svelte` mounted as an overlay inside `NoteEditor.svelte` (same anchored-overlay pattern as `RevisionHistoryPanel.svelte`). The note must own the comments; route returns 404 (not 403) when the note isn't owned, to avoid leaking existence. Schema mirrors the future `task_comments` shape so a "comments anywhere" generalization is cheap. Scopes B (sharing) + C (live multi-user) deferred per `docs/internal/collaboration-thinking.md` — wait for user demand.
 
+## Task comments
+
+Task comments use the existing Todoist proxy at `/api/tasks/:id/comments` (GET/POST) + `/api/tasks/comments/:id` (PUT/DELETE). Field is `content` (not `body`) and timestamp is `postedAt` (not `createdAt`) — different from note comments because Todoist owns the storage. UI: `TaskCommentsPanel.svelte` overlay in `TaskEditor.svelte` next to the History button. Todoist hard-deletes (no soft-delete window) — confirm modal warns the user.
+
 ## Manual resync UX
 
 `manualResync()` in `events.svelte.js` MUST NOT delete the cache entry before refetching. Doing so blanks the in-memory `events` for the duration of the network round-trip — visually the calendar flashes empty on every Sync click. Instead, mark the cached entry stale (`fetchedAt = 0`) so events keep painting from cache while the request is in flight; only the new payload replaces them.
@@ -349,6 +353,8 @@ SW registration is production-only (`import.meta.env.PROD`) and lazy-loaded via 
 ## Sentry (added 2026-05-01)
 
 Backend errors flow through Sentry when `SENTRY_DSN` is set. No-op otherwise. Init lives in `backend/lib/sentry.js`; called from `server.js` *before* any other import. Express error-handler middleware mounted after all routes. Request bodies are scrubbed in `beforeSend` to avoid leaking tokens.
+
+**Background-task coverage:** request-handler errors hit Sentry automatically via the Express middleware. Background sweepers + best-effort fire-and-forget paths swallow errors with `console.warn` so they're invisible to the middleware — those need explicit `captureError(err, {component, ...ctx})` calls. Wired so far: `notify.js` (resend, reminders, workflows, user email/sms), `stripe.js` (paid-booking GCal, finalize sweep), `calendarSyncRetry.js` (sweep loop), `operations.js` (LRO failures + sweeper), `webhooks.js` (notification record, retry sweep), `revisions.js` (sweeper). When adding a new background path, follow the pattern: keep the existing `console.warn` for local visibility, add `captureError` alongside with a unique `component` string.
 
 ## DB Schema (additions)
 

@@ -27,6 +27,7 @@
 //   - storage cost is low (notes <200KB, tasks <2KB; we cap at 50/row)
 
 import { getDb } from '../db/init.js';
+import { captureError } from './sentry.js';
 
 const RETAIN_DAYS = 90;
 const PER_RESOURCE_CAP = 50;
@@ -124,6 +125,7 @@ export function startRevisionsSweeper({ intervalMs = 24 * 60 * 60_000 } = {}) {
       if (r.changes > 0) console.log(`[revisions sweeper] dropped ${r.changes} expired revisions`);
     } catch (err) {
       console.warn('revisions sweeper:', err.message);
+      captureError(err, { component: 'revisions.sweeper' });
     }
   };
   sweep();
