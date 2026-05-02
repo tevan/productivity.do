@@ -99,3 +99,72 @@ Logging here so they're not lost; #3 (metrics dashboard) being built now.
   prioritizing — solo, the discipline shows up in commit messages and
   CLAUDE.md notes.
 - **Product-health metrics dashboard**: see active build below.
+
+## Pre-launch checklist (added 2026-05-02)
+
+Everything that must land before flipping the public toggle. Roughly ordered
+by sequence — don't remove the site-gate until the others are green.
+
+### External services / .env
+
+- **Stripe** — create products in dashboard for each tier, drop the four
+  `price_...` IDs into `.env` plus `STRIPE_SECRET_KEY` +
+  `STRIPE_WEBHOOK_SECRET`. Add webhook endpoint pointing at
+  `/api/stripe/webhook`. Verify `PUBLIC_ORIGIN=https://productivity.do`.
+  `isStripeConfigured()` already gates the checkout flow when prices
+  are missing — it returns false without a 500. Test one end-to-end
+  checkout (free → Pro monthly → Customer Portal → cancel).
+- **Resend** — create account, verify the `productivity.do` domain via
+  SPF + DKIM in Cloudflare. Set `RESEND_API_KEY`. Without it: signup
+  verification, booking confirmations, 24h reminders, password resets,
+  weekly digests all silently no-op (best-effort by design). Test by
+  triggering one signup verification.
+- **Sentry** — create a project for productivity.do, set `SENTRY_DSN`.
+  Background-task `captureError` calls already exist (`notify.js`,
+  `stripe.js`, `calendarSyncRetry.js`, `webhooks.js`, etc.). Without
+  DSN, errors past `console.warn` are invisible. Verify by triggering
+  a known-bad path and checking the dashboard.
+- **Anthropic** — if marketing keeps "AI prep" + "AI support chat" copy,
+  set `ANTHROPIC_API_KEY`. Otherwise strip the AI claims. The features
+  return clean 503 without it but advertising them is misleading.
+- **Cloudflare SSL mode** — set to **Full (strict)** in dashboard. Origin
+  cert is installed; the API token doesn't have zone-settings permission
+  so this is a manual UI step.
+- **Google OAuth verification** — currently in testing mode (single test
+  user). For SaaS launch, complete consent-screen review (privacy URL +
+  terms URL + scope justification for `calendar.readonly` +
+  `calendar.events`). Google review takes 4-6 weeks. Without it, public
+  users hit "unverified app" warning. Submit early.
+
+### Code surfaces
+
+- **Site-gate removal** — 4-step delete per CLAUDE.md "Removal at public
+  launch". Touches: `backend/routes/site-gate.js` (delete),
+  `backend/views/site-gate-login.html` (delete), `backend/server.js`
+  (remove import + use + bypass list entry), nginx config (remove
+  `auth_request` directive + 401 redirect + `/site-gate/` location
+  blocks), `.env` (remove `SITE_PASSWORD` / `SITE_AUTH_SECRET` /
+  `SITE_GATE_BYPASS_IPS`). Do this LAST.
+
+### Practice
+
+- **Charter-user list** (Cagan/Inspired) — identify 6-10 users who
+  suffer most without the product. List the specific verb/pain each
+  solves. Reach out individually with personalized note + 14-day Pro
+  comp. Treat their first-week issues as P0. Do BEFORE removing the
+  site-gate. CLAUDE.md previously had this as "TODO INDEFINITELY";
+  reading agents flagged it as the highest-leverage pre-launch
+  practice.
+
+### Done
+
+- ✓ Schema-complete `/api/account/export` (every user-owned table).
+- ✓ Soft-delete email collision fix (`original_email` column +
+  rename-on-delete + match-both-on-login).
+- ✓ Tenancy audit (links DELETE atomic, booking-pages PUT scoped).
+- ✓ Booking widget acquisition CTAs (`/book/:slug`, `/q/:id`,
+  cancel/reschedule).
+- ✓ Stripe configuration gate (refuses checkout when prices unset).
+- ✓ Full WCAG 2.1.1 keyboard support across calendar grid + chips
+  (roving tabindex, slot/event focus modes, aria-live announcements,
+  EventEditor / EventChip / TaskRow / MonthView all updated).

@@ -558,22 +558,17 @@ When proposing actions, follow the convention in `applicable_insights.md`: each 
 
 ## Pending Setup
 
-- **Stripe Price IDs:** Set in `.env` to enable Pro/Team checkout flow:
-  - `STRIPE_SECRET_KEY=sk_...`, `STRIPE_WEBHOOK_SECRET=whsec_...`
-  - `STRIPE_PRICE_PRO_MONTHLY`, `STRIPE_PRICE_PRO_ANNUAL`, `STRIPE_PRICE_TEAM_MONTHLY`, `STRIPE_PRICE_TEAM_ANNUAL`
-  - `PUBLIC_ORIGIN=https://productivity.do`
-- **Cloudflare SSL mode:** Set to Full (strict) in dashboard (origin cert installed, API token lacks zone settings permission)
-- **Google OAuth:** App in testing mode (unverified), test user: tevan.alexander@gmail.com. For SaaS launch, Google verification + per-user OAuth grants are needed (the schema is already per-user).
-- **Resend API key:** Set `RESEND_API_KEY` in `.env` for booking confirmation/cancellation/24h reminder + signup verification emails. Without it all calls no-op silently.
+**Canonical pre-launch checklist lives at `docs/BACKLOG.md` "Pre-launch checklist" section.** Rough summary:
+
+- **External services / `.env`:** Stripe (Price IDs + webhook), Resend (API key + domain verify), Sentry (DSN), Anthropic (key — or strip AI marketing copy), Cloudflare SSL Full (strict), Google OAuth verification (4-6wk Google review).
+- **Code surfaces:** Site-gate removal (4-step delete per "Removal at public launch" in the [Site-gate](#site-gate-private-beta) section). Do this LAST.
+- **Practice:** Charter-user list (Cagan/Inspired — identify 6-10 users, personalize outreach, 14-day Pro comp; do BEFORE removing the gate).
+
+**Already-LIVE setup:**
 - **Postmark inbound — LIVE.** Server `Productivity-Inbound` (ID 19064779), domain `inbox.productivity.do`, webhook URL embeds `INBOX_WEBHOOK_USER:INBOX_WEBHOOK_PASS@` for HTTP Basic Auth. MX record `inbox.productivity.do → inbound.postmarkapp.com` priority 10 in Cloudflare (DNS-only, orange cloud off). Payload normalizer in handler maps Postmark's capitalized keys to our lowercase shape.
-- **Public launch checklist:**
-  - Remove the site-gate (see "Removal at public launch" in the [Site-gate](#site-gate-private-beta) section — 4 steps)
-  - Configure Stripe Price IDs + webhook in dashboard pointing at `/api/stripe/webhook`
-  - Verify Google OAuth (consent screen — currently in testing mode)
-  - Remove the `noindex, nofollow` defaults from marketing pages once SEO is desired
-- **Optional (if provisioned):**
-  - `GOOGLE_MAPS_API_KEY` for `/api/travel-time` to return real durations (otherwise it returns null silently). Travel-time chips on day view are deferred until this is set.
-  - `ANTHROPIC_API_KEY` for AI meeting prep summaries. Without it, the "Prep with AI" button returns 503.
-  - `INBOX_DOMAIN` for email-to-task. Without it the per-user address still generates but mail won't deliver. Pick a mail receiver provider (SES inbound, Postmark, Cloudflare Email Routing → Worker) and POST parsed mail to `/api/email-inbox/inbound`.
-- **Backlog:** see `docs/BACKLOG.md`. Tiers 1-2 shipped. Tier 3 mostly shipped (mobile polish, CSV export, bulk API, focus blocks, AI prep, email-to-task skeleton). Still deferred: travel chips (gated on `GOOGLE_MAPS_API_KEY`), Slack/Teams/Discord deepening, Stripe Connect, OAuth app registry. Tier 4 is the Cagan/Inspired set — charter-user recruitment + opportunity-assessment template (see `applicable_insights.md` for ~130 reading-derived actions across all 13 books).
-- **Project card on tevan.co/tools/projects:** ID `de34950e-533a-45da-a254-befd4e154e5f`. Status updates POST to `http://127.0.0.1:3010/tools/api/projects/<id>/status-claude`.
+- **`GOOGLE_MAPS_API_KEY`** is set, so `/api/travel-time` returns real durations.
+- **`INBOX_DOMAIN`** is set, so email-to-task addresses generate.
+
+**Backlog:** see `docs/BACKLOG.md`. Tiers 1-2 shipped. Tier 3 mostly shipped (mobile polish, CSV export, bulk API, focus blocks, AI prep, email-to-task skeleton). Still deferred: travel chips (gated on `GOOGLE_MAPS_API_KEY` — now set, so just needs UI surfacing), Slack/Teams/Discord deepening, Stripe Connect, OAuth app registry. Tier 4 is the Cagan/Inspired set — charter-user recruitment + opportunity-assessment template (see `applicable_insights.md` for ~130 reading-derived actions across all 13 books).
+
+**Project card on tevan.co/tools/projects:** ID `de34950e-533a-45da-a254-befd4e154e5f`. Status updates POST to `http://127.0.0.1:3010/tools/api/projects/<id>/status-claude`.
