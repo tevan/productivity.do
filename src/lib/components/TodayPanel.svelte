@@ -26,6 +26,7 @@
   import { confirmAction } from '../utils/confirmModal.svelte.js';
   import { getSynthesis, refreshToday, clearObservation, refreshLedger } from '../stores/synthesis.svelte.js';
   import { getPrefs, updatePrefs } from '../stores/prefs.svelte.js';
+  import VoiceCapture from './VoiceCapture.svelte';
 
   let { onclose = () => {} } = $props();
 
@@ -297,11 +298,14 @@
       <button class:active={activeSection === 'ledger'} onclick={() => scrollTo('ledger')}>Ledger</button>
       <button class:active={activeSection === 'patterns'} onclick={() => scrollTo('patterns')}>Patterns</button>
     </nav>
-    <button class="close" onclick={requestClose} aria-label="Close">
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-        <path d="M2.5 2.5l9 9M11.5 2.5l-9 9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-      </svg>
-    </button>
+    <div class="head-actions">
+      <VoiceCapture mode="capture" label="Voice capture" />
+      <button class="close" onclick={requestClose} aria-label="Close">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+          <path d="M2.5 2.5l9 9M11.5 2.5l-9 9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
   </header>
 
   {#snippet taskRow(t)}
@@ -655,6 +659,11 @@
   .jumps {
     display: flex;
     gap: 22px;
+  }
+  .head-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
   }
   .jumps button {
     background: none;

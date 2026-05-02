@@ -234,6 +234,50 @@ router.get('/api/weekly-review', async (req, res) => {
       pushedRepeatedly = pushedRepeatedly.slice(0, 8);
     }
 
+    // ---- Projects with intent that didn't progress this week ----
+    // Cross-reference projects that have a stated intent_line with the
+    // set of projects that saw any completion this week. The point isn't
+    // "you're behind" — it's "you took the time to write down what done
+    // looks like for this; it might be worth a check-in."
+    const intentRows = q(`
+      SELECT pm.project_id, pm.intent_line, pm.due_date
+        FROM project_meta pm
+       WHERE pm.user_id = ? AND pm.intent_line IS NOT NULL AND pm.intent_line != ''
+    `).all(userId);
+    const projectsWithIntent = intentRows.map(r => ({
+      projectId: r.project_id,
+      intentLine: r.intent_line,
+      dueDate: r.due_date,
+    }));
+    // Which of those projects saw a completion in [weekStartUtc, weekEndUtc)?
+    const progressedSet = new Set();
+    if (projectsWithIntent.length) {
+      const ids = projectsWithIntent.map(p => p.projectId);
+      const placeholders = ids.map(() => '?').join(',');
+      const rows = q(`
+        SELECT DISTINCT project_id FROM tasks_cache
+         WHERE user_id = ? AND project_id IN (${placeholders})
+           AND is_completed = 1
+           AND completed_at >= ? AND completed_at < ?
+      `).all(userId, ...ids, weekStartUtc.toISOString(), weekEndUtc.toISOString());
+      for (const r of rows) progressedSet.add(r.project_id);
+    }
+    // Hydrate project names from tasks_cache (cheaper than another Todoist call).
+    const stagnantProjects = [];
+    for (const p of projectsWithIntent) {
+      if (progressedSet.has(p.projectId)) continue;
+      const nameRow = q(`
+        SELECT project_name FROM tasks_cache
+         WHERE user_id = ? AND project_id = ? LIMIT 1
+      `).get(userId, p.projectId);
+      stagnantProjects.push({
+        projectId: p.projectId,
+        name: nameRow?.project_name || '(untitled)',
+        intentLine: p.intentLine,
+        dueDate: p.dueDate,
+      });
+    }
+
     // ---- Headlines: the synthesis ----
     const headlines = composeHeadlines({
       completedCount: completedThisWeek.length,
@@ -244,6 +288,8 @@ router.get('/api/weekly-review', async (req, res) => {
       baselineMeetingHours,
       staleCount: stale.length,
       pushedCount: pushedRepeatedly.length,
+      stagnantProjects,
+      intentProjectsTotal: projectsWithIntent.length,
     });
 
     res.json({
@@ -261,6 +307,8 @@ router.get('/api/weekly-review', async (req, res) => {
       meetings: { hours: meetingHours, baselineHours: baselineMeetingHours },
       stale,
       pushedRepeatedly,
+      stagnantProjects,
+      intentProjectsTotal: projectsWithIntent.length,
       headlines,
     });
   } catch (err) {
@@ -285,6 +333,8 @@ function composeHeadlines({
   avgAgeAtCompletionDays, baselineAvgAgeAtCompletionDays,
   meetingHours, baselineMeetingHours,
   staleCount, pushedCount,
+  stagnantProjects = [],
+  intentProjectsTotal = 0,
 }) {
   const out = [];
 
@@ -367,6 +417,27 @@ function composeHeadlines({
       tone: pushedCount >= 3 ? 'concern' : 'neutral',
       text: `${pushedCount} task${pushedCount === 1 ? ' has' : 's have'} been pushed forward 3+ times this month. They're not happening — decide.`,
       action: { kind: 'view', target: 'pushed' },
+    });
+  }
+
+  // Projects with a stated intent that didn't progress this week. We
+  // surface this only when the user has at least one intent line set
+  // (signal of buy-in) and at least one of those projects had no
+  // completions. The framing is non-judgmental: you wrote down what
+  // done looks like — quick gut check.
+  if (intentProjectsTotal > 0 && stagnantProjects.length > 0) {
+    const n = stagnantProjects.length;
+    const total = intentProjectsTotal;
+    const sample = stagnantProjects.slice(0, 2).map(p => `"${p.name}"`).join(' and ');
+    const ofTotal = total > n ? ` of your ${total} stated-intent projects` : '';
+    const tail = n === 1 ? sample : (n === 2 ? sample : `${sample} and ${n - 2} more`);
+    out.push({
+      id: 'project_intent_stagnant',
+      tone: 'neutral',
+      text: `${n} project${n === 1 ? '' : 's'}${ofTotal} didn't move this week — ${tail}. Worth a check-in?`,
+      action: stagnantProjects.length === 1
+        ? { kind: 'navigate', payload: { route: `/projects/${stagnantProjects[0].projectId}` } }
+        : null,
     });
   }
 

@@ -92,32 +92,42 @@ respecting projects, no fancy editing UI.
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| A1 | `project_meta` table + applyMigrations | ⏳ Pending | One CREATE TABLE in `backend/db/init.js` |
-| A2 | `GET /api/project-meta` (all rows for user) | ⏳ Pending | Used by ranker + project page |
-| A3 | `PUT /api/project-meta/:projectId` (upsert) | ⏳ Pending | Body: `{dueDate?, intentLine?, rhythm?, pinned?}` |
-| A4 | Momentum derivation in `backend/lib/projects.js` | ⏳ Pending | `getProjectMomentum(userId)` returns Map<projectId, 'moving'\|'stalled'\|'idle'> |
-| A5 | `backend/lib/ranker.js` pure function | ⏳ Pending | Default + pinned modes; takes tasks, projectMeta, momentum, freeMinutes; returns scored tasks |
-| A6 | Wire ranker into `/api/today` | ⏳ Pending | Ranked list replaces current overdue-then-priority sort; payload now `{tasks, ranked: true, mode: 'default'\|'pinned'}` |
-| A7 | New SPA route `/projects/:id` (lazy) | ⏳ Pending | routeStore + App.svelte branch + bypass-auth + index.html serve |
-| A8 | `ProjectPage.svelte` — minimal | ⏳ Pending | Hero (name, momentum dot, due countdown, intent line — read-only first), tasks list, linked events list, linked notes list |
-| A9 | `GET /api/projects/:id/context` | ⏳ Pending | Mirrors `/api/notes/:id/context` shape — tasks + linked events + linked notes + Time Ledger slice (if calendar matched by name) + momentum |
-| A10 | Sidebar project entries → project page link | ⏳ Pending | Click name navigates to `/projects/:id`; existing filter behavior moves to a small filter icon next to the name |
+| A1 | `project_meta` table + applyMigrations | ✅ Done | One CREATE TABLE in `backend/db/init.js` |
+| A2 | `GET /api/project-meta` (all rows for user) | ✅ Done | Used by ranker + project page |
+| A3 | `PUT /api/project-meta/:projectId` (upsert) | ✅ Done | Body: `{dueDate?, intentLine?, rhythm?, pinned?}` — pin cap 3 enforced |
+| A4 | Momentum derivation in `backend/lib/projects.js` | ✅ Done | `getProjectMomentum(userId)` returns Map<projectId, …> |
+| A5 | `backend/lib/ranker.js` pure function | ✅ Done | Default + pinned modes; per-task scoreReasons surfaced |
+| A6 | Wire ranker into `/api/today` | ✅ Done | `ranked[]` alongside `tasks[]`; rankerMode + pinnedProjectIds in response |
+| A7 | New SPA route `/projects/:id` (lazy) | ✅ Done | routeStore + App.svelte branch + server.js bypass |
+| A8 | `ProjectPage.svelte` — minimal | ✅ Done | Includes inline edits for intent + due date + rhythm |
+| A9 | `GET /api/projects/:id/context` | ✅ Done | tasks + linked events + linked notes + timeSpent + momentum |
+| A10 | Sidebar project entries → project page link | ✅ Done | chevron opens page; right-click menu for Pin/Open page |
 
 ### Tier B — polish + decision-surface integration (3-4 days)
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| B1 | Pin/unpin UI in sidebar (right-click) | ⏳ Pending | Cap 3 pinned at a time |
-| B2 | Pinned-mode badge on TodayPanel | ⏳ Pending | Small pill showing pinned project count + "showing only pinned" |
-| B3 | Inline intent-line editor on ProjectPage | ⏳ Pending | Click-to-edit, autosave |
-| B4 | Inline due-date editor on ProjectPage | ⏳ Pending | Calendar picker + clear |
-| B5 | Rhythm UI on ProjectPage | ⏳ Pending | Mirrors FocusBlocksEditor shape; per-weekday windows |
-| B6 | Due-date countdown style (color-shifts as it nears) | ⏳ Pending | Green > 14 days, amber > 3, red ≤ 3, overdue red |
-| B7 | Weekly review references intent line | ⏳ Pending | "3 of your 4 active projects haven't progressed toward their stated outcome this week." |
+| B1 | Pin/unpin UI in sidebar (right-click) | ✅ Done | Cap 3 pinned enforced server-side |
+| B2 | Pinned-mode badge on TodayPanel | ✅ Done | Inline 'focus'/'show all' toggle next to Today meta |
+| B3 | Inline intent-line editor on ProjectPage | ✅ Done | Click-to-edit, Enter to commit, Esc to cancel |
+| B4 | Inline due-date editor on ProjectPage | ✅ Done | Native date picker + clear button |
+| B5 | Rhythm UI on ProjectPage | ✅ Done | Per-weekday windows; ranker honors them in `isInRhythm` |
+| B6 | Due-date countdown style (color-shifts as it nears) | ✅ Done | Green > 14d, amber > 3d, red ≤ 3d, overdue red |
+| B7 | Weekly review references intent line | ✅ Done | New stagnantProjects payload + project_intent_stagnant headline |
 
 ### Tier C — voice (3-5 days, independent)
 
-Documented separately in the strategy doc. Not blocked on Tier A or B.
+Two surfaces from the strategy doc's voice section:
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| C1 | `/api/voice/transcribe` route — Whisper passthrough | ✅ Done | Multipart in, plain text out. 25MB cap. 503 if OPENAI_API_KEY missing. |
+| C2 | `/api/voice/route` — capture router | ✅ Done | Claude Haiku classifier (task/event/note/comment/unsure) + structured fields. JSON-only response, tolerant parsing. |
+| C3 | Voice button on TodayPanel | ✅ Done | VoiceCapture component in head-actions; preview modal lets user confirm before creating |
+| C4 | Voice capture button on the main toolbar | ✅ Done | Same VoiceCapture component, mounted next to search button |
+| C5 | MCP tool surface expansion | ⏳ Pending | Optional follow-up; the existing MCP already covers tasks/events/today via the MCP server route. |
+
+Build order: C1 first (substrate). C3 + C4 in parallel. C2 wraps C4. C5 is independent and can ship anytime.
 
 ## Anti-patterns to watch for as we build
 
