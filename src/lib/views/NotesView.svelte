@@ -169,7 +169,16 @@
               {selected.title || 'Untitled'}
             </h2>
           {/if}
-          <button class="btn-ghost" onclick={() => app?.editNote?.(selected)} title="Color, pin, delete…">More</button>
+          <!-- Was a labeled "More" button — replaced with a small ⋯ icon
+               so it doesn't compete with the title. Color/pin/archive/
+               delete still live in the NoteEditor modal that opens here.
+               If we add a right-click context menu later, this button
+               can drop entirely. -->
+          <button class="more-btn" onclick={() => app?.editNote?.(selected)} aria-label="More actions" title="Color, pin, archive, delete…">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <circle cx="3" cy="8" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="13" cy="8" r="1.4"/>
+            </svg>
+          </button>
         </div>
         {#if editingBody}
           <textarea
@@ -261,6 +270,15 @@
     cursor: pointer;
   }
   .btn-ghost:hover { color: var(--text-primary); border-color: var(--accent); }
+  .more-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px;
+    background: transparent; border: 1px solid transparent;
+    border-radius: 50%;
+    color: var(--text-tertiary);
+    cursor: pointer; flex-shrink: 0;
+  }
+  .more-btn:hover { color: var(--text-primary); background: var(--surface-hover); }
 
   .empty {
     flex: 1;
@@ -279,6 +297,11 @@
     padding: 24px 32px 32px;
     min-width: 0;
   }
+  /* Cap reading width like Notion / Bear / Apple Notes — text wider than
+     ~70 characters becomes hard to scan. Inner wrapper centers the
+     content; the .reader itself still spans the full pane so its
+     scroll area covers the whole right side. */
+  .reader > * { max-width: 760px; margin-left: auto; margin-right: auto; }
   .reader-head {
     display: flex;
     justify-content: space-between;

@@ -6,6 +6,7 @@
 import { Router } from 'express';
 import { getDb } from '../db/init.js';
 import { softDelete, purge } from '../lib/trash.js';
+import { recordRevision } from '../lib/revisions.js';
 
 const router = Router();
 
@@ -71,7 +72,9 @@ router.post('/api/notes', (req, res) => {
     VALUES (?, ?, ?, ?, ?)
   `).run(req.user.id, title, body, pinned ? 1 : 0, sanitizeColor(color));
   const row = getDb().prepare('SELECT * FROM notes WHERE id = ?').get(result.lastInsertRowid);
-  res.json({ ok: true, note: toNote(row) });
+  const note = toNote(row);
+  recordRevision({ userId: req.user.id, resource: 'notes', resourceId: note.id, op: 'create', before: null, after: note });
+  res.json({ ok: true, note });
 });
 
 router.put('/api/notes/:id', (req, res) => {
@@ -91,24 +94,87 @@ router.put('/api/notes/:id', (req, res) => {
   };
   if (merged.title.length > MAX_TITLE) return res.status(400).json({ ok: false, error: 'title too long' });
   if (merged.body.length > MAX_BODY) return res.status(400).json({ ok: false, error: 'body too long' });
+  const before = toNote(existing);
   db.prepare(`
     UPDATE notes
     SET title = ?, body = ?, pinned = ?, color = ?, archived_at = ?, updated_at = datetime('now')
     WHERE id = ? AND user_id = ?
   `).run(merged.title, merged.body, merged.pinned, merged.color, merged.archived_at, req.params.id, req.user.id);
   const row = db.prepare('SELECT * FROM notes WHERE id = ?').get(req.params.id);
-  res.json({ ok: true, note: toNote(row) });
+  const after = toNote(row);
+  recordRevision({ userId: req.user.id, resource: 'notes', resourceId: req.params.id, op: 'update', before, after });
+  res.json({ ok: true, note: after });
 });
 
 router.delete('/api/notes/:id', (req, res) => {
   // Soft-delete by default (30-day recovery window). Pass ?permanent=1 to
   // hard-delete immediately — used by Settings → Trash → "Delete forever".
+  const db = getDb();
+  const existing = db.prepare('SELECT * FROM notes WHERE id = ? AND user_id = ?')
+    .get(req.params.id, req.user.id);
+  const before = existing ? toNote(existing) : null;
   const permanent = req.query.permanent === '1' || req.query.permanent === 'true';
   const ok = permanent
-    ? purge(getDb(), 'notes', req.params.id, req.user.id)
-    : softDelete(getDb(), 'notes', req.params.id, req.user.id);
+    ? purge(db, 'notes', req.params.id, req.user.id)
+    : softDelete(db, 'notes', req.params.id, req.user.id);
   if (!ok) return res.status(404).json({ ok: false, error: 'Not found' });
+  recordRevision({
+    userId: req.user.id, resource: 'notes', resourceId: req.params.id,
+    op: permanent ? 'delete' : 'soft_delete',
+    before, after: null,
+  });
   res.json({ ok: true });
+});
+
+// ---- Revision history ----------------------------------------------------
+import { listRevisions } from '../lib/revisions.js';
+
+router.get('/api/notes/:id/revisions', (req, res) => {
+  // Caller must own the note (or it must currently be in their trash —
+  // restoring from a revision is a valid recovery flow even after the
+  // note was soft-deleted, as long as the row still exists).
+  const owner = getDb().prepare('SELECT user_id FROM notes WHERE id = ?').get(req.params.id);
+  if (!owner || owner.user_id !== req.user.id) {
+    return res.status(404).json({ ok: false, error: 'Not found' });
+  }
+  const revisions = listRevisions({
+    userId: req.user.id, resource: 'notes', resourceId: req.params.id,
+  });
+  res.json({ ok: true, revisions });
+});
+
+// Restore the note's body+title+color+pinned to the snapshot in
+// revision :revId. Records a new 'restore' revision so the user can
+// scroll forward again if they change their mind.
+router.post('/api/notes/:id/revisions/:revId/restore', (req, res) => {
+  const db = getDb();
+  const note = db.prepare('SELECT * FROM notes WHERE id = ? AND user_id = ?')
+    .get(req.params.id, req.user.id);
+  if (!note) return res.status(404).json({ ok: false, error: 'Not found' });
+  const rev = db.prepare(`
+    SELECT after_json FROM revisions WHERE id = ? AND user_id = ? AND resource = 'notes' AND resource_id = ?
+  `).get(req.params.revId, req.user.id, req.params.id);
+  if (!rev || !rev.after_json) return res.status(404).json({ ok: false, error: 'Revision not found' });
+  let snap;
+  try { snap = JSON.parse(rev.after_json); } catch { return res.status(500).json({ ok: false, error: 'Bad revision' }); }
+  const before = toNote(note);
+  db.prepare(`
+    UPDATE notes SET title = ?, body = ?, pinned = ?, color = ?, updated_at = datetime('now')
+     WHERE id = ? AND user_id = ?
+  `).run(
+    snap.title ?? note.title,
+    snap.body ?? note.body,
+    snap.pinned ? 1 : 0,
+    sanitizeColor(snap.color),
+    req.params.id, req.user.id,
+  );
+  const row = db.prepare('SELECT * FROM notes WHERE id = ?').get(req.params.id);
+  const after = toNote(row);
+  recordRevision({
+    userId: req.user.id, resource: 'notes', resourceId: req.params.id,
+    op: 'restore', before, after,
+  });
+  res.json({ ok: true, note: after });
 });
 
 export default router;

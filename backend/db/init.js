@@ -373,6 +373,45 @@ function applyMigrations(database) {
     CREATE INDEX IF NOT EXISTS idx_operations_kind ON operations(kind, done);
   `);
 
+  // ---- Revision history (added 2026-05-02) ----
+  // Per-resource, per-mutation snapshot. `before_json` is what the row
+  // looked like BEFORE the change; `after_json` what it looks like
+  // AFTER. The viewer shows a list of timestamps; clicking one lets the
+  // user restore that snapshot (which is itself a write that creates a
+  // new revision). Currently wired for `notes` and `tasks` (the latter
+  // are productivity.do-side; Todoist owns the upstream task and we
+  // mirror the local fields). Adding a new resource = one INSERT call
+  // in the relevant write handler.
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS revisions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      resource TEXT NOT NULL,
+      resource_id TEXT NOT NULL,
+      op TEXT NOT NULL,
+      before_json TEXT,
+      after_json TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_revisions_resource
+      ON revisions(user_id, resource, resource_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_revisions_age
+      ON revisions(created_at);
+  `);
+
+  // ---- API key audit + rotation (added 2026-05-02) ----
+  // Designing Web APIs Ch 3 §Listing and Revoking Authorizations.
+  // last_used_ip / last_used_user_agent let users tell which app or
+  // server hit their key recently, so they can confidently revoke a
+  // stale one. rotated_at marks when the secret was rotated; legacy
+  // secrets remain valid for ROTATION_OVERLAP_DAYS (7 in apiKeys.js)
+  // before they hard-fail. predecessor_id chains rotated keys so the
+  // grace-window check can find the old secret hash.
+  ensureColumn(database, 'api_keys', 'last_used_ip',         'TEXT');
+  ensureColumn(database, 'api_keys', 'last_used_user_agent', 'TEXT');
+  ensureColumn(database, 'api_keys', 'rotated_at',           'TEXT');
+  ensureColumn(database, 'api_keys', 'predecessor_id',       'TEXT');
+
   database.exec(`
     CREATE TABLE IF NOT EXISTS booking_page_views (
       page_id TEXT NOT NULL,

@@ -9,6 +9,8 @@ import {
   listApiKeys,
   revokeApiKey,
   deleteApiKey,
+  rotateApiKey,
+  ROTATION_GRACE_DAYS,
   SCOPES,
 } from '../lib/apiKeys.js';
 import {
@@ -49,6 +51,20 @@ router.post('/api/api-keys', (req, res) => {
 router.post('/api/api-keys/:id/revoke', (req, res) => {
   revokeApiKey(req.params.id, req.user.id);
   res.json({ ok: true });
+});
+
+// Rotate the secret on an existing key. Designing Web APIs Ch 3:
+// rotation primitive = security-sensitive enterprise prerequisite. The
+// OLD key keeps working for ROTATION_GRACE_DAYS (7) so the user can
+// redeploy without downtime; the daily sweeper revokes it after.
+router.post('/api/api-keys/:id/rotate', (req, res) => {
+  try {
+    const fresh = rotateApiKey(req.params.id, req.user.id);
+    if (!fresh) return res.status(404).json({ ok: false, error: 'Not found' });
+    res.json({ ok: true, key: fresh, graceDays: ROTATION_GRACE_DAYS });
+  } catch (err) {
+    res.status(400).json({ ok: false, error: err.message });
+  }
 });
 
 router.delete('/api/api-keys/:id', (req, res) => {

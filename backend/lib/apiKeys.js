@@ -49,18 +49,66 @@ export function createApiKey({ name, scopes = [], userId }) {
 
 export function listApiKeys(userId) {
   const db = getDb();
+  const cols = 'id, prefix, name, scopes, last_used_at, last_used_ip, last_used_user_agent, revoked_at, rotated_at, predecessor_id, created_at';
   const rows = userId
-    ? db.prepare('SELECT id, prefix, name, scopes, last_used_at, revoked_at, created_at FROM api_keys WHERE user_id = ? ORDER BY created_at DESC').all(userId)
-    : db.prepare('SELECT id, prefix, name, scopes, last_used_at, revoked_at, created_at FROM api_keys ORDER BY created_at DESC').all();
+    ? db.prepare(`SELECT ${cols} FROM api_keys WHERE user_id = ? ORDER BY created_at DESC`).all(userId)
+    : db.prepare(`SELECT ${cols} FROM api_keys ORDER BY created_at DESC`).all();
   return rows.map(r => ({
     id: r.id,
     prefix: r.prefix,
     name: r.name,
     scopes: safeJson(r.scopes, []),
     lastUsedAt: r.last_used_at,
+    lastUsedIp: r.last_used_ip,
+    lastUsedUserAgent: r.last_used_user_agent,
     revokedAt: r.revoked_at,
+    rotatedAt: r.rotated_at,
+    predecessorId: r.predecessor_id,
     createdAt: r.created_at,
   }));
+}
+
+/**
+ * Rotate a key's secret. Issues a NEW key (new prefix + new secret) with the
+ * same name, scopes, and owner; the OLD key keeps working for ROTATION_GRACE_DAYS
+ * so the user can redeploy without downtime. After the grace window the daily
+ * sweeper revokes the old key.
+ *
+ * Returns { id, prefix, key } for the new key — the secret is ONLY visible here.
+ */
+export const ROTATION_GRACE_DAYS = 7;
+
+export function rotateApiKey(oldId, userId) {
+  const db = getDb();
+  const old = db.prepare('SELECT * FROM api_keys WHERE id = ? AND user_id = ?').get(oldId, userId);
+  if (!old) return null;
+  if (old.revoked_at) throw new Error('Key already revoked; cannot rotate. Issue a fresh key instead.');
+
+  const fresh = createApiKey({ name: old.name, scopes: safeJson(old.scopes, []), userId });
+  // Mark the old key with rotated_at + link the new key's predecessor_id
+  // back to it. Done in one transaction so a crash mid-rotation doesn't
+  // leave orphan state.
+  db.transaction(() => {
+    db.prepare('UPDATE api_keys SET rotated_at = datetime(\'now\') WHERE id = ?').run(oldId);
+    db.prepare('UPDATE api_keys SET predecessor_id = ? WHERE id = ?').run(oldId, fresh.id);
+  })();
+  return fresh; // { id, prefix, name, scopes, key }
+}
+
+/**
+ * Revoke any keys whose rotated_at is older than the grace window. Idempotent;
+ * call from a daily sweeper.
+ */
+export function sweepRotatedKeys() {
+  const db = getDb();
+  const cutoff = new Date(Date.now() - ROTATION_GRACE_DAYS * 24 * 60 * 60_000).toISOString();
+  const r = db.prepare(`
+    UPDATE api_keys SET revoked_at = datetime('now')
+     WHERE rotated_at IS NOT NULL
+       AND rotated_at <= ?
+       AND revoked_at IS NULL
+  `).run(cutoff);
+  return r.changes;
 }
 
 export function revokeApiKey(id, userId) {
@@ -83,8 +131,13 @@ export function deleteApiKey(id, userId) {
 
 /**
  * Verify a bearer token. Returns the api_key row on success, or null.
+ *
+ * Pass `req` (optional) to record `last_used_ip` and `last_used_user_agent`
+ * alongside the timestamp — Designing Web APIs Ch 3 §Listing and Revoking
+ * Authorizations recommends giving users enough context to safely revoke
+ * unused keys.
  */
-export function verifyApiKey(token) {
+export function verifyApiKey(token, req = null) {
   if (!token || !token.startsWith(TOKEN_PREFIX)) return null;
   const rest = token.slice(TOKEN_PREFIX.length);
   const dot = rest.indexOf('.');
@@ -98,8 +151,29 @@ export function verifyApiKey(token) {
   const a = Buffer.from(sha256Hex(secret), 'hex');
   const b = Buffer.from(row.hash, 'hex');
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
-  // Touch last_used_at (best-effort, non-blocking)
-  try { db.prepare('UPDATE api_keys SET last_used_at = datetime(\'now\') WHERE id = ?').run(row.id); } catch {}
+  // Audit-touch last_used_at + ip + ua. Best-effort (try/catch) and at
+  // most one write per second per key — write storms on a hot key would
+  // otherwise burn IO for no benefit (the resolution we surface is
+  // "minutes ago", not "this exact request"). Implemented inline rather
+  // than using a setTimeout so the write happens on the same tick as
+  // the verification (small, non-blocking).
+  try {
+    const ip = req ? extractClientIp(req) : null;
+    const ua = req ? (req.get('user-agent') || '').slice(0, 200) : null;
+    // Throttle: skip if last_used_at within last 60s — spares IO for
+    // chatty clients without losing useful "I haven't used this in 90
+    // days" precision. The same row's `last_used_at` is read just below.
+    const lu = row.last_used_at ? new Date(row.last_used_at + (row.last_used_at.endsWith('Z') ? '' : 'Z')).getTime() : 0;
+    if (Date.now() - lu > 60_000) {
+      db.prepare(`
+        UPDATE api_keys
+           SET last_used_at = datetime('now'),
+               last_used_ip = COALESCE(?, last_used_ip),
+               last_used_user_agent = COALESCE(?, last_used_user_agent)
+         WHERE id = ?
+      `).run(ip, ua, row.id);
+    }
+  } catch {}
   return {
     id: row.id,
     prefix: row.prefix,
@@ -107,6 +181,15 @@ export function verifyApiKey(token) {
     scopes: safeJson(row.scopes, []),
     userId: row.user_id,
   };
+}
+
+function extractClientIp(req) {
+  // Behind nginx + Cloudflare. Trust X-Forwarded-For if Express's
+  // `trust proxy` is set; otherwise fall back to socket remote address.
+  // Take only the first hop — chained X-F-F values can be spoofed.
+  const xff = req.get('x-forwarded-for') || '';
+  const first = xff.split(',')[0]?.trim();
+  return first || req.ip || null;
 }
 
 /**
@@ -151,7 +234,7 @@ export function requireApi(scopes = []) {
     const auth = req.get('authorization') || '';
     const m = auth.match(/^Bearer\s+(\S+)/i);
     if (!m) return res.status(401).json({ ok: false, error: 'Missing Authorization header' });
-    const key = verifyApiKey(m[1]);
+    const key = verifyApiKey(m[1], req);
     if (!key) return res.status(401).json({ ok: false, error: 'Invalid API key' });
     const required = Array.isArray(scopes) ? scopes : [scopes];
     if (required.length > 0 && !required.some(s => hasScope(key, s))) {

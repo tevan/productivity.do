@@ -4,6 +4,7 @@ import * as todoist from '../lib/todoist.js';
 import { autoScheduleTask, DEFAULT_WORK_HOURS, expandFocusBlocks } from '../lib/autoSchedule.js';
 import * as google from '../lib/google.js';
 import { emitEvent } from '../lib/webhooks.js';
+import { recordRevision, listRevisions } from '../lib/revisions.js';
 
 // Per-user Todoist token lives on users.todoist_token; falls back to env for
 // backward compat with the original single-tenant deploy.
@@ -238,6 +239,28 @@ router.put('/api/tasks/:id', async (req, res) => {
       estimatedMinutes, localStatus, localPosition,
     } = req.body;
 
+    // Snapshot the pre-update task for revision history. We pull from the
+    // local cache (fast; doesn't double the Todoist round-trips). If the
+    // cache row is missing (race after a fresh sync), we skip the
+    // before-snapshot — the next update will record one. Recording is
+    // best-effort; never blocks the user's edit.
+    let _revBefore = null;
+    try {
+      const cached = q(
+        'SELECT * FROM tasks_cache WHERE user_id = ? AND todoist_id = ?'
+      ).get(req.user.id, id);
+      if (cached) {
+        _revBefore = {
+          content: cached.content,
+          priority: cached.priority,
+          dueDate: cached.due_date || null,
+          dueDatetime: cached.due_datetime || null,
+          estimatedMinutes: cached.estimated_minutes || null,
+          localStatus: cached.local_status || null,
+        };
+      }
+    } catch {}
+
     // estimated_minutes lives only locally — persist directly without hitting Todoist.
     if (estimatedMinutes !== undefined) {
       const v = Number(estimatedMinutes);
@@ -298,27 +321,45 @@ router.put('/api/tasks/:id', async (req, res) => {
       'SELECT estimated_minutes, local_status, local_position FROM tasks_cache WHERE user_id = ? AND todoist_id = ?'
     ).get(req.user.id, id);
 
-    res.json({
-      ok: true,
-      task: task ? {
-        id: task.id,
-        content: task.content,
-        description: task.description,
-        projectId: task.project_id,
-        priority: task.priority,
-        dueDate: task.due?.date || null,
-        dueDatetime: task.due?.datetime || null,
-        labels: task.labels || [],
-        estimatedMinutes: local?.estimated_minutes || null,
-        localStatus: local?.local_status || null,
-        localPosition: local?.local_position ?? null,
-      } : {
-        id,
-        estimatedMinutes: local?.estimated_minutes || null,
-        localStatus: local?.local_status || null,
-        localPosition: local?.local_position ?? null,
-      },
-    });
+    const responseTask = task ? {
+      id: task.id,
+      content: task.content,
+      description: task.description,
+      projectId: task.project_id,
+      priority: task.priority,
+      dueDate: task.due?.date || null,
+      dueDatetime: task.due?.datetime || null,
+      labels: task.labels || [],
+      estimatedMinutes: local?.estimated_minutes || null,
+      localStatus: local?.local_status || null,
+      localPosition: local?.local_position ?? null,
+    } : {
+      id,
+      estimatedMinutes: local?.estimated_minutes || null,
+      localStatus: local?.local_status || null,
+      localPosition: local?.local_position ?? null,
+    };
+
+    // Record the revision after the write. Snapshot is the projection
+    // we just sent to the client so 'restore' can replay it verbatim.
+    if (_revBefore) {
+      try {
+        recordRevision({
+          userId: req.user.id, resource: 'tasks', resourceId: id, op: 'update',
+          before: _revBefore,
+          after: {
+            content: responseTask.content ?? _revBefore.content,
+            priority: responseTask.priority ?? _revBefore.priority,
+            dueDate: responseTask.dueDate ?? null,
+            dueDatetime: responseTask.dueDatetime ?? null,
+            estimatedMinutes: responseTask.estimatedMinutes,
+            localStatus: responseTask.localStatus,
+          },
+        });
+      } catch {}
+    }
+
+    res.json({ ok: true, task: responseTask });
   } catch (err) {
     console.error('PUT /api/tasks error:', err.message);
     res.status(500).json({ ok: false, error: err.message });
@@ -821,5 +862,55 @@ function safeJson(s) {
   if (typeof s !== 'string') return s;
   try { return JSON.parse(s); } catch { return s; }
 }
+
+// ---- Revision history ----------------------------------------------------
+router.get('/api/tasks/:id/revisions', (req, res) => {
+  const revisions = listRevisions({
+    userId: req.user.id, resource: 'tasks', resourceId: req.params.id,
+  });
+  res.json({ ok: true, revisions });
+});
+
+router.post('/api/tasks/:id/revisions/:revId/restore', async (req, res) => {
+  try {
+    const db = getDb();
+    const rev = db.prepare(`
+      SELECT after_json FROM revisions
+       WHERE id = ? AND user_id = ? AND resource = 'tasks' AND resource_id = ?
+    `).get(req.params.revId, req.user.id, req.params.id);
+    if (!rev || !rev.after_json) return res.status(404).json({ ok: false, error: 'Revision not found' });
+    let snap;
+    try { snap = JSON.parse(rev.after_json); } catch { return res.status(500).json({ ok: false, error: 'Bad revision' }); }
+
+    // Replay through the same Todoist update path so the upstream is
+    // reverted alongside the local cache.
+    const updates = {};
+    if (snap.content !== undefined) updates.content = snap.content;
+    if (snap.priority !== undefined) updates.priority = snap.priority;
+    if (snap.dueDatetime !== undefined && snap.dueDatetime !== null) updates.due_datetime = snap.dueDatetime;
+    else if (snap.dueDate !== undefined) updates.due_date = snap.dueDate;
+    let task = null;
+    if (Object.keys(updates).length > 0) {
+      task = await todoist.updateTask(req.params.id, updates, req.user.id);
+    }
+    if (snap.estimatedMinutes !== undefined) {
+      const v = Number(snap.estimatedMinutes);
+      q("UPDATE tasks_cache SET estimated_minutes = ?, updated_at = datetime('now') WHERE user_id = ? AND todoist_id = ?")
+        .run(Number.isFinite(v) && v > 0 ? Math.round(v) : null, req.user.id, req.params.id);
+    }
+    if (snap.localStatus !== undefined) {
+      q("UPDATE tasks_cache SET local_status = ?, updated_at = datetime('now') WHERE user_id = ? AND todoist_id = ?")
+        .run(snap.localStatus, req.user.id, req.params.id);
+    }
+
+    recordRevision({
+      userId: req.user.id, resource: 'tasks', resourceId: req.params.id,
+      op: 'restore', before: null, after: snap,
+    });
+    res.json({ ok: true, task });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
 
 export default router;

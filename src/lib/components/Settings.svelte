@@ -25,6 +25,7 @@
   import DeveloperTab from './DeveloperTab.svelte';
   import RoutingFormsTab from './RoutingFormsTab.svelte';
   import TrashTab from './TrashTab.svelte';
+  import ActivityTab from './ActivityTab.svelte';
   import { api } from '../api.js';
   import { tooltip } from '../actions/tooltip.js';
   import { fetchWeather } from '../stores/weather.svelte.js';
@@ -122,6 +123,7 @@
     { id: 'bookings',      label: 'Booking',       icon: 'link' },
     { id: 'notifications', label: 'Notifications', icon: 'bell' },
     { id: 'account',       label: 'Account',       icon: 'user' },
+    { id: 'activity',      label: 'Activity',      icon: 'clock' },
     { id: 'trash',         label: 'Trash',         icon: 'trash' },
     { id: 'help',          label: 'Help',          icon: 'help' },
   ];
@@ -267,6 +269,8 @@
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2l1.5 4.5H14l-3.75 2.75L11.75 14 8 11.25 4.25 14l1.5-4.75L2 6.5h4.5L8 2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
             {:else if tab.icon === 'trash'}
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2.5 4h11M5.5 4V2.5h5V4M4 4l.5 9.5h7L12 4M6.5 6.5v5M9.5 6.5v5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            {:else if tab.icon === 'clock'}
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.3"/><path d="M8 4v4l2.5 2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
             {/if}
           </span>
           <span class="nav-label">{tab.label}</span>
@@ -992,6 +996,11 @@
         <div class="settings-section">
           <h3>AI providers</h3>
           <AiTab />
+        </div>
+
+      {:else if activeTab === 'activity'}
+        <div class="settings-section">
+          <ActivityTab />
         </div>
 
       {:else if activeTab === 'trash'}

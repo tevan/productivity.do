@@ -8,6 +8,7 @@
 
 import { Router } from 'express';
 import express from 'express';
+import { getPlanCatalog } from '../lib/plans.js';
 import {
   createCheckoutSession,
   createPortalSession,
@@ -76,6 +77,16 @@ router.get('/api/billing/portal', async (req, res) => {
   } catch (err) {
     res.status(500).type('html').send(err.message);
   }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/plans — public plan catalog (label, price, marketingFeatures, limits).
+// Used by /pricing.html and the SPA's upgrade modal so feature copy can never
+// drift from server-side enforcement (Pragmatic Tip 37: DRY).
+// ---------------------------------------------------------------------------
+router.get('/api/plans', (_req, res) => {
+  res.set('Cache-Control', 'public, max-age=300'); // 5 min — copy isn't liturgical
+  res.json({ ok: true, plans: getPlanCatalog() });
 });
 
 // ---------------------------------------------------------------------------

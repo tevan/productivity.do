@@ -108,6 +108,24 @@
       }
     } finally { busy = false; }
   }
+  async function rotateKey(id) {
+    if (!await confirmAction({
+      title: 'Rotate API key?',
+      body: 'Issues a new secret. The old secret keeps working for 7 days so you can redeploy without downtime, then auto-revokes.',
+      confirmLabel: 'Rotate',
+    })) return;
+    busy = true;
+    try {
+      const res = await api(`/api/api-keys/${id}/rotate`, { method: 'POST' });
+      if (res?.ok && res.key?.key) {
+        // The fresh secret is only visible right now — surface it the
+        // same way createKey() does.
+        newKey = res.key;
+        await loadKeys();
+      }
+    } finally { busy = false; }
+  }
+
   async function revokeKey(id) {
     if (!await confirmAction({ title: 'Revoke API key?', body: 'It will stop working immediately. You can\'t undo this.', confirmLabel: 'Revoke', danger: true })) return;
     busy = true;
@@ -229,11 +247,24 @@
             <td>{k.name}</td>
             <td><code>pk_live_{k.prefix}…</code></td>
             <td><span class="scopes">{(k.scopes || []).join(', ')}</span></td>
-            <td>{fmtDate(k.lastUsedAt)}</td>
-            <td>{k.revokedAt ? 'Revoked' : 'Active'}</td>
+            <td title={k.lastUsedIp || k.lastUsedUserAgent ? `${k.lastUsedIp || '?'} · ${k.lastUsedUserAgent || ''}` : ''}>
+              {fmtDate(k.lastUsedAt)}
+            </td>
+            <td>
+              {#if k.revokedAt}
+                Revoked
+              {:else if k.rotatedAt}
+                Rotating (old)
+              {:else}
+                Active
+              {/if}
+            </td>
             <td class="row-actions">
-              {#if !k.revokedAt}
+              {#if !k.revokedAt && !k.rotatedAt}
+                <button class="ghost-btn" onclick={() => rotateKey(k.id)} disabled={busy}>Rotate</button>
                 <button class="ghost-btn" onclick={() => revokeKey(k.id)} disabled={busy}>Revoke</button>
+              {:else if !k.revokedAt}
+                <button class="ghost-btn" onclick={() => revokeKey(k.id)} disabled={busy}>Revoke now</button>
               {/if}
               <button class="ghost-btn danger" onclick={() => deleteKey(k.id)} disabled={busy}>Delete</button>
             </td>

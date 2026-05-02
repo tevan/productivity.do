@@ -1,0 +1,116 @@
+{
+  "_comment": "Single source of truth for plan→feature gates. Consumed by backend/lib/plans.js (server-side enforcement) and the marketing page (Soon: pricing.html should fetch /api/plans rather than hand-coding the list). Keep limits in sync with the pricing copy. Pragmatic Programmer Tip 37: keep all knowledge of a thing in one place.",
+  "plans": {
+    "free": {
+      "label": "Free",
+      "monthlyPrice": 0,
+      "annualPrice": 0,
+      "tagline": "For personal calendars and lightweight task tracking.",
+      "limits": {
+        "bookingPagesMax": 1,
+        "bookingsPerMonthMax": 50,
+        "apiKeysMax": 1,
+        "apiRateLimitPerMin": 60,
+        "webhookSubscriptionsMax": 1,
+        "apiWriteAccess": false,
+        "aiScheduling": false,
+        "customBranding": false,
+        "customDomains": false,
+        "roundRobin": false,
+        "multipleEventTypes": false,
+        "customQuestions": false,
+        "groupEvents": false,
+        "workflows": false,
+        "routingForms": false,
+        "singleUseInvites": false,
+        "timePolls": false,
+        "teamFeatures": false,
+        "stripePayments": false
+      },
+      "marketingFeatures": [
+        "Unlimited tasks (Todoist-backed)",
+        "Unlimited notes",
+        "Google Calendar sync (read + write)",
+        "1 booking page",
+        "50 bookings/month",
+        "Public developer API (read-only)",
+        "1 API key",
+        "60 requests/minute"
+      ]
+    },
+    "pro": {
+      "label": "Pro",
+      "monthlyPrice": 12,
+      "annualPrice": 120,
+      "tagline": "For solo professionals running real client schedules.",
+      "limits": {
+        "bookingPagesMax": null,
+        "bookingsPerMonthMax": null,
+        "apiKeysMax": 25,
+        "apiRateLimitPerMin": 120,
+        "webhookSubscriptionsMax": 25,
+        "apiWriteAccess": true,
+        "aiScheduling": true,
+        "customBranding": true,
+        "customDomains": false,
+        "roundRobin": false,
+        "multipleEventTypes": true,
+        "customQuestions": true,
+        "groupEvents": true,
+        "workflows": true,
+        "routingForms": true,
+        "singleUseInvites": true,
+        "timePolls": true,
+        "teamFeatures": false,
+        "stripePayments": true
+      },
+      "marketingFeatures": [
+        "Everything in Free, plus:",
+        "Unlimited booking pages + bookings",
+        "Multiple meeting types per page",
+        "Custom questions, workflows, branding",
+        "Routing forms, single-use invites, time polls",
+        "Stripe-paid bookings",
+        "AI meeting prep + auto-schedule",
+        "Public API write access",
+        "25 API keys, 120 req/min"
+      ]
+    },
+    "team": {
+      "label": "Team",
+      "monthlyPrice": 20,
+      "annualPrice": 200,
+      "tagline": "For small teams sharing booking pages and round-robin assignment.",
+      "perSeat": true,
+      "limits": {
+        "bookingPagesMax": null,
+        "bookingsPerMonthMax": null,
+        "apiKeysMax": 100,
+        "apiRateLimitPerMin": 600,
+        "webhookSubscriptionsMax": 100,
+        "apiWriteAccess": true,
+        "aiScheduling": true,
+        "customBranding": true,
+        "customDomains": true,
+        "roundRobin": true,
+        "multipleEventTypes": true,
+        "customQuestions": true,
+        "groupEvents": true,
+        "workflows": true,
+        "routingForms": true,
+        "singleUseInvites": true,
+        "timePolls": true,
+        "teamFeatures": true,
+        "stripePayments": true
+      },
+      "marketingFeatures": [
+        "Everything in Pro, plus:",
+        "Round-robin host assignment",
+        "Collective booking pages",
+        "Custom domains",
+        "Per-team analytics",
+        "100 API keys, 600 req/min"
+      ]
+    }
+  }
+}

@@ -1,78 +1,50 @@
 /**
  * Plan-based feature limits + helpers.
  *
- * Defined here once so they're consistent across the app, the marketing
- * page, and the API.
+ * Single source of truth: `backend/config/plans.json`. The marketing
+ * /pricing.html page should also pull from there (via /api/plans) so
+ * the price + feature copy never drifts from what the server enforces.
+ *
+ * Pragmatic Programmer Tip 37 (DRY) + Tip 38 (orthogonality): plan data
+ * is one concept; it lives in one file. Code that *acts* on plans (this
+ * module + the upgrade-modal hook in api.js) consumes it.
+ *
+ * `null` in plans.json's limits means "unlimited"; we materialize that
+ * to JS Infinity so downstream `count >= max` comparisons short-circuit.
  */
 
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import { getDb } from '../db/init.js';
 import { getUserById } from './users.js';
 
-export const PLAN_LIMITS = {
-  free: {
-    bookingPagesMax: 1,
-    bookingsPerMonthMax: 50,
-    apiKeysMax: 1,
-    apiRateLimitPerMin: 60,
-    webhookSubscriptionsMax: 1,
-    apiWriteAccess: false,
-    aiScheduling: false,
-    customBranding: false,
-    customDomains: false,
-    roundRobin: false,
-    multipleEventTypes: false,
-    customQuestions: false,
-    groupEvents: false,
-    workflows: false,
-    routingForms: false,
-    singleUseInvites: false,
-    timePolls: false,
-    teamFeatures: false,
-    stripePayments: false,
-  },
-  pro: {
-    bookingPagesMax: Infinity,
-    bookingsPerMonthMax: Infinity,
-    apiKeysMax: 25,
-    apiRateLimitPerMin: 120,
-    webhookSubscriptionsMax: 25,
-    apiWriteAccess: true,
-    aiScheduling: true,
-    customBranding: true,
-    customDomains: false,
-    roundRobin: false,
-    multipleEventTypes: true,
-    customQuestions: true,
-    groupEvents: true,
-    workflows: true,
-    routingForms: true,
-    singleUseInvites: true,
-    timePolls: true,
-    teamFeatures: false,
-    stripePayments: true,
-  },
-  team: {
-    bookingPagesMax: Infinity,
-    bookingsPerMonthMax: Infinity,
-    apiKeysMax: 100,
-    apiRateLimitPerMin: 600,
-    webhookSubscriptionsMax: 100,
-    apiWriteAccess: true,
-    aiScheduling: true,
-    customBranding: true,
-    customDomains: true,
-    roundRobin: true,
-    multipleEventTypes: true,
-    customQuestions: true,
-    groupEvents: true,
-    workflows: true,
-    routingForms: true,
-    singleUseInvites: true,
-    timePolls: true,
-    teamFeatures: true,
-    stripePayments: true,
-  },
-};
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+function loadConfig() {
+  const path = join(__dirname, '..', 'config', 'plans.json');
+  const raw = JSON.parse(readFileSync(path, 'utf8'));
+  // Materialize null → Infinity for numeric "unlimited" limits so the
+  // existing PLAN_LIMITS shape stays the same.
+  const out = {};
+  for (const [planId, plan] of Object.entries(raw.plans || {})) {
+    const limits = {};
+    for (const [k, v] of Object.entries(plan.limits || {})) {
+      limits[k] = v === null ? Infinity : v;
+    }
+    out[planId] = limits;
+  }
+  return { limits: out, raw };
+}
+
+const _config = loadConfig();
+export const PLAN_LIMITS = _config.limits;
+
+// Expose the raw plan metadata (label, prices, marketingFeatures) so
+// the marketing site / a /api/plans endpoint can serve it. Never
+// imports it back into JS — JSON is the contract.
+export function getPlanCatalog() { return _config.raw.plans; }
 
 /**
  * Get the user's effective plan (e.g. as a member of a team, inherit team's plan).

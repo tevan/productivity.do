@@ -44,6 +44,9 @@ import operationsRoutes from './routes/operations.js';
 import { startOperationsSweeper } from './lib/operations.js';
 import trashRoutes from './routes/trash.js';
 import { startTrashSweeper } from './lib/trash.js';
+import activityRoutes from './routes/activity.js';
+import { startRevisionsSweeper } from './lib/revisions.js';
+import { sweepRotatedKeys } from './lib/apiKeys.js';
 import { startWeeklyDigest } from './lib/digest.js';
 import { startRetryLoop } from './lib/webhooks.js';
 import { startCalendarSyncRetry } from './lib/calendarSyncRetry.js';
@@ -237,6 +240,9 @@ function requireAuth(req, res, next) {
     req.path === '/registerSW.js' ||
     req.path === '/api/v1/openapi.json' ||
     req.path === '/api/v1/ping' ||
+    // Plan catalog — read-only marketing/SaaS metadata; consumed by
+    // /pricing.html so the copy can't drift from server enforcement.
+    req.path === '/api/plans' ||
     req.path === '/help' ||
     req.path.startsWith('/help/') ||
     req.path === '/api/account/confirm-email' ||
@@ -298,6 +304,7 @@ app.use(notificationsRoutes);
 app.use(focusBlocksRoutes);
 app.use(operationsRoutes);
 app.use(trashRoutes);
+app.use(activityRoutes);
 app.use(notesRoutes);
 app.use(linksRoutes);
 app.use(inboxAdmin);
@@ -363,6 +370,11 @@ app.listen(PORT, '127.0.0.1', () => {
   startOperationsSweeper();
   // Daily sweep of expired soft-deleted rows past their 30-day window.
   startTrashSweeper(getDb);
+  // Revision history retention: 90 days, swept daily.
+  startRevisionsSweeper();
+  // Daily sweep of rotated API keys past the 7-day grace window.
+  setInterval(() => { try { sweepRotatedKeys(); } catch {} }, 24 * 60 * 60_000).unref?.();
+  try { sweepRotatedKeys(); } catch {}
   // Periodic refresh of inbound ICS subscription feeds.
   startSubscriptionRefresher();
   // Background sync of connected provider integrations.
