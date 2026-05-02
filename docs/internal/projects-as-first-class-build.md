@@ -2,7 +2,7 @@
 
 **Decision date:** 2026-05-02
 **Decided by:** owner conversation, captured in `docs/internal/productivity-surface-strategy.md`
-**Status:** in-progress (Tier A)
+**Status:** Tiers A + B + C all shipped, 2026-05-02 (afternoon)
 **Related strategy doc:** `productivity-surface-strategy.md` — section "On task project metadata as a priority signal"
 
 This document is the canonical build tracker for the projects-as-first-class
@@ -156,6 +156,39 @@ Build order: C1 first (substrate). C3 + C4 in parallel. C2 wraps C4. C5 is indep
 - **Native projects vs Todoist projects** — both supported via the
   `native:<int>` ID convention. Todoist projects always present (mirror);
   native projects only present when no Todoist token configured.
+
+## Final status — 2026-05-02
+
+**All three tiers shipped end-to-end.** Commit chain on `main`:
+
+- `c7cfbea` — Tier A substrate (schema, ranker, /api/today wiring, project page, sidebar)
+- `019c23c` — strategy doc + Time Ledger filter (separate work)
+- `6c8a80d` — Tier B (intent + due-date + rhythm editors), Tier C voice, weekly-review B7
+- `f74cfae` — Tier C5 MCP expansion, weekly-review string fix
+
+What works without setup:
+- Project page at `/projects/:id` — momentum dot, due-date countdown, intent
+  line, rhythm editor, pin button, tasks list, linked events, linked notes
+- Right-click on a sidebar project → Pin/Unpin or Open project page
+- Decision ranker in `/api/today` — composite score, scoreReasons array
+- Pinned-mode toggle in TodayPanel header
+- Weekly review surfaces stagnant intent projects
+- MCP tools: list_pinned_projects, set_project_pin, get_project_context
+
+What needs API keys to activate:
+- Voice transcribe — `OPENAI_API_KEY` (Whisper)
+- Voice route classifier — `ANTHROPIC_API_KEY` (Claude Haiku)
+- Both already on the LAUNCH-CHECKLIST. UI hides itself when keys absent.
+
+Open follow-ups (not blocking):
+- Voice "decision mode" (mode=decision in VoiceCapture) currently just
+  returns the transcript. Could pipe through /api/voice/route to act on
+  spoken intent (e.g., "show me only pinned").
+- The ranker scoreReasons array isn't surfaced in the UI yet. A small
+  "why?" pill on each ranked task would expose the explainability we
+  already compute.
+- The project-page "linked events" query is heuristic. As the timeline
+  surface lands, that should consolidate.
 
 ## Resume-after-compact instructions
 
