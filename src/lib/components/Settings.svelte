@@ -24,6 +24,7 @@
   import { COLOR_SCHEMES } from '../utils/colorSchemes.js';
   import DeveloperTab from './DeveloperTab.svelte';
   import RoutingFormsTab from './RoutingFormsTab.svelte';
+  import TrashTab from './TrashTab.svelte';
   import { api } from '../api.js';
   import { tooltip } from '../actions/tooltip.js';
   import { fetchWeather } from '../stores/weather.svelte.js';
@@ -121,6 +122,7 @@
     { id: 'bookings',      label: 'Booking',       icon: 'link' },
     { id: 'notifications', label: 'Notifications', icon: 'bell' },
     { id: 'account',       label: 'Account',       icon: 'user' },
+    { id: 'trash',         label: 'Trash',         icon: 'trash' },
     { id: 'help',          label: 'Help',          icon: 'help' },
   ];
 
@@ -189,20 +191,27 @@
   }
 
   const SIDEBAR_SECTION_OPTIONS = [
+    // Only the sections actually rendered by Sidebar.svelte are toggleable.
+    // Templates / subscriptions / quick-slots have settings pages but no
+    // sidebar surface, so they were dead checkboxes — removed 2026-05-02.
     { id: 'miniCalendar', label: 'Mini calendar' },
     { id: 'tasks', label: 'Tasks' },
     { id: 'notes', label: 'Notes' },
     { id: 'sets', label: 'Calendar sets' },
     { id: 'bookingPages', label: 'Booking pages' },
     { id: 'calendars', label: 'Calendars' },
-    { id: 'templates', label: 'Templates' },
-    { id: 'subscriptions', label: 'Subscriptions' },
-    { id: 'quickSlots', label: 'Quick slots' },
   ];
 
+  // All sidebar sections default to visible (true). When the user toggles
+  // one off the pref records `false` explicitly. Was previously buggy:
+  // toggling a section that had no explicit pref entry yet flipped from
+  // implicit-true to explicit-true (no visible change), then the next
+  // click flipped to explicit-false. Now we treat absent === true and
+  // always write the inverted boolean.
   function toggleSidebarSection(id) {
-    const current = prefs.values.sidebarSections || { miniCalendar: true, tasks: true, sets: true, calendars: true };
-    updatePref('sidebarSections', { ...current, [id]: !current[id] });
+    const current = prefs.values.sidebarSections || {};
+    const wasVisible = current[id] !== false;
+    updatePref('sidebarSections', { ...current, [id]: !wasVisible });
   }
 
   function handleKeydown(e) {
@@ -256,6 +265,8 @@
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/><path d="M6.2 6a1.8 1.8 0 113.4.7c-.3.6-1.6.8-1.6 1.7M8 11.5h.01" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
             {:else if tab.icon === 'sparkle'}
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2l1.5 4.5H14l-3.75 2.75L11.75 14 8 11.25 4.25 14l1.5-4.75L2 6.5h4.5L8 2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+            {:else if tab.icon === 'trash'}
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2.5 4h11M5.5 4V2.5h5V4M4 4l.5 9.5h7L12 4M6.5 6.5v5M9.5 6.5v5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
             {/if}
           </span>
           <span class="nav-label">{tab.label}</span>
@@ -447,7 +458,7 @@
               <label class="checkbox-row">
                 <input
                   type="checkbox"
-                  checked={(prefs.values.sidebarSections || { miniCalendar: true, tasks: true, sets: true, calendars: true })[s.id] !== false}
+                  checked={(prefs.values.sidebarSections || {})[s.id] !== false}
                   onchange={() => toggleSidebarSection(s.id)}
                 />
                 <span>{s.label}</span>
@@ -499,6 +510,17 @@
               type="checkbox"
               checked={prefs.values.showDeclinedEvents}
               onchange={(e) => updatePref('showDeclinedEvents', e.target.checked)}
+            />
+          </div>
+          <div class="setting-row">
+            <label>
+              Hide working locations
+              <span class="setting-hint">Working-location events from Google ("In office", "Working from home") still appear on your calendar by default. Turn on to hide them entirely.</span>
+            </label>
+            <input
+              type="checkbox"
+              checked={!!prefs.values.hideWorkingLocations}
+              onchange={(e) => updatePref('hideWorkingLocations', e.target.checked)}
             />
           </div>
           <div class="setting-row">
@@ -791,10 +813,8 @@
         </div>
 
       {:else if activeTab === 'account'}
-        <div class="settings-section">
-          <h3>Profile</h3>
-          <ProfileTab />
-        </div>
+        <!-- Profile last — its tail section ("Danger zone" with Delete
+             account) becomes the very-bottom item per user feedback. -->
         <div class="settings-section">
           <h3>Plan &amp; billing</h3>
           <BillingTab />
@@ -803,6 +823,10 @@
           <h3>Developer</h3>
           <p class="help-text">API keys and outbound webhooks for programmatic access.</p>
           <DeveloperTab />
+        </div>
+        <div class="settings-section">
+          <h3>Profile</h3>
+          <ProfileTab />
         </div>
 
       {:else if activeTab === 'tasks'}
@@ -968,6 +992,11 @@
         <div class="settings-section">
           <h3>AI providers</h3>
           <AiTab />
+        </div>
+
+      {:else if activeTab === 'trash'}
+        <div class="settings-section">
+          <TrashTab />
         </div>
 
       {:else if activeTab === 'help'}

@@ -42,6 +42,8 @@ import hiddenEventsRoutes from './routes/hidden-events.js';
 import { quickSlotsAdmin, quickSlotsPublic } from './routes/quick-slots.js';
 import operationsRoutes from './routes/operations.js';
 import { startOperationsSweeper } from './lib/operations.js';
+import trashRoutes from './routes/trash.js';
+import { startTrashSweeper } from './lib/trash.js';
 import { startWeeklyDigest } from './lib/digest.js';
 import { startRetryLoop } from './lib/webhooks.js';
 import { startCalendarSyncRetry } from './lib/calendarSyncRetry.js';
@@ -295,6 +297,7 @@ app.use(icsAdmin);
 app.use(notificationsRoutes);
 app.use(focusBlocksRoutes);
 app.use(operationsRoutes);
+app.use(trashRoutes);
 app.use(notesRoutes);
 app.use(linksRoutes);
 app.use(inboxAdmin);
@@ -358,6 +361,8 @@ app.listen(PORT, '127.0.0.1', () => {
   startIdempotencySweeper();
   // Sweep completed (non-error) operations older than 7 days.
   startOperationsSweeper();
+  // Daily sweep of expired soft-deleted rows past their 30-day window.
+  startTrashSweeper(getDb);
   // Periodic refresh of inbound ICS subscription feeds.
   startSubscriptionRefresher();
   // Background sync of connected provider integrations.

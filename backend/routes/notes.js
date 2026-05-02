@@ -5,6 +5,7 @@
 
 import { Router } from 'express';
 import { getDb } from '../db/init.js';
+import { softDelete, purge } from '../lib/trash.js';
 
 const router = Router();
 
@@ -41,16 +42,18 @@ function toNote(row) {
 }
 
 router.get('/api/notes', (req, res) => {
+  // Trashed notes are filtered out unconditionally — they live behind the
+  // dedicated /api/trash surface. Archived notes still show with ?archived=1.
   const includeArchived = req.query.archived === '1';
   const sql = includeArchived
-    ? 'SELECT * FROM notes WHERE user_id = ? ORDER BY pinned DESC, updated_at DESC'
-    : 'SELECT * FROM notes WHERE user_id = ? AND archived_at IS NULL ORDER BY pinned DESC, updated_at DESC';
+    ? 'SELECT * FROM notes WHERE user_id = ? AND deleted_at IS NULL ORDER BY pinned DESC, updated_at DESC'
+    : 'SELECT * FROM notes WHERE user_id = ? AND deleted_at IS NULL AND archived_at IS NULL ORDER BY pinned DESC, updated_at DESC';
   const rows = getDb().prepare(sql).all(req.user.id);
   res.json({ ok: true, notes: rows.map(toNote) });
 });
 
 router.get('/api/notes/:id', (req, res) => {
-  const row = getDb().prepare('SELECT * FROM notes WHERE id = ? AND user_id = ?')
+  const row = getDb().prepare('SELECT * FROM notes WHERE id = ? AND user_id = ? AND deleted_at IS NULL')
     .get(req.params.id, req.user.id);
   if (!row) return res.status(404).json({ ok: false, error: 'Not found' });
   res.json({ ok: true, note: toNote(row) });
@@ -73,7 +76,7 @@ router.post('/api/notes', (req, res) => {
 
 router.put('/api/notes/:id', (req, res) => {
   const db = getDb();
-  const existing = db.prepare('SELECT * FROM notes WHERE id = ? AND user_id = ?')
+  const existing = db.prepare('SELECT * FROM notes WHERE id = ? AND user_id = ? AND deleted_at IS NULL')
     .get(req.params.id, req.user.id);
   if (!existing) return res.status(404).json({ ok: false, error: 'Not found' });
   const { title, body, pinned, archived, color } = req.body || {};
@@ -98,9 +101,13 @@ router.put('/api/notes/:id', (req, res) => {
 });
 
 router.delete('/api/notes/:id', (req, res) => {
-  const result = getDb().prepare('DELETE FROM notes WHERE id = ? AND user_id = ?')
-    .run(req.params.id, req.user.id);
-  if (result.changes === 0) return res.status(404).json({ ok: false, error: 'Not found' });
+  // Soft-delete by default (30-day recovery window). Pass ?permanent=1 to
+  // hard-delete immediately — used by Settings → Trash → "Delete forever".
+  const permanent = req.query.permanent === '1' || req.query.permanent === 'true';
+  const ok = permanent
+    ? purge(getDb(), 'notes', req.params.id, req.user.id)
+    : softDelete(getDb(), 'notes', req.params.id, req.user.id);
+  if (!ok) return res.status(404).json({ ok: false, error: 'Not found' });
   res.json({ ok: true });
 });
 

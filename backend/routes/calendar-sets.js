@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getDb } from '../db/init.js';
 import { randomUUID } from 'crypto';
+import { softDelete, purge } from '../lib/trash.js';
 
 const router = Router();
 
@@ -11,7 +12,9 @@ router.get('/api/calendar-sets', (req, res) => {
   try {
     const db = getDb();
     const userId = req.user.id;
-    const sets = db.prepare('SELECT * FROM calendar_sets WHERE user_id = ? ORDER BY sort_order, name').all(userId);
+    const sets = db.prepare(
+      'SELECT * FROM calendar_sets WHERE user_id = ? AND deleted_at IS NULL ORDER BY sort_order, name'
+    ).all(userId);
     const setIds = sets.map(s => s.id);
     const members = setIds.length
       ? db.prepare(`SELECT * FROM calendar_set_members WHERE set_id IN (${setIds.map(() => '?').join(',')})`).all(...setIds)
@@ -80,8 +83,10 @@ router.put('/api/calendar-sets/:id', (req, res) => {
     const userId = req.user.id;
 
     // Ownership check
-    const owner = db.prepare('SELECT user_id FROM calendar_sets WHERE id = ?').get(id);
-    if (!owner || owner.user_id !== userId) {
+    const owner = db.prepare(
+      'SELECT user_id, deleted_at FROM calendar_sets WHERE id = ?'
+    ).get(id);
+    if (!owner || owner.user_id !== userId || owner.deleted_at) {
       return res.status(404).json({ ok: false, error: 'Not found' });
     }
 
@@ -111,8 +116,20 @@ router.put('/api/calendar-sets/:id', (req, res) => {
 router.delete('/api/calendar-sets/:id', (req, res) => {
   try {
     const { id } = req.params;
-    const db = getDb();
-    db.prepare('DELETE FROM calendar_sets WHERE id = ? AND user_id = ?').run(id, req.user.id);
+    const permanent = req.query.permanent === '1' || req.query.permanent === 'true';
+    if (permanent) {
+      // Hard-delete also removes the membership rows so the set's
+      // `calendar_set_members` don't dangle. Soft-delete leaves them in
+      // place so a restore returns the set with its calendars intact.
+      const db = getDb();
+      db.transaction(() => {
+        db.prepare('DELETE FROM calendar_set_members WHERE set_id = ?').run(id);
+        db.prepare('DELETE FROM calendar_sets WHERE id = ? AND user_id = ?').run(id, req.user.id);
+      })();
+      return res.json({ ok: true });
+    }
+    const ok = softDelete(getDb(), 'calendar_sets', id, req.user.id);
+    if (!ok) return res.status(404).json({ ok: false, error: 'Not found' });
     res.json({ ok: true });
   } catch (err) {
     console.error('DELETE /api/calendar-sets/:id error:', err.message);

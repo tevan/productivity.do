@@ -517,6 +517,23 @@ function applyMigrations(database) {
   // the active color scheme via var(--color-{slot}). Null = no color.
   ensureColumn(database, 'notes', 'color', 'TEXT');
 
+  // ---- Trash / soft-delete (added 2026-05-02) ----
+  // Five tables get a `deleted_at` (when the user pressed delete) and a
+  // `permanently_purge_at` (deleted_at + 30d). Standard LIST queries skip
+  // rows with deleted_at IS NOT NULL. POST <resource>/:id/restore clears
+  // the flags. The daily sweeper hard-deletes rows past purge time.
+  // Geewax Ch 25 §Soft delete. Tasks live in Todoist so they're not here.
+  for (const t of ['notes', 'booking_pages', 'event_templates', 'calendar_sets']) {
+    ensureColumn(database, t, 'deleted_at', 'TEXT');
+    ensureColumn(database, t, 'permanently_purge_at', 'TEXT');
+  }
+  database.exec(`
+    CREATE INDEX IF NOT EXISTS idx_notes_trash ON notes(user_id, deleted_at);
+    CREATE INDEX IF NOT EXISTS idx_booking_pages_trash ON booking_pages(user_id, deleted_at);
+    CREATE INDEX IF NOT EXISTS idx_event_templates_trash ON event_templates(user_id, deleted_at);
+    CREATE INDEX IF NOT EXISTS idx_calendar_sets_trash ON calendar_sets(user_id, deleted_at);
+  `);
+
   // ---- Integrations / sources abstraction ----
   // The "source" model: instead of hardcoding Google Calendar as the only
   // event source and Todoist as the only task source, every event/task

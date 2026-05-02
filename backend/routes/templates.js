@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import { getDb } from '../db/init.js';
+import { softDelete, purge } from '../lib/trash.js';
 
 const router = Router();
 
 router.get('/api/event-templates', (req, res) => {
   const rows = getDb().prepare(
-    'SELECT * FROM event_templates WHERE user_id = ? ORDER BY created_at DESC'
+    'SELECT * FROM event_templates WHERE user_id = ? AND deleted_at IS NULL ORDER BY created_at DESC'
   ).all(req.user.id);
   res.json({ ok: true, templates: rows.map(r => ({
     id: r.id,
@@ -46,7 +47,7 @@ router.put('/api/event-templates/:id', (req, res) => {
       calendar_id = ?,
       add_meet = COALESCE(?, add_meet),
       attendees_json = ?
-    WHERE id = ? AND user_id = ?
+    WHERE id = ? AND user_id = ? AND deleted_at IS NULL
   `).run(
     name ?? null, summary ?? null, description ?? null, location ?? null,
     durationMinutes ?? null, calendarId ?? null,
@@ -59,8 +60,11 @@ router.put('/api/event-templates/:id', (req, res) => {
 });
 
 router.delete('/api/event-templates/:id', (req, res) => {
-  const r = getDb().prepare('DELETE FROM event_templates WHERE id = ? AND user_id = ?').run(req.params.id, req.user.id);
-  if (!r.changes) return res.status(404).json({ ok: false, error: 'Not found' });
+  const permanent = req.query.permanent === '1' || req.query.permanent === 'true';
+  const ok = permanent
+    ? purge(getDb(), 'event_templates', req.params.id, req.user.id)
+    : softDelete(getDb(), 'event_templates', req.params.id, req.user.id);
+  if (!ok) return res.status(404).json({ ok: false, error: 'Not found' });
   res.json({ ok: true });
 });
 

@@ -13,6 +13,7 @@ import {
   rowToQuestion,
   rowToWorkflow,
 } from '../lib/bookingMappers.js';
+import { softDelete } from '../lib/trash.js';
 import { isSafeWebhookUrl, sendBookingConfirmation } from '../lib/notify.js';
 import { checkCountLimit, getLimits } from '../lib/plans.js';
 import { emitEvent } from '../lib/webhooks.js';
@@ -28,9 +29,15 @@ function uuid() {
   return randomUUID();
 }
 
-// Returns the page row only if it belongs to the given user; otherwise null.
+// Returns the page row only if it belongs to the given user AND is not
+// in the trash. Trashed pages aren't editable through the normal API —
+// the user must restore from /api/trash first. Sub-routes (event-types,
+// questions, workflows) all gate through this helper, so they all
+// inherit the trash check automatically.
 function getOwnedPage(db, pageId, userId) {
-  return db.prepare('SELECT * FROM booking_pages WHERE id = ? AND user_id = ?').get(pageId, userId);
+  return db.prepare(
+    'SELECT * FROM booking_pages WHERE id = ? AND user_id = ? AND deleted_at IS NULL'
+  ).get(pageId, userId);
 }
 
 function ensureUniqueSlug(db, baseSlug, ignoreId = null) {
@@ -60,7 +67,9 @@ function ensureUniqueTypeSlug(db, pageId, baseSlug, ignoreId = null) {
 router.get('/api/booking-pages', (req, res) => {
   try {
     const db = getDb();
-    const rows = db.prepare('SELECT * FROM booking_pages WHERE user_id = ? ORDER BY created_at DESC').all(req.user.id);
+    const rows = db.prepare(
+      'SELECT * FROM booking_pages WHERE user_id = ? AND deleted_at IS NULL ORDER BY created_at DESC'
+    ).all(req.user.id);
     if (rows.length === 0) return res.json({ ok: true, pages: [] });
 
     // Bulk-load sub-resources in 3 queries instead of 3 per page (N+1).
@@ -108,7 +117,13 @@ router.post('/api/booking-pages', (req, res) => {
     const body = req.body || {};
 
     // Plan-based limit: Free can create only 1 booking page.
-    const currentCount = db.prepare('SELECT COUNT(*) as n FROM booking_pages WHERE user_id = ?').get(req.user.id).n;
+    // Plan limits count only LIVE pages — a trashed page doesn't burn a
+    // slot. If we counted trashed pages too, a user near their cap couldn't
+    // create a new page until either the 30-day window expires or they
+    // manually empty the trash.
+    const currentCount = db.prepare(
+      'SELECT COUNT(*) as n FROM booking_pages WHERE user_id = ? AND deleted_at IS NULL'
+    ).get(req.user.id).n;
     const limit = checkCountLimit(req.user.id, 'bookingPagesMax', currentCount);
     if (limit) return res.status(402).json(limit);
 
@@ -286,8 +301,17 @@ router.put('/api/booking-pages/:id', (req, res) => {
 
 router.delete('/api/booking-pages/:id', (req, res) => {
   try {
-    const db = getDb();
-    db.prepare('DELETE FROM booking_pages WHERE id = ? AND user_id = ?').run(req.params.id, req.user.id);
+    const permanent = req.query.permanent === '1' || req.query.permanent === 'true';
+    if (permanent) {
+      // Hard-delete path. Sub-rows (event_types, custom_questions,
+      // booking_workflows, etc.) become orphaned but were already not
+      // FK-cascaded; matching pre-trash behavior.
+      getDb().prepare('DELETE FROM booking_pages WHERE id = ? AND user_id = ?')
+        .run(req.params.id, req.user.id);
+      return res.json({ ok: true });
+    }
+    const ok = softDelete(getDb(), 'booking_pages', req.params.id, req.user.id);
+    if (!ok) return res.status(404).json({ ok: false, error: 'Not found' });
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });

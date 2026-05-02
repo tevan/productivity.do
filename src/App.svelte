@@ -227,6 +227,9 @@
   const visibleEvents = $derived(
     eventsStore.items.filter(e => {
       if (!cals.visibleCalendarIds.has(e.calendarId)) return false;
+      if (prefs.values.hideWorkingLocations && e.eventType === 'workingLocation') {
+        return false;
+      }
       if (!prefs.values.showDeclinedEvents) {
         const me = (e.attendees || []).find(a => a.self);
         if (me && me.responseStatus === 'declined') return false;

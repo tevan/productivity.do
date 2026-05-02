@@ -388,31 +388,29 @@
   <!-- Heading lives in the toolbar (top-left, where the date range sits in
        Calendar view). The List/Board toggle is the only in-body chrome. -->
   <header class="view-header">
+    {#if mode === 'board'}
+      <!-- Sort: a single icon-only Dropdown to the left of the List/Board
+           toggle. Icon doubles as the trigger; the JS tooltip on hover
+           explains it ("Sort tasks: Due date"). One mental model
+           governs every column. -->
+      <Dropdown
+        value={getColumnSort('todo')}
+        ariaLabel="Sort tasks"
+        onchange={(v) => setColumnSort('_global', v)}
+        iconOnly={true}
+        triggerIcon={`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h14M3 12h10M3 18h6"/></svg>`}
+        options={[
+          { value: 'due',      label: 'Due date' },
+          { value: 'priority', label: 'Priority' },
+          { value: 'created',  label: 'Created' },
+          { value: 'manual',   label: 'Manual' },
+        ]}
+      />
+    {/if}
     <div class="mode-toggle" role="tablist">
       <button class:active={mode === 'list'} onclick={() => setMode('list')} role="tab">List</button>
       <button class:active={mode === 'board'} onclick={() => setMode('board')} role="tab">Board</button>
     </div>
-    {#if mode === 'board'}
-      <!-- Board-wide sort. One control governs every column so users have
-           a single mental model. Manual = honor drag order; everything
-           else sorts uniformly. Icon + dropdown is intentional: the icon
-           hints at "sort", the chevron hints at "click for options". -->
-      <div class="board-sort" use:tooltip={'Sort tasks'}>
-        <svg class="sort-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M3 6h13M3 12h9M3 18h5"/>
-        </svg>
-        <Dropdown
-          value={getColumnSort('todo')}
-          onchange={(v) => setColumnSort('_global', v)}
-          options={[
-            { value: 'due',      label: 'Due date' },
-            { value: 'priority', label: 'Priority' },
-            { value: 'created',  label: 'Created' },
-            { value: 'manual',   label: 'Manual' },
-          ]}
-        />
-      </div>
-    {/if}
   </header>
 
   {#if mode === 'list'}
@@ -458,7 +456,7 @@
       {#if !columnStore.loaded}
         <div class="board-loading">Loading columns…</div>
       {:else if columnStore.items.length === 0}
-        <div class="board-loading">No columns yet. <button class="link-btn" onclick={startAddColumn}>Add one</button></div>
+        <div class="board-loading">No columns yet. Add some in Settings → Tasks → Board columns.</div>
       {/if}
       {#each columnStore.items as col (col.id)}
         {@const colTasks = tasksForColumn(col)}
@@ -536,26 +534,9 @@
           </div>
         </div>
       {/each}
-      {#if columnStore.items.length > 0 && columnStore.items.length < 5}
-        {#if addingColumn}
-          <!-- svelte-ignore a11y_autofocus -->
-          <input
-            class="board-col-add-input"
-            bind:value={newColumnName}
-            onblur={commitAddColumn}
-            onkeydown={(e) => {
-              if (e.key === 'Enter') commitAddColumn();
-              else if (e.key === 'Escape') cancelAddColumn();
-            }}
-            placeholder="Column name"
-            autofocus
-          />
-        {:else}
-          <button class="board-col-add" onclick={startAddColumn} use:tooltip={'Add column (max 5)'}>
-            + Column
-          </button>
-        {/if}
-      {/if}
+      <!-- Column add/remove lives in Settings → Tasks → Board columns to
+           keep this view free of management chrome. The empty-state hint
+           below still surfaces if the user ends up with zero columns. -->
     </div>
     </div>
   {/if}
@@ -589,28 +570,8 @@
     gap: 12px;
     margin-bottom: 20px;
   }
-  .board-sort {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    color: var(--text-secondary);
-  }
-  .board-sort .sort-icon { flex-shrink: 0; opacity: 0.7; }
-  /* Compact the dropdown — match list-view sort dropdowns. */
-  .board-sort :global(.dropdown) { width: auto; }
-  .board-sort :global(.dropdown > button) {
-    width: auto;
-    min-width: 0;
-    padding: 4px 8px;
-    font-size: 12px;
-    color: var(--text-secondary);
-    background: transparent;
-    border-color: transparent;
-  }
-  .board-sort :global(.dropdown > button:hover) {
-    background: var(--bg-secondary);
-    border-color: var(--border);
-  }
+  /* The board sort is now a top-level icon-only Dropdown; styling rides
+     on Dropdown's own .icon-only mode. No wrapper needed. */
   .mode-toggle {
     display: inline-flex;
     border: 1px solid var(--border);
@@ -680,10 +641,19 @@
     flex: 1;
     min-height: 0;
     align-items: stretch;
+    /* If columns don't fill the row (e.g. 3 columns × 340px on a 1600px
+       monitor) they cluster left rather than stretching to absurd
+       widths. The flex 1 1 0 + max-width on .board-col is what caps
+       individual width; this just makes the leftover space empty. */
+    justify-content: flex-start;
   }
   .board-col {
     flex: 1 1 0;
     min-width: 0;
+    /* Cap column width so on wide screens the cards stay legible. Trello
+       uses ~272px; Notion ~280px; Linear ~340px. We pick 340px — board
+       cards have richer per-card content (markdown title + meta row). */
+    max-width: 340px;
     background: var(--bg-secondary);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);

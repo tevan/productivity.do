@@ -76,7 +76,14 @@ function uuid() {
 }
 
 function loadPageWithExtras(db, slug) {
-  const row = db.prepare('SELECT * FROM booking_pages WHERE slug = ?').get(slug);
+  // Trashed pages are NOT bookable. The slug stays unique-occupied during
+  // the 30-day recovery window so a hypothetical fresh page can't claim
+  // the same URL while the trashed page is still recoverable. Visitors
+  // see a 404 (matches the "page doesn't exist" error). On restore, the
+  // page becomes bookable again at the same slug.
+  const row = db.prepare(
+    'SELECT * FROM booking_pages WHERE slug = ? AND deleted_at IS NULL'
+  ).get(slug);
   if (!row) return null;
   const eventTypes = db.prepare('SELECT * FROM event_types WHERE page_id = ? AND is_active = 1 ORDER BY sort_order').all(row.id);
   const questions = db.prepare('SELECT * FROM custom_questions WHERE page_id = ? ORDER BY sort_order').all(row.id);
@@ -1033,7 +1040,9 @@ function matchCondition(cond, value) {
 router.post('/api/public/booking/:slug/poll', (req, res) => {
   try {
     const db = getDb();
-    const row = db.prepare('SELECT id FROM booking_pages WHERE slug = ? AND is_active = 1').get(req.params.slug);
+    const row = db.prepare(
+      'SELECT id FROM booking_pages WHERE slug = ? AND is_active = 1 AND deleted_at IS NULL'
+    ).get(req.params.slug);
     if (!row) return res.status(404).json({ ok: false, error: 'Not found' });
     const b = req.body || {};
     if (!b.email || !Array.isArray(b.proposedIso) || b.proposedIso.length === 0) {
