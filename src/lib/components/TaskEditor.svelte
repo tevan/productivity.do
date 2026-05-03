@@ -11,6 +11,7 @@
   import { tooltip } from '../actions/tooltip.js';
   import RevisionHistoryPanel from './RevisionHistoryPanel.svelte';
   import TaskCommentsPanel from './TaskCommentsPanel.svelte';
+  import FilePicker from './FilePicker.svelte';
 
   let { task = null, onclose = () => {} } = $props();
   let historyOpen = $state(false);
@@ -376,6 +377,12 @@
     </div>
   </div>
 
+  {#if task?.id}
+    <div class="task-files">
+      <FilePicker sourceType="task" sourceId={String(task.id)} />
+    </div>
+  {/if}
+
   <div class="editor-footer">
     <button class="footer-btn footer-btn-danger" onclick={handleDelete} use:tooltip={'Delete task'} aria-label="Delete task">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -713,6 +720,10 @@
   }
   :global(html.dark) .schedule-notice.is-ok { color: #4ade80; }
   :global(html.dark) .schedule-notice.is-error { color: #fbbf24; }
+
+  .task-files {
+    padding: 0 20px 12px;
+  }
 
   .editor-footer {
     display: flex;

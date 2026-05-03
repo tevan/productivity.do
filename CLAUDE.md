@@ -201,6 +201,17 @@ Tasks revisions (protected):
   GET  /api/tasks/:id/revisions
   POST /api/tasks/:id/revisions/:revId/restore
 
+Files (protected):
+  POST /api/files                              (multipart/form-data; field "file"; optional sourceType+sourceId)
+  GET  /api/files                              (list — limit query param, default 50, max 200)
+  GET  /api/files/search?q=                    (LIKE match on original_name)
+  GET  /api/files/by-source?sourceType=&sourceId=
+  GET  /api/files/:id                          (serve bytes; auth-scoped)
+  DELETE /api/files/:id                        (also detaches all links; GCs disk blob if no other user references it)
+  POST /api/files/:id/links                    ({sourceType, sourceId} — attach to event/task/note)
+  DELETE /api/files/:id/links                  ({sourceType, sourceId} — detach)
+  GET  /api/files/:id/appears-in               (every resource referencing this file)
+
 Trash + activity + operations (protected):
   GET  /api/trash                              (list soft-deleted across notes/booking_pages/event_templates/calendar_sets)
   POST /api/trash/restore                      ({resource, id})
@@ -412,7 +423,25 @@ Profile management at `/api/account/*` (route: `routes/account.js`, UI: `Profile
 
 **Email change** sends confirmation to the NEW address (not old) — old address gets a security notice. **Soft-delete** sets `deleted_at` + 30-day `permanently_purge_at`, revokes all sessions, clears cookie. **Email gets renamed at delete time** (suffixed `+deleted-<id>-<ts>`) and the original is stashed in `users.original_email` so the column-level `email UNIQUE` constraint doesn't block someone re-signing up with the same address during the 30-day window. Login matches both `email` and `original_email`, restores the original on recovery, and refuses recovery (409) if a fresh active account has since claimed the address. `createUser`, `authenticate`, and `getUserByEmail` all filter `deleted_at IS NULL` so deleted rows can't satisfy active-user lookups. `mode: 'immediate'` skips the window. **Password change** auto-revokes all OTHER sessions (current device stays). **Avatars** uploaded via multer, hashed filename `${userId}-${sha256-16}.${ext}`, served from `/avatars/<file>` (public; on requireAuth bypass list since filenames are unguessable). Gravatar fallback when `avatar_path` is null.
 
-**GDPR/portability export** (`GET /api/account/export`) walks every user-owned row in the schema and returns a single JSON document. Includes: profile (creds redacted), all native + integration metadata, notes + comments, tasks (kanban + focus blocks + hidden events), booking pages with every child resource (event_types, custom_questions, booking_workflows, booking_invites, booking_page_views, time_polls, bookings), routing forms, quick slots, calendar sets + members, event templates, subscribed calendars + events, preferences, links, integrations (tokens redacted), feedback submissions, AI support transcripts, notifications, revisions, operations, sessions, API keys + webhook subscriptions (secrets redacted). Excludes: caches (events_cache, weather_cache, sync_state, idempotency keys, rate buckets), webhook delivery logs, secrets/tokens. **When adding a new user-owned table, add it to `account.js#/api/account/export`** — the audit lives at the bottom of `routes/account.js`. The export covers the full schema as of 2026-05-02; if it drifts, GDPR portability is incomplete.
+**GDPR/portability export** (`GET /api/account/export`) walks every user-owned row in the schema and returns a single JSON document. Includes: profile (creds redacted), all native + integration metadata, notes + comments, tasks (kanban + focus blocks + hidden events), booking pages with every child resource (event_types, custom_questions, booking_workflows, booking_invites, booking_page_views, time_polls, bookings), routing forms, quick slots, calendar sets + members, event templates, subscribed calendars + events, preferences, links, integrations (tokens redacted), feedback submissions, AI support transcripts, notifications, revisions, operations, sessions, API keys + webhook subscriptions (secrets redacted), files + file_links (storage_path redacted; bytes available via /api/files/:id during the export window). Excludes: caches (events_cache, weather_cache, sync_state, idempotency keys, rate buckets), webhook delivery logs, secrets/tokens. **When adding a new user-owned table, add it to `account.js#/api/account/export`** — the audit lives at the bottom of `routes/account.js`. The export covers the full schema as of 2026-05-02; if it drifts, GDPR portability is incomplete.
+
+## Files unified across pillars
+
+Attachments work on events, tasks, and notes through one shared `<FilePicker>` component (`src/lib/components/FilePicker.svelte`). Drag-drop, paste-from-clipboard (images), and click-to-upload all land in the same flow. Backend at `backend/routes/files.js`; storage on disk at `data/files/<hash[0:2]>/<hash>` (sharded by first two hex chars). Schema: `files(user_id, hash, mime, size, original_name, storage_path)` with `UNIQUE(user_id, hash)` for dedup, and `file_links(user_id, file_id, source_type, source_id)` with `UNIQUE(user_id, file_id, source_type, source_id)` for the "appears in" relationship.
+
+`source_type` is one of `'event' | 'task' | 'note'`. `source_id` is a string — Google's event id for events, Todoist's id (or `native:<n>`) for tasks, and `notes.id` (integer cast to string) for notes. The compound index lets both directions query cheap: "files for this resource" via `(user_id, source_type, source_id)` and "resources for this file" via `(file_id)`.
+
+**Dedup model:** Re-uploading identical bytes by the same user returns the existing row. Different users uploading the same bytes get separate `files` rows but share the disk blob — so disk GC on delete checks if any other user still references the hash before unlinking the file.
+
+**Serving:** `GET /api/files/:id` is auth-gated (NOT on the requireAuth bypass list). Inline disposition for `image/*`, `video/*`, `audio/*`, and PDFs; attachment otherwise. `Cache-Control: private, max-age=3600`.
+
+**Editor wiring:** Each editor (`NoteEditor.svelte`, `TaskEditor.svelte`, `EventEditor.svelte`) renders `<FilePicker sourceType="..." sourceId={...} />` near the footer, gated on the resource having an id (so the picker hides during the brief "creating new..." state). The picker also exports `attachPending(newSourceId)` for the alternative flow where the user uploads BEFORE the resource exists — call it after create.
+
+**"Appears in" hint:** `GET /api/files/by-source` returns each file annotated with `appearsInOthers` (count of other resources linking the same file). The picker shows "linked in N places" inline so users notice the file is reusable.
+
+**Route ordering gotcha:** `/api/files/by-source` and `/api/files/search` are registered BEFORE `/api/files/:id` in the router. If you add another literal-path subroute, put it above the `:id` line — Express otherwise routes the literal path through the param matcher and rejects it as a non-numeric id.
+
+**When adding a fourth source type:** add to `ALLOWED_SOURCE_TYPES` set in `routes/files.js`, add a `FilePicker` block in the new editor, and update `/api/files/:id/appears-in` consumers if they branch on type.
 
 ## Tenancy audit (2026-05-02)
 

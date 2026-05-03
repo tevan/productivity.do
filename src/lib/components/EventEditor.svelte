@@ -8,6 +8,7 @@
   import { api } from '../api.js';
   import Dropdown from './Dropdown.svelte';
   import { tooltip } from '../actions/tooltip.js';
+  import FilePicker from './FilePicker.svelte';
 
   let { event = null, defaultStart = null, defaultEnd = null, onclose = () => {} } = $props();
   const appCtx = getContext('app');
@@ -331,6 +332,12 @@
     </div>
   </div>
 
+  {#if isEdit && event?.id}
+    <div class="event-files">
+      <FilePicker sourceType="event" sourceId={String(event.id)} />
+    </div>
+  {/if}
+
   <div class="editor-footer">
     <button class="cancel-btn" onclick={onclose}>Cancel</button>
     <button class="save-btn" onclick={handleSave}>
@@ -503,6 +510,10 @@
   }
   .color-swatch:hover { transform: scale(1.15); }
   .color-swatch.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-light); }
+
+  .event-files {
+    padding: 0 20px 12px;
+  }
 
   .editor-footer {
     display: flex;

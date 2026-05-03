@@ -5,6 +5,7 @@
   import RevisionHistoryPanel from './RevisionHistoryPanel.svelte';
   import NoteCommentsPanel from './NoteCommentsPanel.svelte';
   import NoteContextPanel from './NoteContextPanel.svelte';
+  import FilePicker from './FilePicker.svelte';
   import { tooltip } from '../actions/tooltip.js';
   import { renderMarkdown, SLASH_COMMANDS, applySlash, tryMarkdownShortcut } from '../utils/markdown.js';
 
@@ -333,6 +334,12 @@
       {/if}
     </div>
 
+    {#if note?.id}
+      <div class="note-files">
+        <FilePicker sourceType="note" sourceId={String(note.id)} />
+      </div>
+    {/if}
+
     <div class="note-footer">
       <span class="note-status">
         {#if saving}Saving…{:else if lastSaved}Saved{:else}&nbsp;{/if}
@@ -590,6 +597,10 @@
     font-size: 12px;
     color: var(--text-tertiary);
     text-align: center;
+  }
+
+  .note-files {
+    padding: 8px 16px 0;
   }
 
   .note-footer {

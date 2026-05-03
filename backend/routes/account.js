@@ -403,6 +403,12 @@ router.get('/api/account/export', (req, res) => {
     revisions: all('SELECT * FROM revisions WHERE user_id = ?'),
     operations: all('SELECT * FROM operations WHERE user_id = ?'),
 
+    // Files: metadata only — bytes are fetchable via /api/files/:id while
+    // the export window is still open. storage_path is server-internal.
+    files: q(`SELECT id, user_id, hash, mime, size, original_name, created_at
+              FROM files WHERE user_id = ?`).all(userId),
+    file_links: all('SELECT * FROM file_links WHERE user_id = ?'),
+
     // Sessions (revoked + active; tokens redacted)
     user_sessions: q(`SELECT id, user_id, user_agent, ip, created_at,
                              last_seen_at, revoked_at

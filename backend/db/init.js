@@ -843,5 +843,42 @@ function applyMigrations(database) {
     );
     CREATE INDEX IF NOT EXISTS idx_project_meta_user ON project_meta(user_id);
     CREATE INDEX IF NOT EXISTS idx_project_meta_pinned ON project_meta(user_id, pinned_at) WHERE pinned_at IS NOT NULL;
+
+    -- Files unified across pillars (added 2026-05-02). Two tables:
+    --   files       — the immutable blob (sha256 hash, mime, size, original_name).
+    --                 Dedup by hash: re-uploading the same bytes returns the
+    --                 existing row instead of writing a second copy.
+    --   file_links  — the "appears in" relationship. One file can be attached
+    --                 to many events/tasks/notes; one resource can have many
+    --                 files. (user_id, source_type, source_id) is the resource
+    --                 reference; source_type ∈ 'event'|'task'|'note'. Compound
+    --                 unique key prevents duplicate attachments.
+    CREATE TABLE IF NOT EXISTS files (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      hash TEXT NOT NULL,
+      mime TEXT NOT NULL,
+      size INTEGER NOT NULL,
+      original_name TEXT NOT NULL,
+      storage_path TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_files_user_hash ON files(user_id, hash);
+    CREATE INDEX IF NOT EXISTS idx_files_user ON files(user_id, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS file_links (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      file_id INTEGER NOT NULL,
+      source_type TEXT NOT NULL,
+      source_id TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_file_links_unique
+      ON file_links(user_id, file_id, source_type, source_id);
+    CREATE INDEX IF NOT EXISTS idx_file_links_source
+      ON file_links(user_id, source_type, source_id);
+    CREATE INDEX IF NOT EXISTS idx_file_links_file
+      ON file_links(file_id);
   `);
 }
