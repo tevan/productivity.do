@@ -20,6 +20,7 @@
   import { api } from '../api.js';
   import { showToast } from '../utils/toast.svelte.js';
   import { confirmAction } from '../utils/confirmModal.svelte.js';
+  import AppearsInPanel from './AppearsInPanel.svelte';
 
   let {
     sourceType,
@@ -30,6 +31,13 @@
   let dragging = $state(false);
   let uploading = $state(false);
   let pendingUploads = $state([]); // file objects uploaded before sourceId existed
+  let appearsInOpenFor = $state(null); // file id whose appears-in panel is open
+
+  // In-flight upload tracking. Each entry: {tempId, name, percent, xhr}.
+  // tempId is a client-side stable key for the row; replaced by the server
+  // file id after success.
+  let inFlight = $state([]);
+  let nextTempId = 0;
 
   // Re-fetch attachments whenever sourceId becomes known (or changes).
   $effect(() => {
@@ -42,20 +50,66 @@
     if (r?.ok) files = r.files;
   }
 
-  async function uploadOne(file) {
+  function uploadOne(file) {
+    // XHR (not fetch) because fetch lacks an upload-progress event hook.
+    // Returns a promise + provides a cancel via inFlight entry.
+    const tempId = ++nextTempId;
     const fd = new FormData();
     fd.append('file', file);
     if (sourceId) {
       fd.append('sourceType', sourceType);
       fd.append('sourceId', String(sourceId));
     }
-    const r = await fetch('/api/files', { method: 'POST', body: fd, credentials: 'same-origin' });
-    const json = await r.json().catch(() => null);
-    if (!r.ok || !json?.ok) {
-      showToast({ message: json?.error || `Upload failed (${r.status})`, kind: 'error' });
-      return null;
-    }
-    return json.file;
+
+    const xhr = new XMLHttpRequest();
+    const entry = { tempId, name: file.name, percent: 0, xhr, error: null };
+    inFlight = [...inFlight, entry];
+
+    return new Promise((resolve) => {
+      xhr.upload.addEventListener('progress', (e) => {
+        if (!e.lengthComputable) return;
+        const pct = Math.round((e.loaded / e.total) * 100);
+        // Trigger reactivity by replacing the array — direct mutation of
+        // a $state-tracked object array element doesn't always re-render.
+        inFlight = inFlight.map(x => x.tempId === tempId ? { ...x, percent: pct } : x);
+      });
+
+      xhr.addEventListener('load', () => {
+        let json = null;
+        try { json = JSON.parse(xhr.responseText); } catch {}
+        inFlight = inFlight.filter(x => x.tempId !== tempId);
+        if (xhr.status < 200 || xhr.status >= 300 || !json?.ok) {
+          showToast({
+            message: json?.error || `Upload failed (${xhr.status || 'no response'})`,
+            kind: 'error',
+          });
+          resolve(null);
+        } else {
+          resolve(json.file);
+        }
+      });
+
+      xhr.addEventListener('error', () => {
+        inFlight = inFlight.filter(x => x.tempId !== tempId);
+        showToast({ message: 'Upload failed (network error)', kind: 'error' });
+        resolve(null);
+      });
+
+      xhr.addEventListener('abort', () => {
+        inFlight = inFlight.filter(x => x.tempId !== tempId);
+        // No toast for user-initiated cancel.
+        resolve(null);
+      });
+
+      xhr.open('POST', '/api/files');
+      xhr.withCredentials = true;
+      xhr.send(fd);
+    });
+  }
+
+  function cancelUpload(tempId) {
+    const entry = inFlight.find(x => x.tempId === tempId);
+    entry?.xhr?.abort();
   }
 
   async function uploadFiles(list) {
@@ -195,15 +249,30 @@
     />
   </div>
 
-  {#if allFiles.length === 0}
+  {#if inFlight.length > 0}
+    <ul class="progress-list">
+      {#each inFlight as entry (entry.tempId)}
+        <li class="progress-row">
+          <span class="progress-name">{entry.name}</span>
+          <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={entry.percent}>
+            <div class="progress-fill" style="width: {entry.percent}%"></div>
+          </div>
+          <span class="progress-pct">{entry.percent}%</span>
+          <button type="button" class="btn-icon" title="Cancel upload" onclick={() => cancelUpload(entry.tempId)}>×</button>
+        </li>
+      {/each}
+    </ul>
+  {/if}
+
+  {#if allFiles.length === 0 && inFlight.length === 0}
     <p class="empty">Drop, paste, or click <strong>Attach</strong> to add files.</p>
-  {:else}
+  {:else if allFiles.length > 0}
     <ul class="list">
       {#each allFiles as f (f.id)}
         <li class="row">
           {#if isImage(f)}
             <a href={f.url} target="_blank" rel="noopener" class="thumb-link">
-              <img src={f.url} alt="" class="thumb" loading="lazy" />
+              <img src={f.thumbUrl || f.url} alt="" class="thumb" loading="lazy" />
             </a>
           {:else}
             <a href={f.url} target="_blank" rel="noopener" class="icon-link">
@@ -222,10 +291,24 @@
             </span>
           </div>
           <div class="actions">
-            <button type="button" class="btn-icon" title="Detach" onclick={() => detach(f)}>×</button>
-            <button type="button" class="btn-icon danger" title="Delete file" onclick={() => deleteFile(f)}>🗑</button>
+            {#if f.appearsInOthers > 0}
+              <button
+                type="button"
+                class="btn-icon"
+                class:active={appearsInOpenFor === f.id}
+                title="Show all places this file appears"
+                onclick={() => appearsInOpenFor = appearsInOpenFor === f.id ? null : f.id}
+              >🔗</button>
+            {/if}
+            <button type="button" class="btn-icon" title="Detach from this {sourceType}" onclick={() => detach(f)}>×</button>
+            <button type="button" class="btn-icon danger" title="Delete file everywhere" onclick={() => deleteFile(f)}>🗑</button>
           </div>
         </li>
+        {#if appearsInOpenFor === f.id}
+          <li class="panel-row">
+            <AppearsInPanel fileId={f.id} onclose={() => appearsInOpenFor = null} />
+          </li>
+        {/if}
       {/each}
     </ul>
   {/if}
@@ -270,6 +353,50 @@
     font-size: 12px;
     color: var(--text-tertiary, var(--text-secondary));
     margin: 4px 0 2px;
+  }
+  .progress-list {
+    list-style: none;
+    margin: 0 0 6px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .progress-row {
+    display: grid;
+    grid-template-columns: 1fr 100px auto auto;
+    gap: 8px;
+    align-items: center;
+    padding: 4px 6px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-hover);
+  }
+  .progress-name {
+    font-size: 12px;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .progress-track {
+    position: relative;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    position: absolute;
+    inset: 0;
+    width: 0;
+    background: var(--accent);
+    transition: width 120ms;
+  }
+  .progress-pct {
+    font-size: 11px;
+    color: var(--text-secondary);
+    min-width: 32px;
+    text-align: right;
   }
   .list {
     list-style: none;
@@ -351,7 +478,15 @@
     background: var(--surface-hover);
     color: var(--text-primary);
   }
+  .btn-icon.active {
+    background: color-mix(in srgb, var(--accent) 15%, transparent);
+    color: var(--accent);
+  }
   .btn-icon.danger:hover {
     color: var(--error, #ef4444);
+  }
+  .panel-row {
+    list-style: none;
+    padding: 0 6px 4px 42px;
   }
 </style>
