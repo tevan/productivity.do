@@ -409,6 +409,9 @@ router.get('/api/account/export', (req, res) => {
               FROM files WHERE user_id = ?`).all(userId),
     file_links: all('SELECT * FROM file_links WHERE user_id = ?'),
 
+    // Task pins (the ranker disagreement loop).
+    task_pins: all('SELECT * FROM task_pins WHERE user_id = ?'),
+
     // Sessions (revoked + active; tokens redacted)
     user_sessions: q(`SELECT id, user_id, user_agent, ip, created_at,
                              last_seen_at, revoked_at

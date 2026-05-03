@@ -880,5 +880,29 @@ function applyMigrations(database) {
       ON file_links(user_id, source_type, source_id);
     CREATE INDEX IF NOT EXISTS idx_file_links_file
       ON file_links(file_id);
+
+    -- Task pins (added 2026-05-02 with the ranker stake). The pinning act
+    -- IS the disagreement loop with the recommendation system: pinned
+    -- tasks get a large score boost (PIN_BOOST in lib/recommendations.js)
+    -- so they always sort to the top of "what to do right now."
+    --
+    -- task_id is a string because Todoist task ids are strings AND native
+    -- task ids share the column. UNIQUE(user_id, task_id) lets the pin
+    -- toggle be a single INSERT/DELETE without a conditional read.
+    --
+    -- expires_at is optional; null means "until I unpin." Default in the
+    -- API is end-of-day UTC so a forgotten pin doesn't permanently
+    -- distort tomorrow's recommendations.
+    CREATE TABLE IF NOT EXISTS task_pins (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      task_id TEXT NOT NULL,
+      pinned_at TEXT NOT NULL DEFAULT (datetime('now')),
+      expires_at TEXT
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_task_pins_unique
+      ON task_pins(user_id, task_id);
+    CREATE INDEX IF NOT EXISTS idx_task_pins_user
+      ON task_pins(user_id, pinned_at DESC);
   `);
 }

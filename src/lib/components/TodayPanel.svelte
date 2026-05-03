@@ -24,7 +24,7 @@
   import { setAppView } from '../stores/appView.svelte.js';
   import { showToast } from '../utils/toast.svelte.js';
   import { confirmAction } from '../utils/confirmModal.svelte.js';
-  import { getSynthesis, refreshToday, clearObservation, refreshLedger } from '../stores/synthesis.svelte.js';
+  import { getSynthesis, refreshToday, clearObservation, refreshLedger, refreshRecommendations } from '../stores/synthesis.svelte.js';
   import { getPrefs, updatePrefs } from '../stores/prefs.svelte.js';
   import VoiceCapture from './VoiceCapture.svelte';
 
@@ -48,6 +48,21 @@
   const weekly = $derived(synth.weekly);
   const observation = $derived(synth.observation);
   const ledger = $derived(synth.ledger);
+  const recommendations = $derived(synth.recommendations);
+
+  // Pin/unpin a task. Optimistic — the recommendation list refetches
+  // immediately so the user sees the new ordering with the explanation.
+  async function togglePin(taskId, isPinned) {
+    if (isPinned) {
+      await api(`/api/task-pins/${encodeURIComponent(taskId)}`, { method: 'DELETE' });
+    } else {
+      await api('/api/task-pins', {
+        method: 'POST',
+        body: JSON.stringify({ taskId }),
+      });
+    }
+    refreshRecommendations();
+  }
 
   // ---- Mount / unmount transitions ----
   let io;
@@ -418,6 +433,55 @@
               </p>
             {/if}
           </div>
+        {/if}
+
+        <!-- "Right now" — the ranker stake. Surfaces top-3 recommendations
+             with the three-part explanation contract (whyThis / whyNow /
+             whatWouldChange). Pin a task to force it to the top. -->
+        {#if recommendations}
+          {#if recommendations.recommendations.length > 0}
+            <div class="recs">
+              <div class="recs-head">
+                <span class="recs-eyebrow">Right now</span>
+                <span class="recs-context">
+                  {#if recommendations.freeMinutes > 0}
+                    {recommendations.freeMinutes} min free
+                  {:else if !recommendations.withinHours}
+                    outside work hours
+                  {:else}
+                    next free window
+                  {/if}
+                </span>
+              </div>
+              <ul class="recs-list">
+                {#each recommendations.recommendations as r (r.task.id)}
+                  <li class="rec" class:pinned={r.isPinned}>
+                    <div class="rec-head">
+                      <button class="rec-title" type="button" onclick={() => openTask(r.task)}>
+                        {r.task.content}
+                      </button>
+                      <button
+                        class="rec-pin"
+                        class:active={r.isPinned}
+                        type="button"
+                        title={r.isPinned ? 'Unpin' : 'Pin to keep on top'}
+                        onclick={() => togglePin(r.task.id, r.isPinned)}
+                      >
+                        {r.isPinned ? '★' : '☆'}
+                      </button>
+                    </div>
+                    <p class="rec-why-this">{r.reasons.whyThis}</p>
+                    <p class="rec-why-now">{r.reasons.whyNow}</p>
+                    <p class="rec-change">{r.reasons.whatWouldChange}</p>
+                  </li>
+                {/each}
+              </ul>
+            </div>
+          {:else if recommendations.recommendations.length === 0 && (today?.tasks?.length ?? 0) === 0}
+            <p class="recs-empty">
+              Pin a project or capture a task to teach the recommender what matters to you.
+            </p>
+          {/if}
         {/if}
 
         {#if today.tasks.length > 0}
@@ -914,6 +978,113 @@
   }
   .sub-overdue { color: #c25e4d; }
   .task-list { list-style: none; padding: 0; margin: 0; }
+
+  /* "Right now" recommendations — visually distinct from the task lists
+     below. Has its own eyebrow line, slightly heavier card treatment, and
+     a per-item pin star. The three-part explanation reads as soft body
+     text, not as UI chrome — these sentences ARE the product. */
+  .recs {
+    margin: 22px 0 8px;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md, 12px);
+    background: color-mix(in srgb, var(--accent) 4%, var(--surface));
+  }
+  .recs-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .recs-eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+  }
+  .recs-context {
+    font-size: 11px;
+    color: var(--text-tertiary, var(--text-secondary));
+  }
+  .recs-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .rec {
+    padding: 8px 0;
+    border-top: 1px solid var(--border-light, var(--border));
+  }
+  .rec:first-child {
+    padding-top: 0;
+    border-top: none;
+  }
+  .rec.pinned .rec-title { color: var(--accent); }
+  .rec-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .rec-title {
+    flex: 1;
+    text-align: left;
+    border: none;
+    background: transparent;
+    padding: 0;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    line-height: 1.3;
+    cursor: pointer;
+  }
+  .rec-title:hover {
+    color: var(--accent);
+    text-decoration: underline;
+  }
+  .rec-pin {
+    border: none;
+    background: transparent;
+    padding: 0 4px;
+    color: var(--text-tertiary, var(--text-secondary));
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .rec-pin:hover { color: var(--accent); }
+  .rec-pin.active { color: var(--accent); }
+  .rec-why-this {
+    font-size: 13px;
+    color: var(--text-primary);
+    margin: 0 0 2px;
+    line-height: 1.4;
+  }
+  .rec-why-now {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin: 0 0 2px;
+    font-style: italic;
+  }
+  .rec-change {
+    font-size: 12px;
+    color: var(--text-tertiary, var(--text-secondary));
+    margin: 0;
+    line-height: 1.4;
+  }
+  .recs-empty {
+    margin: 18px 0 0;
+    padding: 12px 14px;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    text-align: center;
+  }
 
   /* Each task row reserves space for its action strip below the title so
      the row's height doesn't change on hover. The strip sits in normal

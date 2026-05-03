@@ -201,6 +201,12 @@ Tasks revisions (protected):
   GET  /api/tasks/:id/revisions
   POST /api/tasks/:id/revisions/:revId/restore
 
+Recommendations + pins (protected):
+  GET    /api/recommendations/now        (top 3 ranked tasks with three-part explanation)
+  GET    /api/task-pins                  (active pins for the current user)
+  POST   /api/task-pins                  ({taskId, expiresAt?} — default expiry: end of UTC day)
+  DELETE /api/task-pins/:taskId
+
 Files (protected):
   POST /api/files                              (multipart/form-data; field "file"; optional sourceType+sourceId)
   GET  /api/files                              (list — limit query param, default 50, max 200)
@@ -448,6 +454,32 @@ Attachments work on events, tasks, and notes through one shared `<FilePicker>` c
 **Upload progress + cancel:** `<FilePicker>` uses `XMLHttpRequest` (not fetch — fetch lacks `upload.progress` events) and exposes per-file progress + a cancel button via in-memory `inFlight[]` state. Each row has a stable `tempId` (client-side) so the progress UI persists across re-renders. Cancel calls `xhr.abort()`; the abort handler removes the row without showing an error toast.
 
 **"Appears in" panel:** Click the link icon (🔗, only shown when `appearsInOthers > 0`) to expand a panel beneath the file row. `GET /api/files/:id/appears-in` enriches each link with a human-readable label by joining against `notes`, `tasks_cache` (uses `todoist_id` as PK, NOT `id`), and `events_cache` (uses `google_event_id` as PK). Soft-deleted notes are excluded; missing rows render as "(deleted note/task/event)" with reduced opacity so users notice and can detach manually. Notes are SPA-routable; tasks/events show the label only (clickable hand-off would need cross-store edit-trigger we don't have wired).
+
+## Recommendations / "what to do right now" surface
+
+The ranker stake. Lives at `GET /api/recommendations/now`. Returns top-3 tasks with a three-part explanation contract per `docs/internal/ranker-contract.md` (whyThis / whyNow / whatWouldChange) — deterministic templates, no LLM. Surfaces in TodayPanel (the synthesis side panel, hotkey `Y`) as the "Right now" block at the top.
+
+**Architecture:** the existing decision ranker `backend/lib/ranker.js#rankTasks` does the scoring (composite over due-date, priority, project metadata, momentum, rhythm, etc.). The new pure helper `backend/lib/recommendations.js#buildRecommendations` adds the contract layer on top: pin override (PIN_BOOST = 1000 puts pinned tasks above any realistic ranker score), three-part explanation generation, score floor (>0), max-3 cap. The split is intentional — `rankTasks` is shared with `/api/today`; the contract layer is explicitly reusable by the MCP `plan_today` workflow tool when it lands. Tests at `recommendations.spec.js`.
+
+**Pin override:** new `task_pins(user_id, task_id, pinned_at, expires_at)` table with `UNIQUE(user_id, task_id)`. The pin endpoint is `POST/DELETE /api/task-pins[/:taskId]`. Default `expires_at` is end-of-UTC-day so a forgotten pin doesn't permanently distort tomorrow's recommendations. The pinning act IS the disagreement loop with the recommender — clicking pin teaches the system "you ranked wrong." `task_id` is TEXT to share the column between Todoist (string ids) and native (`native:<n>`) tasks.
+
+**Three-part explanation contract** — every recommendation has:
+- `whyThis` — derived from positive scoring factors (top 2-3 by absolute impact). One sentence.
+- `whyNow` — current context only: `freeMinutes`, `insideFocusBlock`, `withinHours`. One sentence.
+- `whatWouldChange` — names the runner-up by content, OR tells pinned-task owners to unpin to demote, OR generic fallback. One sentence.
+
+Don't replace the deterministic template generator with an LLM. The whole point of the explanation contract is auditable trust — "why did the system pick X" must be answerable in code, not an opaque generation. Per `ai_cost_architecture.md` memory.
+
+**Cold start:** zero ranked tasks above floor → `recommendations: []` AND TodayPanel renders "Pin a project or capture a task to teach the recommender what matters to you." Don't fake confidence on no data.
+
+**Anti-features (rejected — see `social_media_shape_distinction.md` memory):** completion streaks, "you ranked X tasks this week," dwell-time-based reranking, push notifications about pending recommendations. The block helps the user leave the app with the right decision made.
+
+**Synthesis store:** `recommendations` is a fifth field on the synthesis store (alongside today/weekly/observation/ledger). Same TTL (5 min) and prefetch behavior. The `Y` hotkey opens TodayPanel; the recs block reads from the prefetched store so first paint has no skeleton flicker.
+
+**Frontend wiring:**
+- Store: `src/lib/stores/synthesis.svelte.js` — `recommendations` field, `refreshRecommendations()` export.
+- Render: `src/lib/components/TodayPanel.svelte` — `.recs` block between hero/capacity and the existing task lists.
+- Pin toggle: inline star button per recommendation; click triggers `togglePin()` which POSTs/DELETEs against `/api/task-pins` and calls `refreshRecommendations()`.
 
 ## Tenancy audit (2026-05-02)
 
