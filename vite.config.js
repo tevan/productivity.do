@@ -57,6 +57,7 @@ export default defineConfig({
           /^\/embed\.js$/,
           /^\/home\.html$/,
           /^\/(features|pricing|security|about|changelog|terms|privacy|signup)\.html$/,
+          /^\/roadmap\b/,
         ],
         runtimeCaching: [
           // Read-through SWR cache for protected API GETs the SPA hits
