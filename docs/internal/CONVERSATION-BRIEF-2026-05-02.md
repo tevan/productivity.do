@@ -86,6 +86,14 @@ This uses the *same ranker* as `plan_today` MCP — UI and agent surface read fr
 
 **The explanation is not flavor text — it is adoption infrastructure.** Users will not trust a black-box "do this" recommendation. They will trust *"Do this next because: 50 min free, project pinned, due Friday, last touched 4 days ago, prep doc attached."* The transparency IS the product. Every ranking factor that contributed to the score must be visible in one sentence. This is why the ranker is pure SQL+arithmetic — opaque ML at the decision moment would erase the trust the explanation builds.
 
+**The full explanation contract** is three parts:
+
+1. **Why this** — which captured signals contributed (project pin, priority, recency, etc.).
+2. **Why now** — current time/context factors (50 min free, focus block boundary, calendar gap).
+3. **What would change the answer** — transparency about how user feedback affects the ranker. Example: *"If this is wrong, dismissing it will lower meeting-prep weight for similar events for the next two weeks."*
+
+The third part is the killer. Trust comes from understanding the feedback loop, not just the current recommendation. A user who knows that disagreement improves the system is a user who will engage rather than disengage when the ranker is wrong. v1 may not need all three on every recommendation (the third is potentially heavy in the UI), but the strategic intent is clear: **disagreement is a feature, not a failure mode.**
+
 ### 4. Cross-pillar timeline (3-4 weeks, fourth)
 
 Every event, task, note, file, comment, edit becomes a row on a unified per-day or per-project timeline. Notion can't do this (page-centric). Todoist can't (task-only). Apple Notes can't (only notes are in Apple Notes).
@@ -342,7 +350,7 @@ Five layers, cheapest-and-highest-conviction first:
 
 1. **Charter users (60 days post-launch).** 6-10 specific people, personalized outreach, 14-day Pro comp. Goal: product feedback, not revenue. Founder's phone number for bugs.
 
-2. **MCP catalogs (after `plan_today` ships).** Composio For You, smithery.ai, glama.ai/mcp, mcp.so. Each is one form. Free reach.
+2. **MCP catalogs (after `plan_today` ships).** Composio For You, smithery.ai, glama.ai/mcp, mcp.so. Each is one form. **Reframe — these are discoverability + credibility surfaces, NOT a primary acquisition channel.** A user who hears about us elsewhere and wants to verify we exist will find us listed. The real MCP win is downstream: once a user already trusts productivity.do, MCP lets the answer follow them into ChatGPT/Claude/Siri. That's retention/expansion first, distribution second. Don't lean on "free reach" as a comforting phrase — these catalogs may not send high-intent users at all.
 
 3. **Direct AI-assistant integrations.** ChatGPT Connectors store first (largest user base). Then Claude Apps directory, Apple App Intents, Gemini Actions. Multi-month per platform.
 
@@ -372,6 +380,56 @@ Later signals: weekly trigger-moment named by 3+ users independently (buyer-pain
 
 ---
 
+## The first 30-day validation loop
+
+Before full files-done-well or the cross-pillar timeline, the goal is
+to produce repeated *"yes, that's right"* moments from charter users.
+That's the thing being tested. Everything else is in service of it.
+
+The validation isn't *"is the ranker perfect?"* It's *"can users
+understand and correct it fast enough to trust it tomorrow?"*
+
+For each recommendation surfaced to a charter user, capture:
+
+- **Accepted** (clicked Start, started doing the thing).
+- **Dismissed** (clicked the x — the ranker was wrong for this
+  moment).
+- **Manually overridden** (user did something else from the calendar
+  or task list).
+- **Started but abandoned** (clicked Start, but didn't actually
+  finish or move forward — partial trust).
+- **Re-ranked** (asked for a different recommendation — the top
+  wasn't right but the user wanted us to try again).
+
+Each of these is a different trust-state signal. *Dismissed* and
+*re-ranked* are healthy disagreement (user is engaged with the
+system). *Manually overridden* is silent disengagement (worse —
+user has stopped trusting us enough to even disagree). *Accepted*
+without follow-through is fragile trust. *Accepted with completion*
+is the gold-standard signal.
+
+**Instrumentation requirement:** these events have to fire from day
+one of charter validation. Don't wait until "we have data" — by then
+the validation window is closed. This is why the operational doc
+that comes after this brief should specify exact event names,
+payload shape, and the dashboard that surfaces the signals to the
+founder daily.
+
+**Weekly check-ins with charter users** during the validation window
+should ask:
+- *"What did the product get right this week?"*
+- *"What did it get wrong, and how did you correct it?"*
+- *"If you had to describe what this product does to a colleague,
+  what would you say?"* (positioning test — does the language match
+  what we want them to say?)
+
+This is the next-artifact handoff: the charter validation plan
+itself (with exact instrumentation events, weekly question
+templates, success thresholds, and the founder's response loop) is
+the operational doc that should be written *before* charter users
+start using the product, not after. It's not part of this brief
+because the brief is strategic; the charter plan is operational.
+
 ## What's evidence vs. what's opinion (read this before pushing back)
 
 The brief mixes two kinds of claims. ChatGPT should pressure-test
@@ -384,8 +442,9 @@ these being roughly true):**
   of revenue. *(Source: Perplexity research citing CNBC, SaaStr,
   industry analysis through Sept 2025.)*
 - Linear at ~$1.25B valuation, ~50K paying customers, profitable.
-- Rube/Composio announced shutdown of Rube on May 15, 2026.
-  Composio retreating to developer tier.
+- Rube is being discontinued on May 15, 2026 (announcement
+  already published, shutdown on that date). Users directed toward
+  Composio For You. *(Source: Rube's deprecation notice at rube.app.)*
 - ChatGPT voice = ~19% of engagement; majority is still text.
 - Granola at $125M Series C, $1.5B valuation, 50M+ meetings/year.
 - Glean at $100M ARR in 3 years, ~40% wDAU/MAU.
@@ -589,6 +648,35 @@ This is a list of probes — questions the founder might ask the assistant to ma
 20. *If charter users tell me they want streaks and badges, what should I do — and why?*
 
 ---
+
+## The next document is operational, not strategic
+
+This brief is at the diminishing-returns point on strategy. After
+the 2026-05-02 edits, it's locked. The next useful artifact is
+**not** another strategy doc — it's a **charter validation plan**.
+
+That plan should specify:
+- **The exact first-user workflow.** What the charter user does on
+  day 1, day 7, day 30.
+- **Instrumentation events** for each trust-state signal (accepted,
+  dismissed, manually overridden, started-but-abandoned, re-ranked).
+- **Feedback questions** for weekly check-ins (template + cadence).
+- **Success metrics** with concrete thresholds (what "yes that's
+  right" rate counts as validation; what counts as failure).
+- **The founder's response loop.** When a charter user reports a
+  bug, what's the SLA? When a recommendation is dismissed 3 times
+  in a row, what changes in the ranker?
+- **Charter user recruitment.** The 6-10 specific people, why each
+  was picked, what makes them representative of the eventual ICP.
+
+That document should exist *before* charter users start using the
+product. Not after. By the time validation data exists, the
+window for shaping the question is closed.
+
+This brief should be referenced when the charter validation plan
+is written, but the brief should not expand to cover the
+operational details. Strategy and operations are different
+documents for a reason.
 
 ## What this brief is NOT
 

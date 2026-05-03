@@ -252,6 +252,23 @@ charter users actually need.
    transparency, not magic. (This is why the ranker is pure
    SQL+arithmetic — opaque ML at the decision moment would erase
    the trust the explanation builds.)
+
+   **The explanation contract** — three parts, in order of
+   importance for trust:
+   - **Why this** (which captured signals contributed: project pin,
+     priority, recency, etc.).
+   - **Why now** (current time/context: 50 min free, focus block
+     boundary, calendar gap).
+   - **What would change the answer** (transparency about the
+     feedback loop: *"If this is wrong, dismissing it will lower
+     meeting-prep weight for similar events for the next two
+     weeks."*).
+
+   The third part is the trust killer. Users who understand that
+   their disagreement improves the system stay engaged when the
+   ranker is wrong. v1 UI may not surface all three on every
+   recommendation, but the strategic intent stands: **disagreement
+   is a feature, not a failure mode.**
 4. **Charter-user validation window** (~30 days). Ship steps 1-3 to
    6-10 specific people. Get to the existential question — *do users
    actually want the app to decide?* — fast. The question we're
