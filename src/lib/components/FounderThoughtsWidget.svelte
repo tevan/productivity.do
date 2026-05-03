@@ -1,17 +1,27 @@
 <!--
-  FounderThoughtsWidget — bottom-right floating composer for the founder's
-  in-the-moment thoughts. Founder-gated server-side; mounted only when
+  FounderThoughtsWidget — bottom-right "Provide feedback" composer for
+  the site owner. Founder-gated server-side; mounted only when
   /api/founder-thoughts/whoami returns founder=true.
 
-  Use case: "I'm scrolling through the app, notice something to fix,
-  capture it without leaving context. Claude Code processes the inbox
-  overnight and acts on the queue."
+  UX choices (notes for future-us):
+    - Sticky: open-state persists in localStorage. Closes only on X
+      button click — Esc/click-outside don't dismiss because the user is
+      often holding partial context while clicking around the app to
+      illustrate something.
+    - No backdrop scrim; the calendar/tasks/notes view stays fully usable
+      and visible while the panel is open.
+    - Tall by default (480px desktop, 60vh mobile) so a paragraph of
+      thoughts + a screenshot or two fit without scrolling.
+    - Draft persistence: typed text + remembered-attachment NAMES (we
+      can't persist File handles across reloads) survive a close-without-
+      save. Clearing happens only after a successful submit.
+    - Borderless textarea — the panel itself is the container; an inner
+      border would feel like a form field.
+    - No keyboard-shortcut hints in chrome. ⌘↵ still works; the user
+      already knows.
 
-  Captures by default: URL, path, app-tab, calendar view + date, theme,
-  viewport, online state, user agent. Drag-drop, paste, and click-to-pick
-  attach images (screenshots).
-
-  Submit: Cmd/Ctrl+Enter. Esc closes. Click backdrop closes.
+  Backend route is named "founder-thoughts" for grep-ability; the widget
+  is a thin client.
 -->
 <script>
   import { onMount } from 'svelte';
@@ -20,7 +30,6 @@
   import { getAppView } from '../stores/appView.svelte.js';
   import { getView } from '../stores/view.svelte.js';
   import { getRoute } from '../stores/routeStore.svelte.js';
-  import { getPrefs } from '../stores/prefs.svelte.js';
 
   // --- Founder gate ----------------------------------------------------
   let isFounder = $state(false);
@@ -32,13 +41,25 @@
       isFounder = !!r?.founder;
     } catch {}
     gateChecked = true;
+    // Restore sticky open-state + draft only after gate passes.
+    if (isFounder) {
+      try {
+        if (localStorage.getItem(OPEN_KEY) === '1') open = true;
+        const savedDraft = localStorage.getItem(DRAFT_KEY) || '';
+        if (savedDraft) thought = savedDraft;
+      } catch {}
+      // First-time-open auto-focus is handled by the $effect below.
+    }
   });
 
   // --- Stores ----------------------------------------------------------
   const appView = getAppView();
   const calendarView = getView();
   const route = getRoute();
-  const prefs = getPrefs();
+
+  // --- Storage keys ----------------------------------------------------
+  const OPEN_KEY  = 'productivity_feedback_open';
+  const DRAFT_KEY = 'productivity_feedback_draft';
 
   // --- Composer state --------------------------------------------------
   let open = $state(false);
@@ -50,22 +71,43 @@
   let inputEl;
   let nextAttId = 0;
 
+  // Persist draft text on every change so closing-without-save doesn't
+  // lose work. Cleared only on successful submit.
+  $effect(() => {
+    if (!gateChecked || !isFounder) return;
+    try {
+      if (thought) localStorage.setItem(DRAFT_KEY, thought);
+      else localStorage.removeItem(DRAFT_KEY);
+    } catch {}
+  });
+
+  // Persist open-state. Sticky: only X click flips this to closed.
+  function persistOpen(next) {
+    try { localStorage.setItem(OPEN_KEY, next ? '1' : '0'); } catch {}
+  }
+
   function openComposer() {
     open = true;
-    queueMicrotask(() => textareaEl?.focus());
+    persistOpen(true);
+    // Focus the textarea on first open of this session — caret-at-end so
+    // a saved draft is editable immediately, not selected.
+    queueMicrotask(() => {
+      if (!textareaEl) return;
+      textareaEl.focus();
+      const len = textareaEl.value.length;
+      try { textareaEl.setSelectionRange(len, len); } catch {}
+    });
   }
 
   function closeComposer() {
     if (sending) return;
     open = false;
+    persistOpen(false);
   }
 
   function onKey(e) {
     if (!open) return;
-    if (e.key === 'Escape') {
-      e.stopPropagation();
-      closeComposer();
-    }
+    // Cmd/Ctrl+Enter still saves — we just don't advertise it in chrome.
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       submit();
@@ -81,7 +123,7 @@
     if (!fileList) return;
     const list = Array.from(fileList).filter(Boolean);
     for (const f of list) {
-      if (!isImage(f)) continue; // text-only otherwise
+      if (!isImage(f)) continue;
       if (attachments.length >= 5) break;
       const id = ++nextAttId;
       const previewUrl = URL.createObjectURL(f);
@@ -135,11 +177,9 @@
   // --- Context capture -------------------------------------------------
   function captureContext() {
     const resource = (() => {
-      // Notes route: /notes/:id
       if (route?.isNote && route?.noteId) {
         return { kind: 'note', id: String(route.noteId) };
       }
-      // Integrations: /integrations or /integrations/:provider
       if (route?.isIntegrations) {
         return { kind: 'integration', id: route.integrationProvider || 'index' };
       }
@@ -183,7 +223,6 @@
     let res;
     try {
       if (attachments.length === 0) {
-        // JSON path — lighter, no multipart parsing.
         res = await fetch('/api/founder-thoughts', {
           method: 'POST',
           credentials: 'same-origin',
@@ -206,16 +245,18 @@
         showToast({ message: json?.error || `Failed (${res.status})`, kind: 'error' });
         return;
       }
-      // Success — clear and close. Toast confirms.
+      // Success — clear draft and attachments, keep panel open. The user
+      // is in a flow; they may want to drop another thought immediately.
       for (const a of attachments) {
         if (a.previewUrl) URL.revokeObjectURL(a.previewUrl);
       }
       thought = '';
       attachments = [];
-      open = false;
-      showToast({ message: 'Thought saved', kind: 'info', duration: 2000 });
+      try { localStorage.removeItem(DRAFT_KEY); } catch {}
+      showToast({ message: 'Feedback saved', kind: 'info', duration: 2000 });
+      queueMicrotask(() => textareaEl?.focus());
     } catch (err) {
-      showToast({ message: 'Could not save thought', kind: 'error' });
+      showToast({ message: 'Could not save feedback', kind: 'error' });
     } finally {
       sending = false;
     }
@@ -236,36 +277,44 @@
     <button
       class="ft-fab"
       type="button"
-      title="Capture thought (founder inbox)"
-      aria-label="Capture thought"
+      title="Provide feedback"
+      aria-label="Provide feedback"
       onclick={openComposer}
     >
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
       </svg>
     </button>
   {:else}
-    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-    <div class="ft-backdrop" onclick={closeComposer}></div>
+    <!-- No scrim. The panel sits over the page; the page stays interactive. -->
     <div
       class="ft-composer"
       class:dragging
       role="dialog"
-      aria-label="Capture thought"
+      aria-label="Provide feedback"
       ondragover={onDragOver}
       ondragleave={onDragLeave}
       ondrop={onDrop}
     >
       <div class="ft-head">
-        <span class="ft-title">Founder inbox</span>
-        <span class="ft-hint">⌘↵ to save · Esc to close</span>
+        <span class="ft-title">Feedback</span>
+        <button
+          class="ft-close"
+          type="button"
+          aria-label="Close"
+          title="Close"
+          onclick={closeComposer}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M18 6L6 18M6 6l12 12"/>
+          </svg>
+        </button>
       </div>
 
       <textarea
         bind:this={textareaEl}
         bind:value={thought}
-        placeholder="What's on your mind? Drop screenshots here, paste, or click 📎"
-        rows="4"
+        placeholder="Add feedback..."
         spellcheck="true"
         disabled={sending}
       ></textarea>
@@ -283,9 +332,14 @@
                 class="ft-att-remove"
                 type="button"
                 title="Remove"
+                aria-label="Remove attachment"
                 onclick={() => removeAttachment(a.id)}
                 disabled={sending}
-              >×</button>
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" aria-hidden="true">
+                  <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+              </button>
             </li>
           {/each}
         </ul>
@@ -294,11 +348,16 @@
       <div class="ft-actions">
         <button
           type="button"
-          class="ft-attach-btn"
+          class="ft-icon-btn"
+          aria-label="Attach image"
+          title="Attach image"
           onclick={onPickClick}
           disabled={sending || attachments.length >= 5}
-          title="Attach image (max 5)"
-        >📎 Attach</button>
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21.44 11.05L12.25 20.24a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+          </svg>
+        </button>
         <input
           type="file"
           accept="image/*"
@@ -308,12 +367,6 @@
           style="display: none"
         />
         <span class="ft-spacer"></span>
-        <button
-          type="button"
-          class="ft-cancel"
-          onclick={closeComposer}
-          disabled={sending}
-        >Cancel</button>
         <button
           type="button"
           class="ft-save"
@@ -326,6 +379,7 @@
 {/if}
 
 <style>
+  /* ---- FAB ---------------------------------------------------------- */
   .ft-fab {
     position: fixed;
     bottom: 18px;
@@ -337,7 +391,7 @@
     border: 1px solid var(--border);
     background: var(--surface-elevated, var(--surface));
     color: var(--text-secondary);
-    box-shadow: var(--shadow-md, 0 4px 12px rgba(0,0,0,0.15));
+    box-shadow: var(--shadow-md, 0 4px 12px rgba(0, 0, 0, 0.15));
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -354,22 +408,18 @@
     outline-offset: 2px;
   }
 
-  .ft-backdrop {
-    position: fixed;
-    inset: 0;
-    background: transparent;
-    z-index: 1899;
-  }
+  /* ---- Composer ----------------------------------------------------- */
   .ft-composer {
     position: fixed;
     bottom: 18px;
     right: 18px;
     z-index: 1901;
     width: min(440px, calc(100vw - 36px));
+    height: min(520px, calc(100vh - 36px));
     background: var(--surface-elevated, var(--surface));
     border: 1px solid var(--border);
     border-radius: var(--radius-lg, 12px);
-    box-shadow: var(--shadow-lg, 0 12px 32px rgba(0,0,0,0.25));
+    box-shadow: var(--shadow-lg, 0 12px 32px rgba(0, 0, 0, 0.25));
     padding: 14px;
     display: flex;
     flex-direction: column;
@@ -381,45 +431,80 @@
     background: color-mix(in srgb, var(--accent) 6%, var(--surface-elevated, var(--surface)));
   }
 
+  /* On narrow viewports, attach to the bottom edge but keep height
+     reasonable. No full-screen takeover; the calendar still peeks. */
+  @media (max-width: 640px) {
+    .ft-composer {
+      bottom: 12px;
+      right: 12px;
+      left: 12px;
+      width: auto;
+      height: min(60vh, 520px);
+    }
+  }
+
   .ft-head {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
-    gap: 8px;
   }
   .ft-title {
     font-size: 12px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    color: var(--accent);
+    color: var(--text-secondary);
   }
-  .ft-hint {
-    font-size: 11px;
-    color: var(--text-tertiary, var(--text-secondary));
+  .ft-close {
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    border-radius: 4px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
-
-  textarea {
-    width: 100%;
-    box-sizing: border-box;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm, 6px);
-    background: var(--surface);
+  .ft-close:hover {
+    background: var(--surface-hover);
     color: var(--text-primary);
-    padding: 10px 12px;
-    font: inherit;
-    font-size: 13.5px;
-    line-height: 1.5;
-    resize: vertical;
-    min-height: 80px;
-    max-height: 320px;
   }
-  textarea:focus {
+  .ft-close:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 1px;
-    border-color: var(--accent);
   }
 
+  /* Borderless textarea — the panel itself is the container. Filling the
+     panel ensures the user sees a generous writing surface. */
+  textarea {
+    flex: 1;
+    width: 100%;
+    box-sizing: border-box;
+    border: none;
+    background: transparent;
+    color: var(--text-primary);
+    padding: 0;
+    font: inherit;
+    font-size: 14px;
+    line-height: 1.55;
+    resize: none;
+    min-height: 0;
+  }
+  textarea::placeholder {
+    color: var(--text-tertiary, var(--text-secondary));
+    opacity: 0.7;
+    font-weight: 400;
+  }
+  textarea:focus {
+    outline: none;
+  }
+  textarea:disabled {
+    opacity: 0.6;
+  }
+
+  /* ---- Attachments -------------------------------------------------- */
   .ft-attachments {
     list-style: none;
     margin: 0;
@@ -429,6 +514,7 @@
     gap: 4px;
     max-height: 180px;
     overflow-y: auto;
+    flex-shrink: 0;
   }
   .ft-att {
     display: grid;
@@ -470,48 +556,58 @@
     color: var(--text-secondary);
     border-radius: 4px;
     cursor: pointer;
-    font-size: 14px;
-    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
   .ft-att-remove:hover {
     background: var(--surface-hover);
     color: var(--text-primary);
   }
 
+  /* ---- Footer actions ---------------------------------------------- */
   .ft-actions {
     display: flex;
     align-items: center;
     gap: 6px;
+    flex-shrink: 0;
   }
   .ft-spacer { flex: 1; }
-  .ft-attach-btn,
-  .ft-cancel,
-  .ft-save {
+  .ft-icon-btn {
+    width: 32px;
+    height: 32px;
     border: 1px solid var(--border);
     background: var(--surface);
-    color: var(--text-primary);
-    padding: 6px 12px;
+    color: var(--text-secondary);
     border-radius: var(--radius-sm, 6px);
-    font-size: 13px;
     cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
-  .ft-attach-btn:disabled,
-  .ft-cancel:disabled,
-  .ft-save:disabled {
-    opacity: 0.55;
+  .ft-icon-btn:hover:not(:disabled) {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+  }
+  .ft-icon-btn:disabled {
+    opacity: 0.45;
     cursor: not-allowed;
   }
-  .ft-attach-btn:hover:not(:disabled),
-  .ft-cancel:hover:not(:disabled) {
-    background: var(--surface-hover);
-  }
   .ft-save {
+    border: 1px solid var(--accent);
     background: var(--accent);
-    border-color: var(--accent);
     color: white;
+    padding: 6px 14px;
+    border-radius: var(--radius-sm, 6px);
+    font-size: 13px;
     font-weight: 500;
+    cursor: pointer;
   }
   .ft-save:hover:not(:disabled) {
     filter: brightness(1.05);
+  }
+  .ft-save:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
   }
 </style>
