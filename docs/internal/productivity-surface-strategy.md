@@ -403,10 +403,14 @@ surfaces). That's a real gap.
 
 Picked deliberately to survive most futures, but not all:
 
-- *Agentic shift:* OK. The "what should I do right now" surface is a
-  ranked list that an agent could read as easily as a human. Files
-  unified gives an agent one place to look. Cross-pillar timeline gives
-  an agent the audit trail.
+- *Agentic shift:* OK only if our MCP exposes **workflow-named tools**,
+  not CRUD wrappers. The Perplexity research is unambiguous on this
+  (see `perplexity-research-synthesis.md`, Finding #1): MCP servers
+  with `create_task`-style endpoints lose to ones with `plan_today` /
+  `triage_inbox` / `summarize_project`. Fixing this is its own track
+  (see "MCP workflow tools" section below). Files unified gives an
+  agent one place to look. Cross-pillar timeline gives an agent the
+  audit trail.
 - *Voice capture:* Vulnerable. If capture happens elsewhere, our value
   depends on being where the captured stuff lands. The timeline helps
   because "all your stuff threaded in one place" is a destination value
@@ -414,6 +418,37 @@ Picked deliberately to survive most futures, but not all:
 - *Search-first collapse:* Partially prepared. Files-done-well points
   in the right direction; we'd need actual content search to compete.
   Real work, not on the current roadmap.
+
+### MCP workflow tools (track applied to every shipped feature)
+
+Discipline added 2026-05-02 after Perplexity synthesis. Every feature
+ships with at minimum the corresponding REST surface (already a rule),
+**plus** a workflow-named MCP tool when the feature represents a
+discrete decision or workflow. Workflow-named means verb-driven and
+problem-shaped: `plan_today`, not `list_tasks`; `triage_inbox`, not
+`classify_text`; `summarize_project`, not `get_project`. The CRUD MCP
+tools we already ship stay (they're useful for direct manipulation),
+but the *marketed* surface is the workflows.
+
+Initial workflow tools to add (~1 week of work, parallel with
+files-done-well):
+
+1. `plan_today` — wraps `backend/lib/ranker.js`, returns ranked
+   decisions with score breakdowns + explanations.
+2. `triage_inbox` — wraps `/api/voice/route` classifier; inputs
+   free-text, outputs classified resource + confidence + slot
+   suggestion.
+3. `summarize_project` — wraps `getProjectMomentum` +
+   `/api/projects/:id/context`; outputs momentum + intent + open
+   tasks + recent activity + due-date countdown.
+4. `rebalance_week` (v2 — pure function over events + tasks + focus
+   blocks; returns proposed reschedule diff; deferred if scope
+   tightens).
+
+This is the highest-leverage thing we can ship in a week. Reasoning:
+when ChatGPT/Claude/Gemini route a productivity intent, the agent
+picks the integration with the highest-leverage tools. CRUD parity
+loses to workflow uniqueness.
 
 ### The robust property to optimize for
 
@@ -479,6 +514,18 @@ lands in the right place automatically. **This is Mem's bet executed
 for our shape** — but we're better positioned because we already have
 the calendar + tasks + notes substrate; they had to bolt the calendar
 piece on after.
+
+**Both builds are preview-and-confirm, not direct-commit.** This is the
+correct UX for voice given the failure modes documented in the
+Perplexity research (`docs/internal/perplexity-research-synthesis.md`,
+Finding #2). Voice works for short well-bounded tasks (capture,
+reminders, dictation, simple queries). Voice does NOT work for
+multi-step orchestration — over-narration, ambiguous dates,
+homophones, and failed turn-taking erode trust the moment one slip
+happens. A future iteration that proposes "let voice commit directly
+without preview" or "expand voice to multi-step workflow chains"
+should be rejected on this evidence. Keep the preview card. Keep
+push-to-talk only — no always-on listening, no wake words.
 
 **Don't build (yet) — meetings transcription / Granola-shape.** Tempting
 because files-done-well + timeline + voice converge here, and our
@@ -552,6 +599,45 @@ What we should NOT add:
 - A "project goal" / "project deadline" pillar. Out of scope.
 - AI-generated project priority. Without explicit user signal, it's a
   guess that the user has to correct, which is worse than asking them.
+
+## What we won't chase (deliberately)
+
+Distractions that the Perplexity research surfaces but we're choosing
+not to chase. Each is reasoned through in
+`perplexity-research-synthesis.md` ("Three findings we ignore"). The
+purpose of listing them here is so a future iteration doesn't
+relitigate the question without new information.
+
+- **Spatial / Vision Pro / Quest productivity.** Real direction but
+  5+ years out for our audience. Fantastical for visionOS already
+  exists. Reconsider if a charter user explicitly asks; otherwise
+  skip.
+- **Decentralized identity (ENS / Lens / AT Protocol).** Mature
+  technically, niche in productivity. No mainstream productivity app
+  has adopted them. Email + OAuth is the practical state. Reconsider
+  if federation becomes the norm in our category.
+- **Generative UI (v0, Galileo) as a market force.** It erodes "UI
+  as a moat" but our moat isn't the UI — it's the data model +
+  workflow + agent surface. We already use generative UI as a tool
+  (Claude generates components for us); we don't need to defend
+  against it as a force.
+- **CRDT-based sync / full local-first.** The Perplexity "if I were
+  starting today" recommendation explicitly says: relational core +
+  sync log, avoid CRDTs initially. Our existing offline mode (IDB
+  write queue + SW + last-writer-wins replay) is the right amount
+  of local-first for our audience. If multi-user shared workspaces
+  become the wedge, prefer adopting Replicache/ElectricSQL/PowerSync
+  over rolling our own CRDT layer.
+- **Always-on voice / wake-word / background mic.** Voice works for
+  push-to-talk capture and confirm. Always-on listening fails on
+  legal consent + social discomfort + technical session-instability
+  grounds. Push-to-talk only, no wake word, indefinite.
+- **Multi-step voice orchestration.** "Move my 3pm to tomorrow,
+  email everyone, and update the project" via voice is documented to
+  fail in production (Gemini Live, Limitless). Voice = capture +
+  confirm + simple commands. A future iteration that proposes
+  expanding voice to multi-step chains should be rejected on this
+  evidence.
 
 ## Next-decision triggers
 
