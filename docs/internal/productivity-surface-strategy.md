@@ -222,27 +222,35 @@ already have) and grants the strongest contrarian demand. See
 `claude-perplexity-future-of-productivity-contrarian.md` for the full
 counter-argument and `perplexity-research-synthesis.md` Finding #1.
 
-**Build order revised 2026-05-02 evening** after a ChatGPT critique
-of the brief noted: shipping full files-done-well (4-6wks) before
-validating the next-thing surface delays the riskiest validation.
-Counter-argument: a thin next-thing surface without files produces
-shallow recommendations during the validation window. Hybrid
-resolution: thin file attachment first (~1 week, just attach +
-display, no rails or unification), MCP + next-thing surface in
-parallel, charter validation, THEN expand files based on what
-charter users actually need.
+**Build order — realistic timelines.** Earlier drafts of this doc
+quoted "4-6 weeks for files-done-well" as if this were a 5-person
+team. With AI-leverage on a single founder, those numbers are
+inflated by 10-20×. Realistic estimates are days, not weeks.
+Development time is negligible as long as the output serves the
+strategy.
 
-1. **Thin files** (1 week). Events/tasks/notes can have files
-   attached and displayed. No "appears in" rail, no unification, no
-   Drive references — just enough so the next-thing surface can
-   show "the spec doc Sara sent" without feeling shallow.
-2. **MCP workflow tools** (~1 week, parallel-able with thin files). `plan_today`,
+The previous "thin files vs. full files" debate (after ChatGPT
+critique) was the right *order* but wrong *premise*. Full files-
+done-well is a 1-2 day build, not 4-6 weeks. There's no real
+trade-off between "ship thin first to validate fast" vs. "ship
+full to make recommendations specific" — we can ship full files
+*and* validation infrastructure in the same week.
+
+The actual constraint is **strategic clarity**, not engineering
+time. Each step should ship complete and well-thought-through, not
+hurried to compress a non-existent timeline.
+
+1. **Files unified across pillars** (1-2 days). One file picker, one
+   storage model, threading across events/tasks/notes via the same
+   mechanism, drag-drop, paste, click-to-attach, per-file "appears
+   in" rail. Ship it complete; no thin-vs-full split.
+2. **MCP workflow tools** (1-2 days, parallel with files). `plan_today`,
    `triage_inbox`, `summarize_project`, (v2 `rebalance_week`). Each wraps
    an existing pure function; the work is naming, schema, and docs. This
    is the highest-leverage agent-distribution play — when an agent picks
    which MCP server to route a productivity intent to, workflow uniqueness
    beats CRUD parity. See "MCP workflow tools" section in Future-proofing.
-3. **"What should I do right now" surface** (2-3 weeks). Deterministic
+3. **"What should I do right now" surface** (2-3 days). Deterministic
    ranker, one-click commit, hotkey. Reuses the synthesis store +
    Live Context Panel patterns. Ships using the *same* ranker the
    `plan_today` MCP tool exposes — UI and agent surface read from
@@ -269,17 +277,25 @@ charter users actually need.
    ranker is wrong. v1 UI may not surface all three on every
    recommendation, but the strategic intent stands: **disagreement
    is a feature, not a failure mode.**
-4. **Charter-user validation window** (~30 days). Ship steps 1-3 to
+4. **Trust-state instrumentation** (1 day). Capture the 5 signals
+   per recommendation (accepted, dismissed, manually overridden,
+   started-but-abandoned, re-ranked). Per the validation-loop spec
+   in the brief. Builds the dashboard the founder uses to make
+   ranker tuning decisions during the validation window.
+5. **Cross-pillar timeline** (1-2 days). Per-day first, per-project
+   second. Pure SQL over `revisions` + `links` + `tasks_cache` +
+   `events_cache`. Ships before charter validation so users have
+   the full surface to validate against, not a partial one.
+6. **Charter-user validation window** (~30 days). Ship steps 1-5 to
    6-10 specific people. Get to the existential question — *do users
    actually want the app to decide?* — fast. The question we're
    testing isn't "is the ranker smart?" It's "will users trust it
-   enough to stop deciding manually?"
-5. **Full files unified** (3-4 weeks, after validation). Once the
-   next-thing surface is validated, expand to one file picker, one
-   storage model, threading across pillars, drag-drop, paste,
-   per-file "appears in" rail.
-6. **The cross-pillar timeline** (3-4 weeks). Per-day first (cheap, the
-   data is already there). Per-project second.
+   enough to stop deciding manually?" This is the time-bound step;
+   everything before it is implementation.
+
+**Realistic total to charter-validation start: ~1 week of focused
+work**, plus any in-flight launch checklist items (Stripe Price IDs,
+Resend domain verification, Sentry DSN — see `docs/LAUNCH-CHECKLIST.md`).
 
 Estimation Intelligence and Time Ledger stay shipped but stop getting
 investment. The Live Context Panel keeps getting investment because it's

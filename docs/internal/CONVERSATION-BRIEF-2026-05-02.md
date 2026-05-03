@@ -39,34 +39,22 @@ Three load-bearing claims under that:
 
 These are the next 3-4 months of focused work. Everything else is substrate already shipped.
 
-**Build order revised after ChatGPT pushback (2026-05-02 evening).**
-Original order had files-done-well taking 4-6 weeks before any
-validation of the decision surface. ChatGPT's critique — *"the
-riskiest validation should come first"* — was partially right.
-Hybrid resolution: ship a *thin* file-attachment layer first (~1
-week, just attach+display, no rails or unification), get the next-
-thing surface and `plan_today` MCP in front of charter users
-quickly, then expand files based on what charter users actually
-need. This way the validation window isn't crippled by shallow
-recommendations, AND we get to the existential "do users want
-this?" question fast.
+**Realistic timelines.** Earlier drafts of this brief quoted weeks
+for each step as if this were a 5-person team. With AI-leverage on
+a single founder, those numbers are inflated by 10-20×. Realistic
+estimates are days, not weeks. Development time is negligible as
+long as the output serves the strategy. The actual constraint is
+strategic clarity, not engineering time.
 
-### 1a. Thin files (1 week, first)
+### 1. Files unified across pillars (1-2 days, first)
 
-Minimum viable file attachment: events, tasks, and notes can have
-files attached and displayed. No unification, no "appears in" rail,
-no Drive references, no per-file context panel. Just attach +
-display. This is enough to make next-thing-surface recommendations
-not feel shallow during charter-user validation.
+One file picker, one storage model. Files attach to events, tasks,
+AND notes via the same mechanism. The same file (e.g., a spec doc)
+threads across all three: the doc on the meeting, the doc on the
+prep task, the doc on the meeting notes — once. Drag-drop,
+paste-from-clipboard, click-to-attach. Per-file "appears in" rail.
 
-### 1b. Full files unified (after charter validation, ~3-4 weeks more)
-
-Once charter users have validated the next-thing surface, expand to
-the full vision: one file picker, one storage model, files thread
-across events/tasks/notes via the same mechanism, drag-drop,
-paste-from-clipboard, per-file "appears in" rail.
-
-### 2. MCP workflow tools (~1 week, second — parallel with thin files)
+### 2. MCP workflow tools (1-2 days, parallel with files)
 
 Four agent-callable tools:
 - `plan_today` — wraps the existing ranker, returns ranked decision list with explanations.
@@ -78,7 +66,7 @@ Each is **workflow-named** (verb-driven), not table-named. CRUD parity (`create_
 
 The cost calculus is asymmetric: when ChatGPT calls our MCP, **we run the deterministic ranker (SQL, $0/call) and return structured data; ChatGPT pays its own LLM cost to wrap the response in conversation.** We're the structured backend; the agent eats the LLM bill.
 
-### 3. The "what should I do right now" surface (2-3 weeks, third)
+### 3. The "what should I do right now" surface (2-3 days, third)
 
 Press space anywhere → one screen, one sentence, one Start button. Deterministic ranker (50-200ms, $0/call). Auditable: every recommendation explainable in one sentence. Click Start: focus block lands on calendar, note opens to the right place, attached file is right there.
 
@@ -94,7 +82,7 @@ This uses the *same ranker* as `plan_today` MCP — UI and agent surface read fr
 
 The third part is the killer. Trust comes from understanding the feedback loop, not just the current recommendation. A user who knows that disagreement improves the system is a user who will engage rather than disengage when the ranker is wrong. v1 may not need all three on every recommendation (the third is potentially heavy in the UI), but the strategic intent is clear: **disagreement is a feature, not a failure mode.**
 
-### 4. Cross-pillar timeline (3-4 weeks, fourth)
+### 4. Cross-pillar timeline (1-2 days, fourth)
 
 Every event, task, note, file, comment, edit becomes a row on a unified per-day or per-project timeline. Notion can't do this (page-centric). Todoist can't (task-only). Apple Notes can't (only notes are in Apple Notes).
 
