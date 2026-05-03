@@ -45,7 +45,7 @@
         body: JSON.stringify({ resource, id: resourceId }),
       });
       if (res?.ok) {
-        showToast('Restored', 'success');
+        showToast({ message: 'Restored', kind: 'success' });
         onclose();
         // Best-effort full reload signal — different stores own different
         // resources and we don't have a fan-out invalidator yet.

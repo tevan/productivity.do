@@ -151,14 +151,14 @@ export function getViewRange(view, date, prefs = {}) {
       return { start: d, end: endOfDay(addDays(d, count - 1)) };
     }
     case 'week': {
-      const weekStart = startOfWeek(d, prefs.weekStartDay || 'monday');
+      const weekStart = startOfWeek(d, prefs.weekStartDay || 'sunday');
       return { start: weekStart, end: endOfDay(addDays(weekStart, 6)) };
     }
     case 'month': {
       const first = new Date(d.getFullYear(), d.getMonth(), 1);
       const last = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-      const monthStart = startOfWeek(first, prefs.weekStartDay || 'monday');
-      const monthEnd = addDays(startOfWeek(addDays(last, 6), prefs.weekStartDay || 'monday'), 6);
+      const monthStart = startOfWeek(first, prefs.weekStartDay || 'sunday');
+      const monthEnd = addDays(startOfWeek(addDays(last, 6), prefs.weekStartDay || 'sunday'), 6);
       return { start: monthStart, end: endOfDay(monthEnd) };
     }
     default:
@@ -198,7 +198,7 @@ export function getMonthName(date, short = false) {
   return new Date(date).toLocaleDateString('en-US', { month: short ? 'short' : 'long' });
 }
 
-export function getMonthGrid(date, weekStartDay = 'monday') {
+export function getMonthGrid(date, weekStartDay = 'sunday') {
   const first = new Date(date.getFullYear(), date.getMonth(), 1);
   const last = new Date(date.getFullYear(), date.getMonth() + 1, 0);
   const gridStart = startOfWeek(first, weekStartDay);

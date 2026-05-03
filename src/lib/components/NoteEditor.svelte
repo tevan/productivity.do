@@ -373,7 +373,9 @@
   .modal-backdrop {
     position: fixed;
     inset: 0;
-    background: var(--backdrop, rgba(0,0,0,0.4));
+    background: var(--backdrop, rgba(0,0,0,0.18));
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
     display: flex;
     align-items: center;
     justify-content: center;

@@ -56,14 +56,14 @@
     try {
       mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch (e) {
-      showToast('Microphone access denied', 'error');
+      showToast({ message: 'Microphone access denied', kind: 'error' });
       return;
     }
     const mime = pickMimeType();
     try {
       mediaRecorder = new MediaRecorder(mediaStream, mime ? { mimeType: mime } : undefined);
     } catch (e) {
-      showToast('Recording not supported in this browser', 'error');
+      showToast({ message: 'Recording not supported in this browser', kind: 'error' });
       stopStream();
       return;
     }
@@ -113,14 +113,14 @@
         method: 'POST', body: fd, credentials: 'same-origin',
       });
       if (transcribeRes.status === 503) {
-        showToast('Voice transcription not configured.', 'error');
+        showToast({ message: 'Voice transcription not configured.', kind: 'error' });
         unsupported = true;
         processing = false;
         return;
       }
       const transcribed = await transcribeRes.json();
       if (!transcribed?.ok || !transcribed.transcript) {
-        showToast(transcribed?.error || 'Could not understand audio.', 'error');
+        showToast({ message: transcribed?.error || 'Could not understand audio.', kind: 'error' });
         processing = false;
         return;
       }
@@ -139,7 +139,7 @@
         body: JSON.stringify({ transcript: transcribed.transcript, context: 'capture' }),
       });
       if (!routed?.ok) {
-        showToast(routed?.error || 'Could not classify.', 'error');
+        showToast({ message: routed?.error || 'Could not classify.', kind: 'error' });
         processing = false;
         return;
       }
@@ -151,7 +151,7 @@
         transcript: transcribed.transcript,
       };
     } catch (err) {
-      showToast(String(err?.message || err), 'error');
+      showToast({ message: String(err?.message || err), kind: 'error' });
     } finally {
       processing = false;
     }
@@ -171,8 +171,8 @@
             estimatedMinutes: fields.estimatedMinutes || null,
           }),
         });
-        if (res?.ok) showToast('Task captured', 'success');
-        else showToast(res?.error || 'Could not create task', 'error');
+        if (res?.ok) showToast({ message: 'Task captured', kind: 'success' });
+        else showToast({ message: res?.error || 'Could not create task', kind: 'error' });
       } else if (kind === 'event') {
         if (appCtx?.editEvent) {
           appCtx.editEvent({
@@ -180,7 +180,7 @@
             start: fields.start, end: fields.end,
             location: fields.location || null,
           });
-          showToast('Review and save the event', 'info');
+          showToast({ message: 'Review and save the event', kind: 'info' });
         }
       } else if (kind === 'note') {
         const res = await api('/api/notes', {
@@ -190,15 +190,15 @@
             body: fields.body || preview.transcript,
           }),
         });
-        if (res?.ok) showToast('Note captured', 'success');
-        else showToast(res?.error || 'Could not create note', 'error');
+        if (res?.ok) showToast({ message: 'Note captured', kind: 'success' });
+        else showToast({ message: res?.error || 'Could not create note', kind: 'error' });
       } else {
         // comment / unsure — fall back to creating a note
         const res = await api('/api/notes', {
           method: 'POST',
           body: JSON.stringify({ title: '', body: preview.transcript }),
         });
-        if (res?.ok) showToast('Saved as a note', 'success');
+        if (res?.ok) showToast({ message: 'Saved as a note', kind: 'success' });
       }
     } finally {
       preview = null;

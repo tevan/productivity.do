@@ -13,7 +13,7 @@
   const prefs = getPrefs();
   const cals = getCalendars();
 
-  const grid = $derived(getMonthGrid(view.currentDate, prefs.values.weekStartDay || 'monday'));
+  const grid = $derived(getMonthGrid(view.currentDate, prefs.values.weekStartDay || 'sunday'));
 
   const weekdayHeaders = $derived.by(() => {
     if (!grid.length || !grid[0].length) return [];

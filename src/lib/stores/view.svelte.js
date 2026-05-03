@@ -100,7 +100,7 @@ export function getView() {
 }
 
 // Simple pref cache for derived computations (avoids circular import)
-let _prefsCache = { nextDaysCount: 5, weekStartDay: 'monday' };
+let _prefsCache = { nextDaysCount: 5, weekStartDay: 'sunday' };
 export function setPrefsCache(prefs) {
   _prefsCache = prefs;
 }

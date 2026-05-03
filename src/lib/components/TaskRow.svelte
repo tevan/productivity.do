@@ -139,6 +139,11 @@
     border-radius: var(--radius-sm);
     cursor: pointer;
     transition: opacity 0.3s;
+    /* Suppress browser text-selection during shift-click. Without this,
+       shift-click between rows triggers native range-select on the text
+       and the click handler can be swallowed in some browsers. */
+    user-select: none;
+    -webkit-user-select: none;
   }
   .task-row:hover { background: var(--surface-hover); }
   .task-row:focus-visible {

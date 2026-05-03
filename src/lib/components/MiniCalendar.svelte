@@ -9,7 +9,7 @@
 
   let displayMonth = $state(new Date());
 
-  const grid = $derived(getMonthGrid(displayMonth, prefs.values.weekStartDay || 'monday'));
+  const grid = $derived(getMonthGrid(displayMonth, prefs.values.weekStartDay || 'sunday'));
   const monthLabel = $derived(
     displayMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
   );

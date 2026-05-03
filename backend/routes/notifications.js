@@ -13,30 +13,38 @@ import { getDb } from '../db/init.js';
 const router = Router();
 
 router.get('/api/notifications', (req, res) => {
-  const db = getDb();
-  const rows = db.prepare(`
-    SELECT * FROM notifications
-    WHERE user_id = ?
-    ORDER BY created_at DESC
-    LIMIT 50
-  `).all(req.user.id);
-  const unread = db.prepare(
-    'SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND read_at IS NULL'
-  ).get(req.user.id).n;
-  res.json({
-    ok: true,
-    unread,
-    notifications: rows.map(r => ({
-      id: r.id,
-      kind: r.kind,
-      title: r.title,
-      body: r.body,
-      url: r.url,
-      data: safeJson(r.data_json),
-      read: !!r.read_at,
-      createdAt: r.created_at,
-    })),
-  });
+  // Wrapped in try/catch so a transient DB hiccup doesn't 500 the
+  // bell poller — better to show "no notifications" briefly than
+  // permanently break the bell with an unhandled error.
+  try {
+    const db = getDb();
+    const rows = db.prepare(`
+      SELECT * FROM notifications
+      WHERE user_id = ?
+      ORDER BY created_at DESC
+      LIMIT 50
+    `).all(req.user.id);
+    const unread = db.prepare(
+      'SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND read_at IS NULL'
+    ).get(req.user.id).n;
+    res.json({
+      ok: true,
+      unread,
+      notifications: rows.map(r => ({
+        id: r.id,
+        kind: r.kind,
+        title: r.title,
+        body: r.body,
+        url: r.url,
+        data: safeJson(r.data_json),
+        read: !!r.read_at,
+        createdAt: r.created_at,
+      })),
+    });
+  } catch (err) {
+    console.error('GET /api/notifications error:', err.message);
+    res.status(500).json({ ok: false, error: err.message, unread: 0, notifications: [] });
+  }
 });
 
 router.post('/api/notifications/read', (req, res) => {

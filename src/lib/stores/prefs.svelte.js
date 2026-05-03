@@ -4,7 +4,7 @@ import { setPrefsCache } from './view.svelte.js';
 const DEFAULTS = {
   defaultView: 'nextdays',
   nextDaysCount: 5,
-  weekStartDay: 'monday',
+  weekStartDay: 'sunday',
   showWeekends: true,
   showDayView: false,
   enabledViews: ['nextdays', 'week', 'month'],

@@ -82,10 +82,10 @@
       if (res?.ok) {
         loadProjectMeta();
       } else if (res?.code === 'pin_limit') {
-        showToast(res.error || 'Pin limit reached', 'error');
+        showToast({ message: res.error || 'Pin limit reached', kind: 'error' });
       }
     } catch (e) {
-      showToast(String(e?.message || e), 'error');
+      showToast({ message: String(e?.message || e), kind: 'error' });
     }
   }
 </script>
@@ -180,6 +180,12 @@
     overflow-y: auto;
     min-height: 0;
     max-height: 60vh;
+    /* Breathing room between rows so the active fill doesn't crowd
+       neighbors. Each li takes its own gap; the row chip itself stays
+       full-width inside. */
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
   }
   .proj-row {
     width: 100%;
@@ -190,6 +196,10 @@
     color: var(--text-primary);
     font-size: 12px;
     min-width: 0;
+    /* Suppress the browser's default focus outline. Real focus visibility
+       is supplied by .proj-tap:focus-visible below — matches the rest of
+       the sidebar's focus language and never leaves a stray black box. */
+    outline: none;
   }
   .proj-row:hover { background: var(--surface-hover); }
   .proj-row.active {
@@ -202,8 +212,10 @@
     flex: 1;
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 5px 8px;
+    gap: 10px;
+    /* Bumped horizontal padding so the active fill has breathing room
+       around the dot/text instead of touching the edge. */
+    padding: 7px 12px;
     border: none;
     background: none;
     text-align: left;
@@ -212,6 +224,24 @@
     cursor: pointer;
     border-radius: var(--radius-sm);
     min-width: 0;
+    outline: none;
+  }
+  .proj-tap:focus-visible {
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+  /* The "All tasks" button is on .proj-row directly (no inner .proj-tap
+     wrapper), so apply the same focus treatment there. */
+  button.proj-row {
+    border: none;
+    background: none;
+    padding: 7px 12px;
+    text-align: left;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+  button.proj-row:focus-visible {
+    box-shadow: 0 0 0 2px var(--accent);
   }
   .proj-page-btn {
     background: none;

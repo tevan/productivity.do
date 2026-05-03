@@ -1,8 +1,8 @@
 <script>
   // Holistic Notes view — full-screen list of notes with a reading pane on
   // the right. Scaffold: split layout, click a note to read/edit it inline.
-  import { getContext, tick } from 'svelte';
-  import { getNotes, updateNote } from '../stores/notes.svelte.js';
+  import { getContext } from 'svelte';
+  import { getNotes } from '../stores/notes.svelte.js';
   import { getNotesView } from '../stores/notesView.svelte.js';
   import { getPrefs } from '../stores/prefs.svelte.js';
   import { renderMarkdown } from '../utils/markdown.js';
@@ -81,74 +81,10 @@
     app?.editNote?.();
   }
 
-  // ---- Inline editing ----
-  // Click body / title to swap rendered view for a textarea. Save on blur.
-  // Escape exits without saving the in-flight buffer; the rendered view
-  // stays in sync with the store, so re-entering re-derives from store.
-  let editingBody = $state(false);
-  let editingTitle = $state(false);
-  let bodyBuffer = $state('');
-  let titleBuffer = $state('');
-  let bodyTextarea = $state(null);
-  let titleInput = $state(null);
-
-  // Reset buffers + edit mode whenever the selected note changes.
-  $effect(() => {
-    void notesView.selectedId;
-    editingBody = false;
-    editingTitle = false;
-  });
-
-  async function startEditBody() {
-    if (!selected) return;
-    bodyBuffer = selected.body || '';
-    editingBody = true;
-    await tick();
-    bodyTextarea?.focus();
-    // Auto-resize on first paint
-    autoResize();
-  }
-  function autoResize() {
-    if (!bodyTextarea) return;
-    bodyTextarea.style.height = 'auto';
-    bodyTextarea.style.height = bodyTextarea.scrollHeight + 'px';
-  }
-  async function saveBody() {
-    if (!selected || !editingBody) return;
-    const body = bodyBuffer;
-    editingBody = false;
-    if ((selected.body || '') !== body) {
-      await updateNote(selected.id, { body });
-    }
-  }
-  function cancelBody() {
-    editingBody = false;
-  }
-  function bodyKey(e) {
-    if (e.key === 'Escape') { cancelBody(); }
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); saveBody(); }
-  }
-
-  async function startEditTitle() {
-    if (!selected) return;
-    titleBuffer = selected.title || '';
-    editingTitle = true;
-    await tick();
-    titleInput?.focus();
-    titleInput?.select();
-  }
-  async function saveTitle() {
-    if (!selected || !editingTitle) return;
-    const title = titleBuffer.trim();
-    editingTitle = false;
-    if ((selected.title || '') !== title) {
-      await updateNote(selected.id, { title });
-    }
-  }
-  function cancelTitle() { editingTitle = false; }
-  function titleKey(e) {
-    if (e.key === 'Escape') { cancelTitle(); }
-    if (e.key === 'Enter') { e.preventDefault(); saveTitle(); }
+  // Click title or body to open the full editor modal — single edit surface
+  // for notes, no inline mode. Keeps the reader pane purely a reading view.
+  function openEditor() {
+    if (selected) app?.editNote?.(selected);
   }
 </script>
 
@@ -167,23 +103,12 @@
     <main class="reader" class:has-context={contextOpen && selected?.id}>
       {#if selected}
         <div class="reader-head">
-          {#if editingTitle}
-            <input
-              bind:this={titleInput}
-              class="title-input"
-              bind:value={titleBuffer}
-              onblur={saveTitle}
-              onkeydown={titleKey}
-              placeholder="Untitled"
-            />
-          {:else}
-            <h2 onclick={startEditTitle} aria-label="Note title — click to edit">
-              {#if selected.color}
-                <span class="color-dot" style="background: var(--color-{selected.color}, {selected.color});" aria-hidden="true"></span>
-              {/if}
-              {selected.title || 'Untitled'}
-            </h2>
-          {/if}
+          <h2 onclick={openEditor} onkeydown={(e) => e.key === 'Enter' && openEditor()} role="button" tabindex="0" aria-label="Note title — click to edit">
+            {#if selected.color}
+              <span class="color-dot" style="background: var(--color-{selected.color}, {selected.color});" aria-hidden="true"></span>
+            {/if}
+            {selected.title || 'Untitled'}
+          </h2>
           <!-- Was a labeled "More" button — replaced with a small ⋯ icon
                so it doesn't compete with the title. Color/pin/archive/
                delete still live in the NoteEditor modal that opens here.
@@ -206,31 +131,21 @@
             </svg>
           </button>
         </div>
-        {#if editingBody}
-          <textarea
-            bind:this={bodyTextarea}
-            class="body-textarea"
-            bind:value={bodyBuffer}
-            oninput={autoResize}
-            onblur={saveBody}
-            onkeydown={bodyKey}
-            placeholder="Write something… (markdown supported)"
-          ></textarea>
-        {:else if selected.body}
+        {#if selected.body}
           <div
             class="reader-body markdown-body"
-            onclick={startEditBody}
-            onkeydown={(e) => e.key === 'Enter' && startEditBody()}
-            role="textbox"
+            onclick={openEditor}
+            onkeydown={(e) => e.key === 'Enter' && openEditor()}
+            role="button"
             tabindex="0"
             aria-label="Note body — click to edit"
           >{@html selectedHtml}</div>
         {:else}
           <div
             class="reader-body empty-body"
-            onclick={startEditBody}
-            onkeydown={(e) => e.key === 'Enter' && startEditBody()}
-            role="textbox"
+            onclick={openEditor}
+            onkeydown={(e) => e.key === 'Enter' && openEditor()}
+            role="button"
             tabindex="0"
           >Click to write something…</div>
         {/if}
@@ -366,54 +281,20 @@
     flex-shrink: 0;
     display: inline-block;
   }
-  /* Title input mirrors the h2 visually so swap is seamless. */
-  .title-input {
-    font-size: 20px;
-    font-weight: 600;
-    border: none;
-    background: transparent;
-    color: var(--text-primary);
-    width: 100%;
-    padding: 0;
-    margin: 0;
-    letter-spacing: -0.01em;
-    outline: 1px solid var(--accent);
-    outline-offset: 4px;
-    border-radius: 2px;
-  }
-  .reader-head h2 { cursor: text; }
+  .reader-head h2 { cursor: pointer; }
+  .reader-head h2:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 2px; }
   .reader-body {
     font-size: 14px;
     line-height: 1.65;
     color: var(--text-primary);
     word-wrap: break-word;
-    cursor: text;
-    /* No hover background. The previous design painted a 760px-wide band
-       across the page on hover, which looked like a clipped rectangle.
-       cursor:text carries the affordance — matches Bear / Apple Notes /
-       Notion behavior. */
+    cursor: pointer;
     border-radius: 4px;
     padding: 4px;
     margin: -4px;
   }
+  .reader-body:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .empty-body { color: var(--text-tertiary); font-style: italic; }
-  /* Textarea matches reader-body sizing so swap doesn't reflow. */
-  .body-textarea {
-    width: 100%;
-    min-height: 200px;
-    font-size: 14px;
-    line-height: 1.65;
-    color: var(--text-primary);
-    background: transparent;
-    border: 1px solid var(--accent);
-    border-radius: 4px;
-    padding: 8px;
-    margin: -4px;
-    font-family: inherit;
-    resize: vertical;
-    outline: none;
-    box-sizing: border-box;
-  }
   /* Footer: secondary, accessible but never prominent. */
   .reader-footer {
     margin-top: 32px;
