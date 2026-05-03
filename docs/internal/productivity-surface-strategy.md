@@ -630,6 +630,136 @@ What we should NOT add:
 - AI-generated project priority. Without explicit user signal, it's a
   guess that the user has to correct, which is worse than asking them.
 
+## Protocol gaps to track (and small things to bake in now)
+
+The Perplexity research surfaces several protocol-level gaps that no
+existing standard fills. These are NOT investment areas — protocols
+emerge slowly, and as a solo founder we can't afford to build one. But
+we can bake the *right shapes* into our existing work so we're aligned
+when standards arrive. Reviewed 2026-05-02 after the Perplexity
+synthesis + the Rube/Composio shutdown news.
+
+### The gaps that matter
+
+**1. Capability discovery.** Today an LLM can't find our MCP server
+without a user manually configuring it. ChatGPT's connector store is
+curated; Claude Projects are even more closed. Catalog sites
+([smithery.ai](https://smithery.ai), [glama.ai](https://glama.ai),
+[mcp.so](https://mcp.so)) are lists, not protocols. The *first protocol
+to index agent capabilities* — like PageRank for tools — wins. Nothing
+exists yet.
+
+**2. Cross-agent provenance / commitment audit log.** When an agent
+acts on a user's behalf, no portable record says "this commitment was
+made via Claude using productivity.do's `plan_today` at timestamp T."
+We could build this internally — it's straightforward to add agent +
+tool + timestamp metadata to every state change. Linear's `SyncAction`
+log is the closest internal model. **What we'll bake in (cheap):** add
+`created_by_agent`, `created_via_tool`, `created_at_provenance_token`
+columns to `events_native`, `tasks_native`, `notes_native` when they
+get touched through MCP. Useful for users ("show me what Claude
+scheduled this week") and positions us if a standard emerges.
+
+**3. Workflow-portable identity / preferences.** ChatGPT learns your
+style, Claude learns your style, neither shares. Users re-teach every
+system. No SCIM-for-AI-preferences exists. Not actionable for us yet
+(it's a market-wide problem), but worth tracking.
+
+**4. Scoped, revocable agent permissions.** OAuth tokens are
+all-or-nothing within scope. No standard for "agent X can suggest
+events but not commit them." OAuth 2.1 RAR + GNAP exist on paper;
+nobody has implemented them. Apple App Intents is closer but
+platform-locked. **What we'll bake in (cheap):** when adding MCP
+workflow tools, declare scopes more granular than read/write —
+`plan_today.read_only`, `triage_inbox.with_confirmation`,
+`create_event.confirmed`. If users want to trust an agent only to
+suggest, our MCP shouldn't let it commit. This is a UX choice, not a
+protocol — but it's the right shape if scoped agent-permission
+protocols mature.
+
+**5. Verifiable AI provenance for content.** [C2PA](https://c2pa.org/),
+Anthropic signed completions — both work-in-progress. Relevant when
+LLM-drafted content lands in a task or note, but not load-bearing for
+v1.
+
+### What this means concretely
+
+Two small extras to bake into the MCP-workflow-tools track (already
+priority #2 in implementation order):
+
+- **Agent provenance metadata** on every change. Cheap migration, real
+  user value, future-proof.
+- **Sub-tool-scope permissions** when defining the workflow tools. Per-
+  tool consent, not per-server consent.
+
+Neither is a separate investment. Both fit inside the ~1 week of MCP
+work already on the roadmap.
+
+### Distribution channels worth submitting to (post-launch)
+
+The Rube/Composio shutdown (May 15, 2026) is a useful data point:
+**three companies have tried the consumer-facing "agent + your apps"
+aggregator and all have either shut down or retreated to enterprise**
+(Rube/Composio, Zapier Central, IFTTT AI agents). The horizontal
+gateway play does not work as a standalone consumer product right now.
+What survives is *vertical-specific products that ship their own MCP*
+(productivity.do, Granola, Notion).
+
+This validates our "destination + workflow MCP" stance and creates one
+post-launch distribution opportunity: **submit our MCP to Composio's
+catalog when `plan_today` ships.** Composio For You ("works with any
+MCP client") is positioning to be a developer-tier MCP aggregator;
+having productivity.do in their catalog is free distribution to their
+user base. Add to LAUNCH-CHECKLIST as a post-`plan_today` item.
+
+Other catalog candidates to track: [smithery.ai](https://smithery.ai),
+[glama.ai/mcp](https://glama.ai/mcp), [mcp.so](https://mcp.so). Submit
+when stable. Free reach.
+
+### Lesson from Rube's shutdown
+
+The horizontal-aggregator play is unmonetizable as a consumer product
+*right now*. If we're tempted in the future to build "the universal
+productivity agent that connects all your apps," remember three
+companies just tried and pulled back. The vertical-with-strong-MCP
+shape is what survives. Stay in our lane.
+
+## What's the weekly moment that triggers payment?
+
+Added 2026-05-02 after a ChatGPT critique pointed out that the
+Perplexity research is heavy on market data and light on buyer pain.
+Fair — we should know what specific weekly moment makes a user pay.
+Treating this as the prioritization filter for which load-bearing
+investment ships first.
+
+Candidate trigger moments for our shape:
+
+- *"I have 5 things due today and don't know which to start."* → next-
+  thing surface + `plan_today` MCP. Daily moment.
+- *"Monday morning planning takes 30 min."* → `plan_today` MCP. Weekly
+  moment.
+- *"Files for this meeting are scattered across Drive, Gmail
+  attachments, and a half-written note."* → files-done-well. Per-
+  meeting moment, but lower frequency than the above.
+- *"What got done this week?"* → cross-pillar timeline (per-day +
+  per-project). Weekly retrospective moment.
+
+Frequency analysis: the daily/weekly decision-paralysis moment is
+higher-frequency and higher-emotional-charge than the file-scatter
+moment. Pure pain-frequency math would put MCP workflow tools and
+the next-thing surface ahead of files-done-well in the order.
+
+**Why we still ship files first:** files are the substrate that makes
+the cross-pillar timeline work and improves the next-thing surface
+(attached prep material). Without it, the next-thing surface is
+shallower — it ranks tasks but can't show "the document Sara sent
+about this" alongside. The substrate cost of going second is higher
+than the value of being first.
+
+This *is* a tension. If a charter user tells us files-scatter is NOT
+their pain, but daily decision-paralysis IS, we should reorder. Until
+then: files first, MCP second, next-thing third, timeline fourth.
+
 ## What we won't chase (deliberately)
 
 Distractions that the Perplexity research surfaces but we're choosing

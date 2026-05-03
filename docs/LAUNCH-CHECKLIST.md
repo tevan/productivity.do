@@ -122,7 +122,28 @@ Once this lands, anyone on the internet can hit the SPA + `/api/*`. Marketing pa
   - Booking conversion (views → confirmed)
 - [ ] Stripe checkout success vs. abandonment from the Stripe dashboard.
 
-## 11. After launch — rollback plan
+## 11. Post-launch distribution (after `plan_today` MCP ships)
+
+When the MCP-workflow-tools track is shipped (priority #2 in
+`docs/internal/productivity-surface-strategy.md`), submit our MCP to
+the open catalogs for free distribution. The horizontal aggregator
+play (Rube/Composio, Zapier Central) has been pulled back from
+consumer tier — vertical-with-strong-MCP is what survives, and
+catalog presence is how we get reached.
+
+- [ ] **Composio For You** — works with any MCP client; positioning
+  to be the developer-tier MCP aggregator after Rube's May 15
+  shutdown. Submit via [composio.dev](https://composio.dev/) (verify
+  URL at submission time).
+- [ ] **smithery.ai** — community MCP catalog.
+- [ ] **glama.ai/mcp** — MCP server directory.
+- [ ] **mcp.so** — additional listing.
+
+Do NOT submit before `plan_today`, `triage_inbox`, and
+`summarize_project` are stable. CRUD-only MCPs are commodity; submit
+when workflow tools differentiate us.
+
+## 12. After launch — rollback plan
 
 If anything goes wrong:
 
