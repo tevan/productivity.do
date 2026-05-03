@@ -39,13 +39,34 @@ Three load-bearing claims under that:
 
 These are the next 3-4 months of focused work. Everything else is substrate already shipped.
 
-### 1. Files unified across calendar, tasks, notes (4-6 weeks, first)
+**Build order revised after ChatGPT pushback (2026-05-02 evening).**
+Original order had files-done-well taking 4-6 weeks before any
+validation of the decision surface. ChatGPT's critique — *"the
+riskiest validation should come first"* — was partially right.
+Hybrid resolution: ship a *thin* file-attachment layer first (~1
+week, just attach+display, no rails or unification), get the next-
+thing surface and `plan_today` MCP in front of charter users
+quickly, then expand files based on what charter users actually
+need. This way the validation window isn't crippled by shallow
+recommendations, AND we get to the existential "do users want
+this?" question fast.
 
-One file picker, one storage model. Files attach to events, tasks, AND notes via the same mechanism. The same file (e.g., a spec doc) threads across all three: the doc on the meeting, the doc on the prep task, the doc on the meeting notes — once. Drag-drop, paste-from-clipboard, click-to-attach. Per-file "appears in" rail.
+### 1a. Thin files (1 week, first)
 
-**Why first:** substrate. The next-thing surface is shallower without it ("we ranked this meeting first, but we can't show you the doc Sara sent"). The cross-pillar timeline is incomplete without it ("file" is a row type that's missing).
+Minimum viable file attachment: events, tasks, and notes can have
+files attached and displayed. No unification, no "appears in" rail,
+no Drive references, no per-file context panel. Just attach +
+display. This is enough to make next-thing-surface recommendations
+not feel shallow during charter-user validation.
 
-### 2. MCP workflow tools (~1 week, second — promoted from parallel after a contrarian steelman)
+### 1b. Full files unified (after charter validation, ~3-4 weeks more)
+
+Once charter users have validated the next-thing surface, expand to
+the full vision: one file picker, one storage model, files thread
+across events/tasks/notes via the same mechanism, drag-drop,
+paste-from-clipboard, per-file "appears in" rail.
+
+### 2. MCP workflow tools (~1 week, second — parallel with thin files)
 
 Four agent-callable tools:
 - `plan_today` — wraps the existing ranker, returns ranked decision list with explanations.
@@ -62,6 +83,8 @@ The cost calculus is asymmetric: when ChatGPT calls our MCP, **we run the determ
 Press space anywhere → one screen, one sentence, one Start button. Deterministic ranker (50-200ms, $0/call). Auditable: every recommendation explainable in one sentence. Click Start: focus block lands on calendar, note opens to the right place, attached file is right there.
 
 This uses the *same ranker* as `plan_today` MCP — UI and agent surface read from one source.
+
+**The explanation is not flavor text — it is adoption infrastructure.** Users will not trust a black-box "do this" recommendation. They will trust *"Do this next because: 50 min free, project pinned, due Friday, last touched 4 days ago, prep doc attached."* The transparency IS the product. Every ranking factor that contributed to the score must be visible in one sentence. This is why the ranker is pure SQL+arithmetic — opaque ML at the decision moment would erase the trust the explanation builds.
 
 ### 4. Cross-pillar timeline (3-4 weeks, fourth)
 
@@ -244,6 +267,14 @@ The category isn't a Kaggle leaderboard. There's no objective "best." The signal
 
 **The founder's edge:** the founder has used productivity tools as a power user for years. The founder has built one with real users (the existing product). The founder has shipped ~80 documented architectural decisions in 6 months solo. That's the bar. Technical experts who build a competing app won't build it with this much accumulated taste.
 
+**Important sharpening:** taste alone is not a moat. **Validated
+taste is the moat.** The moat exists only when users repeatedly say
+"yes, that's right" to the product's judgment. Until that happens,
+we have a hypothesis, not a moat. Every charter user "yes" builds
+the moat one decision at a time. This is why the 90-day winning
+check is what it is — we're testing whether the taste claim is real
+in the market, not asserting it as fact.
+
 > **2. "Maybe my moat is fast execution? But AI levels that."**
 
 Partly true. AI does shrink the gap between a 1-person and a 10-person team on shipping features. It does not shrink the gap on:
@@ -276,6 +307,20 @@ Same answer reachable from ChatGPT. Same answer reachable from Siri. Same answer
 ---
 
 ## How we explain it to a customer
+
+**Internal language vs. external language.** Internally we call this
+the "decision surface" or the "next-thing surface." Externally those
+phrases are abstract and miss the visceral promise. The customer-
+facing language is action-oriented:
+
+- ❌ "decision engine" / "decision surface" (abstract, internal)
+- ✅ **"Stop deciding, start working."** (visceral, action-oriented)
+- ✅ "Open it and know what to do next." (plain)
+- ✅ "Your day, reduced to the next right action." (specific)
+
+Use the action-oriented versions in marketing copy, demo scripts,
+and customer conversations. Save "decision surface" for strategy
+docs and conversations with technical/investor audiences.
 
 **One sentence:**
 > productivity.do is the place where you — and the AI assistants you trust — decide what you should work on next.
@@ -467,6 +512,16 @@ i.e., what evidence would make us re-evaluate.
 
 If two of three happen, time-to-close is the wrong metric. We'd
 shift to a hybrid model.
+
+**Important distinction (strategy vs. execution).** "Users don't
+want time-to-close" and "users want time-to-close but don't trust
+this implementation" are different problems. The first means the
+strategy is wrong. The second means the execution needs sharpening.
+Before abandoning the metric, test execution: are recommendations
+explainable enough? Is the "Start" friction low enough? Does the
+ranker disagree with users' intuitions in obvious ways? Trust comes
+from repeated "yes, that's right" moments — if those aren't
+happening, fix execution before pivoting strategy.
 
 **Reasons to abandon "the destination app" framing:**
 - Most users access us only through ChatGPT/Claude MCP calls; the

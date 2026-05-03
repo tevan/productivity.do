@@ -222,20 +222,46 @@ already have) and grants the strongest contrarian demand. See
 `claude-perplexity-future-of-productivity-contrarian.md` for the full
 counter-argument and `perplexity-research-synthesis.md` Finding #1.
 
-1. **Files done well** (4-6 weeks). Concrete, demonstrable, smallest
-   surface. Single-user storage first; multi-user / shared file ACLs later.
-2. **MCP workflow tools** (~1 week, parallel-able with files). `plan_today`,
+**Build order revised 2026-05-02 evening** after a ChatGPT critique
+of the brief noted: shipping full files-done-well (4-6wks) before
+validating the next-thing surface delays the riskiest validation.
+Counter-argument: a thin next-thing surface without files produces
+shallow recommendations during the validation window. Hybrid
+resolution: thin file attachment first (~1 week, just attach +
+display, no rails or unification), MCP + next-thing surface in
+parallel, charter validation, THEN expand files based on what
+charter users actually need.
+
+1. **Thin files** (1 week). Events/tasks/notes can have files
+   attached and displayed. No "appears in" rail, no unification, no
+   Drive references — just enough so the next-thing surface can
+   show "the spec doc Sara sent" without feeling shallow.
+2. **MCP workflow tools** (~1 week, parallel-able with thin files). `plan_today`,
    `triage_inbox`, `summarize_project`, (v2 `rebalance_week`). Each wraps
    an existing pure function; the work is naming, schema, and docs. This
    is the highest-leverage agent-distribution play — when an agent picks
    which MCP server to route a productivity intent to, workflow uniqueness
    beats CRUD parity. See "MCP workflow tools" section in Future-proofing.
-3. **The "what should I do right now" surface** (2-3 weeks once files
-   exist). Deterministic ranker, one-click commit, hotkey. Reuses the
-   synthesis store + the Live Context Panel patterns. Ships using the
-   *same* ranker the `plan_today` MCP tool exposes — UI and agent surface
-   read from one source, not two.
-4. **The cross-pillar timeline** (3-4 weeks). Per-day first (cheap, the
+3. **"What should I do right now" surface** (2-3 weeks). Deterministic
+   ranker, one-click commit, hotkey. Reuses the synthesis store +
+   Live Context Panel patterns. Ships using the *same* ranker the
+   `plan_today` MCP tool exposes — UI and agent surface read from
+   one source, not two. **Explanation is adoption infrastructure,
+   not flavor text.** Every ranking factor that contributed must be
+   visible in one sentence per recommendation. Trust comes from
+   transparency, not magic. (This is why the ranker is pure
+   SQL+arithmetic — opaque ML at the decision moment would erase
+   the trust the explanation builds.)
+4. **Charter-user validation window** (~30 days). Ship steps 1-3 to
+   6-10 specific people. Get to the existential question — *do users
+   actually want the app to decide?* — fast. The question we're
+   testing isn't "is the ranker smart?" It's "will users trust it
+   enough to stop deciding manually?"
+5. **Full files unified** (3-4 weeks, after validation). Once the
+   next-thing surface is validated, expand to one file picker, one
+   storage model, threading across pillars, drag-drop, paste,
+   per-file "appears in" rail.
+6. **The cross-pillar timeline** (3-4 weeks). Per-day first (cheap, the
    data is already there). Per-project second.
 
 Estimation Intelligence and Time Ledger stay shipped but stop getting
