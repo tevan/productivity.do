@@ -212,17 +212,47 @@ without them. Building toward the higher target dominates the lower one
 
 ## Implementation order
 
+Reordered 2026-05-02 (evening) after contrarian-position pushback on the
+synthesis. The contrarian reading — *"the ledger, not the destination"* —
+is partly right: workflow-named MCP tools are closer to a moat than the
+cross-pillar timeline is, because they're the surface an agent routes to
+first when ChatGPT/Claude/Gemini parses a productivity intent. Promoting
+them ahead of the timeline costs nothing (they reuse pure functions we
+already have) and grants the strongest contrarian demand. See
+`claude-perplexity-future-of-productivity-contrarian.md` for the full
+counter-argument and `perplexity-research-synthesis.md` Finding #1.
+
 1. **Files done well** (4-6 weeks). Concrete, demonstrable, smallest
    surface. Single-user storage first; multi-user / shared file ACLs later.
-2. **The "what should I do right now" surface** (2-3 weeks once files
+2. **MCP workflow tools** (~1 week, parallel-able with files). `plan_today`,
+   `triage_inbox`, `summarize_project`, (v2 `rebalance_week`). Each wraps
+   an existing pure function; the work is naming, schema, and docs. This
+   is the highest-leverage agent-distribution play — when an agent picks
+   which MCP server to route a productivity intent to, workflow uniqueness
+   beats CRUD parity. See "MCP workflow tools" section in Future-proofing.
+3. **The "what should I do right now" surface** (2-3 weeks once files
    exist). Deterministic ranker, one-click commit, hotkey. Reuses the
-   synthesis store + the Live Context Panel patterns.
-3. **The cross-pillar timeline** (3-4 weeks). Per-day first (cheap, the
+   synthesis store + the Live Context Panel patterns. Ships using the
+   *same* ranker the `plan_today` MCP tool exposes — UI and agent surface
+   read from one source, not two.
+4. **The cross-pillar timeline** (3-4 weeks). Per-day first (cheap, the
    data is already there). Per-project second.
 
 Estimation Intelligence and Time Ledger stay shipped but stop getting
 investment. The Live Context Panel keeps getting investment because it's
 the only one of the three pillar stakes that's an everyday surface.
+
+**Why not fully invert (the contrarian's strongest demand).** The
+contrarian's full position — "optimize for non-human callers, human UI
+as thin override surface" — gets rejected on two grounds: (1) distribution
+— a pure-API product has no acquisition channel we control today; the
+MCP marketplace doesn't exist as a discoverable surface, Apple Intents
+gates on App Store presence, and ChatGPT's connector store is curated
+not searched; (2) trust gradient — users let agents act on their
+commitments only after they've trusted the underlying system, and the
+UI is how trust is built. The both/and (destination app + workflow MCP)
+survives both backend-arbitrage AND agent-routing scenarios. Pure-API
+doesn't.
 
 ## What this changes about previously-shipped work
 

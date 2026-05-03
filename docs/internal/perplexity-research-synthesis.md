@@ -245,13 +245,29 @@ components for us); not a market force we need to defend against.
 
 The three load-bearing investments in `productivity-surface-strategy.md`
 remain correct: files-done-well, "what should I do right now" surface,
-cross-pillar timeline. No re-ordering needed.
+cross-pillar timeline. **The order changes.**
 
-The MCP delta (Finding #1) becomes its own concrete deliverable, in
-parallel with the surface work:
+After steelmanning the contrarian position (see
+`claude-perplexity-future-of-productivity-contrarian.md`), MCP workflow
+tools get promoted from "parallel track" to **second priority — ahead of
+the cross-pillar timeline**. Reasoning: the contrarian's strongest demand
+is that the agent-distribution surface is closer to a moat than any
+human-facing UI we ship, because agents pick which MCP server to route
+an intent to based on workflow uniqueness. Granting this is cheap (the
+work is naming + schema + docs over existing pure functions) and aligns
+with the both/and shape (destination app + workflow MCP) that survives
+both backend-arbitrage AND agent-routing scenarios.
 
-**Add to the existing roadmap:** an "MCP workflow tools" track. ~1 week
-of work, can ship in parallel with files-done-well.
+Final order:
+
+1. Files-done-well (substrate).
+2. **MCP workflow tools** (~1 week, parallel-able with files).
+3. "What should I do right now" surface (uses the same ranker the
+   `plan_today` MCP tool exposes — UI and agent surface read from one
+   source).
+4. Cross-pillar timeline.
+
+**The MCP workflow tools deliverable:**
 
 1. Wrap `rankTasks` (`backend/lib/ranker.js`) as MCP tool `plan_today`.
    Returns the ranked decision list with score breakdowns + explanations.

@@ -117,29 +117,33 @@ explains *why* the doc says what it says. Read both.
 
 ## Concrete next steps (when ready to build)
 
-The "MCP workflow tools" track is the highest-leverage open
-deliverable. ~1 week of work. Order:
+Build order, post-contrarian-reorder (2026-05-02 evening):
 
-1. `plan_today` — wraps `backend/lib/ranker.js`. Returns ranked
-   decisions + score breakdowns + explanations.
-2. `triage_inbox` — wraps `/api/voice/route` classifier. Free-text
-   in, classified resource + confidence + slot suggestion out.
-3. `summarize_project` — wraps `getProjectMomentum` +
-   `/api/projects/:id/context`. Outputs momentum + intent + open
-   tasks + recent activity + due-date countdown.
-4. `rebalance_week` (v2 — pure function over events + tasks + focus
-   blocks; returns proposed reschedule diff).
+1. **Files done well** (4-6 weeks). Substrate; everything else
+   compounds with it.
+2. **MCP workflow tools** (~1 week, parallel-able with files).
+   The highest-leverage agent-distribution play. Promoted ahead of
+   the timeline after steelmanning the contrarian position. See
+   `claude-perplexity-future-of-productivity-contrarian.md`.
+   - `plan_today` — wraps `backend/lib/ranker.js`. Returns ranked
+     decisions + score breakdowns + explanations.
+   - `triage_inbox` — wraps `/api/voice/route` classifier. Free-text
+     in, classified resource + confidence + slot suggestion out.
+   - `summarize_project` — wraps `getProjectMomentum` +
+     `/api/projects/:id/context`. Outputs momentum + intent + open
+     tasks + recent activity + due-date countdown.
+   - `rebalance_week` (v2 — pure function over events + tasks + focus
+     blocks; returns proposed reschedule diff).
+3. **"What should I do right now" surface** (2-3 weeks). UI uses the
+   *same* ranker the `plan_today` MCP tool exposes — UI and agent
+   surface read from one source.
+4. **Cross-pillar timeline** (3-4 weeks).
 
-Each gets:
+Each MCP tool gets:
 - Workflow-named (verb-driven), not table-named.
 - Stable input/output schemas.
 - Listed in `GET /api/v1/openapi.json`.
 - Documented at `/help/api/mcp-workflows`.
-
-The other roadmap items (files-done-well, "what should I do right
-now" surface, cross-pillar timeline) are still queued in the strategy
-doc's implementation order. MCP workflow tools are *parallel*, not
-sequential — they reuse existing pure functions.
 
 ## Files to read first when resuming
 
