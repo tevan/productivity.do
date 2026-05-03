@@ -1,0 +1,1423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex, nofollow" />
+<title>productivity.do · strategic roadmap</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0d1014;
+    --bg-elevated: #141821;
+    --bg-card: #181d28;
+    --bg-card-hover: #1f2533;
+    --border: #232a38;
+    --border-strong: #2e3648;
+    --text: #e8ebf1;
+    --text-muted: #9ca5b8;
+    --text-dim: #6b7388;
+    --accent: #d4a574;
+    --accent-dim: #8a6f4f;
+    --accent-glow: rgba(212, 165, 116, 0.15);
+    --teal: #5eb3b7;
+    --teal-dim: #3d7679;
+    --rose: #c97570;
+    --rose-dim: #7d4845;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.2);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 16px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    scroll-behavior: smooth;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 40% at 50% 0%, rgba(212, 165, 116, 0.06), transparent 60%),
+      radial-gradient(ellipse 60% 30% at 100% 100%, rgba(94, 179, 183, 0.04), transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .layout {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr) 220px;
+    gap: 48px;
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 32px 40px 120px;
+  }
+
+  /* === LEFT NAV === */
+  nav.sections {
+    position: sticky;
+    top: 32px;
+    align-self: start;
+    height: calc(100vh - 64px);
+    overflow-y: auto;
+    padding-right: 12px;
+  }
+  nav.sections::-webkit-scrollbar { width: 4px; }
+  nav.sections::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .brand {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 22px;
+    letter-spacing: -0.01em;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .brand-sub {
+    font-size: 12px;
+    color: var(--text-dim);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-bottom: 32px;
+  }
+
+  nav.sections ol { list-style: none; counter-reset: section; }
+  nav.sections li {
+    counter-increment: section;
+    margin-bottom: 4px;
+  }
+  nav.sections a {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    padding: 8px 12px;
+    color: var(--text-muted);
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 13.5px;
+    font-weight: 500;
+    transition: all 0.15s ease;
+    position: relative;
+  }
+  nav.sections a::before {
+    content: counter(section, decimal-leading-zero);
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 400;
+    flex-shrink: 0;
+  }
+  nav.sections a:hover {
+    color: var(--text);
+    background: var(--bg-elevated);
+  }
+  nav.sections a.active {
+    color: var(--accent);
+    background: var(--accent-glow);
+  }
+  nav.sections a.active::before { color: var(--accent); }
+
+  .nav-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 20px 12px;
+  }
+
+  .nav-meta {
+    padding: 12px;
+    margin-top: 16px;
+    border-radius: 6px;
+    background: var(--bg-elevated);
+    font-size: 11.5px;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+  .nav-meta strong { color: var(--text-muted); }
+
+  /* === MAIN CONTENT === */
+  main {
+    min-width: 0;
+  }
+
+  .hero {
+    margin-bottom: 80px;
+    padding-bottom: 48px;
+    border-bottom: 1px solid var(--border);
+  }
+  .hero-eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  .hero h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    font-size: 56px;
+    line-height: 1.05;
+    letter-spacing: -0.025em;
+    color: var(--text);
+    margin-bottom: 24px;
+  }
+  .hero h1 em {
+    font-style: italic;
+    color: var(--accent);
+    font-weight: 400;
+  }
+  .hero-lead {
+    font-size: 19px;
+    color: var(--text-muted);
+    line-height: 1.55;
+    max-width: 640px;
+    margin-bottom: 32px;
+  }
+  .hero-meta {
+    display: flex;
+    gap: 32px;
+    font-size: 12px;
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .hero-meta span strong {
+    display: block;
+    color: var(--text-muted);
+    margin-top: 2px;
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    letter-spacing: 0;
+    font-size: 13px;
+  }
+
+  section.block {
+    margin-bottom: 96px;
+    scroll-margin-top: 32px;
+  }
+  section.block > .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  section.block > h2 {
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    font-size: 36px;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    margin-bottom: 12px;
+    color: var(--text);
+  }
+  section.block > .lede {
+    font-size: 17px;
+    color: var(--text-muted);
+    margin-bottom: 32px;
+    max-width: 680px;
+    line-height: 1.6;
+  }
+
+  h3 {
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    font-size: 22px;
+    letter-spacing: -0.01em;
+    margin: 36px 0 12px;
+    color: var(--text);
+  }
+  h3:first-child { margin-top: 0; }
+
+  h4 {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    margin: 24px 0 8px;
+    color: var(--text);
+    letter-spacing: 0.01em;
+  }
+
+  p { margin-bottom: 16px; color: var(--text-muted); }
+  p strong, li strong { color: var(--text); font-weight: 600; }
+  p em, li em { color: var(--text); font-style: italic; }
+
+  ul { padding-left: 0; list-style: none; margin-bottom: 20px; }
+  ul li {
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    padding-left: 20px;
+    position: relative;
+  }
+  ul li::before {
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 11px;
+    width: 4px;
+    height: 4px;
+    background: var(--accent-dim);
+    border-radius: 50%;
+  }
+
+  /* === CARDS === */
+  .cards {
+    display: grid;
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  .cards.two { grid-template-columns: repeat(2, 1fr); }
+  .cards.three { grid-template-columns: repeat(3, 1fr); }
+  .cards.four { grid-template-columns: repeat(4, 1fr); }
+
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    transition: all 0.2s ease;
+  }
+  .card:hover {
+    border-color: var(--border-strong);
+    background: var(--bg-card-hover);
+  }
+  .card-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+  }
+  .card h4 {
+    margin: 0 0 8px;
+    font-size: 16px;
+    color: var(--text);
+  }
+  .card p {
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: var(--text-muted);
+  }
+
+  /* === BUILD ORDER (numbered steps) === */
+  .build-steps {
+    margin: 40px 0;
+    counter-reset: step;
+    position: relative;
+  }
+  .build-steps::before {
+    content: '';
+    position: absolute;
+    left: 19px;
+    top: 12px;
+    bottom: 12px;
+    width: 1px;
+    background: linear-gradient(to bottom, var(--accent) 0%, var(--accent-dim) 60%, var(--border) 100%);
+  }
+  .step {
+    display: grid;
+    grid-template-columns: 40px 1fr;
+    gap: 20px;
+    margin-bottom: 28px;
+    position: relative;
+  }
+  .step::before {
+    counter-increment: step;
+    content: counter(step);
+    width: 40px;
+    height: 40px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-strong);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    color: var(--accent);
+    font-weight: 500;
+    z-index: 1;
+    grid-column: 1;
+  }
+  .step-content {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+  }
+  .step-content h4 {
+    margin: 0 0 4px;
+    font-size: 15px;
+  }
+  .step-content .duration {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+  .step-content p {
+    margin-bottom: 0;
+    font-size: 13.5px;
+    color: var(--text-muted);
+  }
+  .step.validation::before {
+    background: var(--rose-dim);
+    border-color: var(--rose);
+    color: var(--rose);
+  }
+
+  /* === CONNECTIONS DIAGRAM === */
+  .connections {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px;
+    margin: 40px 0;
+    overflow: hidden;
+  }
+  .connections-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+  .connection-col h4 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin: 0 0 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .connection-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.45;
+  }
+  .connection-item strong {
+    display: block;
+    color: var(--text);
+    margin-bottom: 2px;
+    font-size: 13.5px;
+  }
+  .connection-flow {
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    font-size: 13px;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+  .connection-flow strong { color: var(--text); font-style: normal; }
+
+  /* === STATUS PILLS === */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 500;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .pill.shipped { background: rgba(94, 179, 183, 0.12); color: var(--teal); }
+  .pill.gating { background: rgba(212, 165, 116, 0.12); color: var(--accent); }
+  .pill.queued { background: rgba(232, 235, 241, 0.05); color: var(--text-muted); }
+  .pill.risk { background: rgba(201, 117, 112, 0.12); color: var(--rose); }
+
+  /* === STATE TABLES === */
+  .state-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin: 24px 0;
+  }
+  .state-col {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+  }
+  .state-col h3 {
+    margin: 0 0 16px;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .state-col ul { margin-bottom: 0; }
+  .state-col ul li { font-size: 13.5px; margin-bottom: 6px; }
+
+  /* === PROBE GRID === */
+  .probes {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    counter-reset: probe;
+  }
+  .probe {
+    counter-increment: probe;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-left: 2px solid var(--accent-dim);
+    border-radius: 6px;
+    padding: 14px 16px;
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.5;
+    position: relative;
+  }
+  .probe::before {
+    content: counter(probe, decimal-leading-zero);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--accent-dim);
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    letter-spacing: 0.05em;
+  }
+
+  /* === SIGNALS TABLE === */
+  table.signals {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+    margin: 24px 0;
+  }
+  table.signals th {
+    text-align: left;
+    padding: 12px 16px;
+    background: var(--bg-elevated);
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 500;
+    border-bottom: 1px solid var(--border);
+  }
+  table.signals th:first-child { border-radius: 8px 0 0 0; }
+  table.signals th:last-child { border-radius: 0 8px 0 0; }
+  table.signals td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+  table.signals td strong { color: var(--text); }
+  table.signals tr:last-child td { border-bottom: none; }
+  table.signals tr:hover td { background: var(--bg-elevated); }
+
+  /* === BLOCKQUOTE === */
+  blockquote {
+    border-left: 2px solid var(--accent);
+    padding: 0 0 0 20px;
+    margin: 20px 0 24px;
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 19px;
+    color: var(--text);
+    line-height: 1.5;
+  }
+  blockquote.compact {
+    font-family: 'Inter', sans-serif;
+    font-style: normal;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--text-muted);
+  }
+
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.88em;
+    background: var(--bg-elevated);
+    color: var(--accent);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  /* === RIGHT TOC === */
+  aside.toc {
+    position: sticky;
+    top: 32px;
+    align-self: start;
+    height: calc(100vh - 64px);
+    overflow-y: auto;
+    font-size: 12px;
+  }
+  aside.toc::-webkit-scrollbar { width: 0; }
+  .toc-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  aside.toc ul { padding-left: 0; }
+  aside.toc li {
+    margin-bottom: 6px;
+    padding: 0;
+  }
+  aside.toc li::before { display: none; }
+  aside.toc a {
+    display: block;
+    padding: 4px 12px;
+    color: var(--text-dim);
+    text-decoration: none;
+    border-left: 1px solid var(--border);
+    line-height: 1.4;
+    transition: all 0.15s ease;
+  }
+  aside.toc a:hover {
+    color: var(--text-muted);
+    border-left-color: var(--border-strong);
+  }
+  aside.toc a.active {
+    color: var(--accent);
+    border-left-color: var(--accent);
+  }
+
+  /* === RISK TABLE === */
+  .risks {
+    display: grid;
+    gap: 12px;
+    margin: 24px 0;
+  }
+  .risk-row {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+  }
+  .risk-row .severity {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    align-self: center;
+  }
+  .risk-row.kill .severity { color: var(--rose); }
+  .risk-row.wound .severity { color: var(--accent); }
+  .risk-row.survive .severity { color: var(--teal); }
+  .risk-row.self .severity { color: var(--text-muted); }
+  .risk-row p { margin: 0; font-size: 13.5px; line-height: 1.5; }
+  .risk-row p strong { color: var(--text); }
+
+  /* === REFERENCE LIST === */
+  .refs {
+    display: grid;
+    gap: 8px;
+  }
+  .ref {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 16px;
+    padding: 12px 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    align-items: baseline;
+  }
+  .ref code {
+    font-size: 12px;
+    background: transparent;
+    color: var(--text);
+    padding: 0;
+  }
+  .ref span {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.4;
+  }
+
+  /* === RECRUITMENT FUNNEL === */
+  .funnel {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    margin: 24px 0 32px;
+  }
+  .funnel-step {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: 20px 16px;
+    text-align: center;
+    position: relative;
+  }
+  .funnel-step:not(:first-child) { border-left: none; }
+  .funnel-step:first-child { border-radius: 8px 0 0 8px; }
+  .funnel-step:last-child { border-radius: 0 8px 8px 0; }
+  .funnel-num {
+    font-family: 'Fraunces', serif;
+    font-size: 32px;
+    font-weight: 500;
+    color: var(--accent);
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+  .funnel-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.3;
+  }
+  .funnel-step::after {
+    content: '→';
+    position: absolute;
+    right: -8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 14px;
+    color: var(--text-dim);
+    background: var(--bg);
+    padding: 2px 4px;
+    z-index: 2;
+  }
+  .funnel-step:last-child::after { display: none; }
+
+  /* === MOBILE === */
+  @media (max-width: 1024px) {
+    .layout { grid-template-columns: 1fr; padding: 24px 20px 80px; gap: 0; }
+    nav.sections, aside.toc { display: none; }
+    .hero h1 { font-size: 40px; }
+    section.block > h2 { font-size: 28px; }
+    .cards.two, .cards.three, .cards.four,
+    .state-grid, .probes, .funnel, .connections-grid {
+      grid-template-columns: 1fr;
+    }
+    .funnel-step::after { display: none; }
+    .funnel-step { border-radius: 8px !important; border-left: 1px solid var(--border) !important; margin-bottom: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- LEFT NAV -->
+  <nav class="sections">
+    <div class="brand">productivity.do</div>
+    <div class="brand-sub">strategic roadmap</div>
+    <ol>
+      <li><a href="#thesis" class="nav-link">Thesis</a></li>
+      <li><a href="#current" class="nav-link">Current state</a></li>
+      <li><a href="#future" class="nav-link">Future state</a></li>
+      <li><a href="#investments" class="nav-link">Four investments</a></li>
+      <li><a href="#connections" class="nav-link">How they connect</a></li>
+      <li><a href="#captured" class="nav-link">Captured signals</a></li>
+      <li><a href="#shape" class="nav-link">Same shape, opposite incentives</a></li>
+      <li><a href="#build" class="nav-link">Build sequence</a></li>
+      <li><a href="#charter" class="nav-link">Charter recruitment</a></li>
+      <li><a href="#validation" class="nav-link">Validation loop</a></li>
+      <li><a href="#winning" class="nav-link">Winning check</a></li>
+      <li><a href="#risks" class="nav-link">Risks</a></li>
+      <li><a href="#falsify" class="nav-link">What changes my mind</a></li>
+      <li><a href="#wont" class="nav-link">What we won't build</a></li>
+      <li><a href="#probes" class="nav-link">Probe questions</a></li>
+      <li><a href="#refs" class="nav-link">Reference docs</a></li>
+    </ol>
+    <div class="nav-divider"></div>
+    <div class="nav-meta">
+      <strong>Last updated</strong>
+      <div>2026-05-02</div>
+      <br />
+      <strong>Access</strong>
+      <div>Private — IP-restricted</div>
+    </div>
+  </nav>
+
+  <!-- MAIN CONTENT -->
+  <main>
+
+    <!-- HERO -->
+    <header class="hero">
+      <div class="hero-eyebrow">Strategic Roadmap · 2026</div>
+      <h1>Be the place where someone — <em>and the agents acting for them</em> — decide what to do next.</h1>
+      <p class="hero-lead">
+        productivity.do compresses your calendar, tasks, notes, and files into a single recommended next action — and exposes that same logic to ChatGPT, Claude, and Siri so the answer is wherever you are. Same answer in the app or via voice. We are the brain; the AI is the voice.
+      </p>
+      <div class="hero-meta">
+        <span>Stage<strong>Pre-launch · Charter validation</strong></span>
+        <span>Built<strong>Solo founder + AI-leverage</strong></span>
+        <span>Horizon<strong>~1 week to validation</strong></span>
+      </div>
+    </header>
+
+    <!-- 1. THESIS -->
+    <section class="block" id="thesis">
+      <div class="eyebrow">01 · The thesis</div>
+      <h2>The bet, in plain words</h2>
+      <p class="lede">
+        On the surface productivity.do looks like a calendar/tasks/notes app. That's intentional. The bet is what happens underneath — and how it shows up in AI assistants.
+      </p>
+
+      <div class="cards three">
+        <div class="card">
+          <div class="card-num">CLAIM 01</div>
+          <h4>Storage and connectors are commoditizing</h4>
+          <p>AWS Bedrock, Google Vertex, OpenAI + Snowflake all ship "talk to your data." Within 24 months, plugging GCal + Todoist directly into ChatGPT will be trivial.</p>
+        </div>
+        <div class="card">
+          <div class="card-num">CLAIM 02</div>
+          <h4>Opinionated decision logic is not</h4>
+          <p>The ranker that compresses calendar + tasks + project pins + intent + estimation history into one specific next action is hundreds of product judgments tuned against real users. AWS doesn't ship product judgment.</p>
+        </div>
+        <div class="card">
+          <div class="card-num">CLAIM 03</div>
+          <h4>The surface IS how we capture the signals</h4>
+          <p>A user won't pin projects in ChatGPT. They will in a calendar app. Looking like a productivity app is how we earn the right to capture the structured signals only we capture.</p>
+        </div>
+      </div>
+
+      <blockquote>
+        Same answer, wherever you are. We're the brain; ChatGPT is the voice.
+      </blockquote>
+    </section>
+
+    <!-- 2. CURRENT STATE -->
+    <section class="block" id="current">
+      <div class="eyebrow">02 · Where we are</div>
+      <h2>Current state</h2>
+      <p class="lede">
+        ~6 months of focused build. Most of what's needed for charter validation is already shipped; the gaps are in launch-checklist plumbing (API keys, domain verification) and recruitment.
+      </p>
+
+      <div class="state-grid">
+        <div class="state-col">
+          <h3><span class="pill shipped">Shipped</span></h3>
+          <ul>
+            <li>Calendar — Google sync, drag/drop, recurrence, multi-cal, full keyboard a11y</li>
+            <li>Tasks — Todoist mirroring, kanban, projects, sub-tasks, comments</li>
+            <li>Notes — Markdown, revisions, comments, project linking, context panel</li>
+            <li>Booking pages — Calendly-style with workflows + Stripe Connect</li>
+            <li>Voice capture — Whisper + Haiku → preview + confirm flow</li>
+            <li>Today panel — synthesis surface (<code>Y</code> shortcut)</li>
+            <li>Projects as first-class — pin (cap 3), intent, due, rhythm, momentum</li>
+            <li>Multi-tenant SaaS schema, sessions, soft-delete, GDPR export</li>
+            <li>Public developer API at <code>/api/v1</code> — Bearer tokens, OpenAPI</li>
+            <li>MCP server (CRUD-shaped today; workflow-shaped queued)</li>
+            <li>Outbound webhooks, Slack app, offline mode, Sentry backend</li>
+            <li>~80 sections of CLAUDE.md; 20-PDF reference library</li>
+          </ul>
+        </div>
+        <div class="state-col">
+          <h3><span class="pill gating">Gating launch</span></h3>
+          <ul>
+            <li>Stripe Price IDs — 1-2 hours to set up</li>
+            <li>Resend API key + domain verification — 1-2 hours</li>
+            <li>Sentry DSN — 15 min</li>
+            <li>Anthropic API key — 10 min</li>
+            <li>Cloudflare SSL = Full (strict) — 5 min</li>
+            <li>Charter user list — TODO (the hard one)</li>
+            <li>Site-gate removal — last step before public launch</li>
+            <li>Google OAuth verification — 4-6 weeks Google review (doesn't block charter users)</li>
+          </ul>
+          <h3 style="margin-top: 28px;"><span class="pill queued">In strategy, queued for build</span></h3>
+          <ul>
+            <li>Files unified across calendar/tasks/notes (1-2 days)</li>
+            <li>MCP workflow tools (1-2 days, parallel)</li>
+            <li>Next-thing surface (2-3 days)</li>
+            <li>Trust-state instrumentation (1 day)</li>
+            <li>Cross-pillar timeline (1-2 days)</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. FUTURE STATE -->
+    <section class="block" id="future">
+      <div class="eyebrow">03 · Where we're going</div>
+      <h2>The 12-month surface</h2>
+      <p class="lede">
+        Open productivity.do — or ask ChatGPT, Claude, or Siri "what should I work on?" — and see one screen with one sentence.
+      </p>
+
+      <blockquote>
+        Right now: prep for the 2pm sync with Anne. You have 50 minutes free. Sara sent the spec doc Tuesday — it's attached. Three open questions in your notes from last week's meeting are still unresolved. <strong>Start →</strong>
+      </blockquote>
+
+      <p>
+        Click Start. Focus block lands on calendar from now until 1:55. Note opens, scrolled to unresolved questions. Spec doc is right there. When the meeting starts, the focus block ends naturally. After the meeting, the screen updates: <em>"Your prep paid off — 2 decisions captured. Want to log them as tasks?"</em>
+      </p>
+      <p>
+        <strong>Same answer reachable from ChatGPT.</strong> Same answer from Claude. From Siri. From any AI assistant that calls our MCP. Calendar / tasks / notes / booking pages are still here for users who prefer working in them directly — but the primary interaction is one screen, one decision, one click.
+      </p>
+    </section>
+
+    <!-- 4. FOUR INVESTMENTS -->
+    <section class="block" id="investments">
+      <div class="eyebrow">04 · The four investments</div>
+      <h2>Four load-bearing investments</h2>
+      <p class="lede">
+        Each is concrete, demonstrable in under 60 seconds, and gets <em>more</em> valuable with use without requiring the user to adopt new behaviors. Cloning one of the four doesn't get the value — a competitor has to clone all four.
+      </p>
+
+      <div class="cards two">
+        <div class="card">
+          <div class="card-num">INV 01 · 1-2 days</div>
+          <h4>Files unified across pillars</h4>
+          <p>One file picker, one storage. Files attach to events, tasks, AND notes via the same mechanism. The same spec doc threads across the meeting, the prep task, the meeting notes — once. Per-file "appears in" rail.</p>
+        </div>
+        <div class="card">
+          <div class="card-num">INV 02 · 1-2 days</div>
+          <h4>MCP workflow tools</h4>
+          <p>Four agent-callable tools: <code>plan_today</code>, <code>triage_inbox</code>, <code>summarize_project</code>, <code>rebalance_week</code>. Workflow-named, not table-named. CRUD parity loses agent routing to workflow uniqueness.</p>
+        </div>
+        <div class="card">
+          <div class="card-num">INV 03 · 2-3 days</div>
+          <h4>"What should I do right now" surface</h4>
+          <p>Press <code>Space</code> anywhere → one screen, one sentence, one Start button. Deterministic ranker. Auditable: every recommendation explainable in one sentence with three parts (why this, why now, what would change the answer).</p>
+        </div>
+        <div class="card">
+          <div class="card-num">INV 04 · 1-2 days</div>
+          <h4>Cross-pillar timeline</h4>
+          <p>Every event/task/note/file/comment/edit becomes a row on a unified per-day or per-project timeline. Notion can't (page-centric). Todoist can't (task-only). Apple Notes can't.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. CONNECTIONS -->
+    <section class="block" id="connections">
+      <div class="eyebrow">05 · How the pieces compound</div>
+      <h2>The connections that make the moat</h2>
+      <p class="lede">
+        Each investment makes the others sharper. The moat isn't any single piece — it's the way they reinforce each other.
+      </p>
+
+      <div class="connections">
+        <div class="connections-grid">
+          <div class="connection-col">
+            <h4>Captured signals (input)</h4>
+            <div class="connection-item"><strong>Project pins (cap 3)</strong>"These matter most this week."</div>
+            <div class="connection-item"><strong>Intent lines</strong>"Why does this project matter?"</div>
+            <div class="connection-item"><strong>Manual ordering</strong>"This task before that task."</div>
+            <div class="connection-item"><strong>Focus blocks</strong>"9-11am is creative work."</div>
+            <div class="connection-item"><strong>Estimation history</strong>"30-min tasks usually take 25."</div>
+            <div class="connection-item"><strong>Trust-state events</strong>"User dismissed similar."</div>
+          </div>
+          <div class="connection-col">
+            <h4>Decision engine (process)</h4>
+            <div class="connection-item"><strong>Ranker (pure SQL)</strong>Composite score: due + priority + favorite + pin + recency + rhythm + estimation fit + project momentum. ~50-200ms. $0/call.</div>
+            <div class="connection-item"><strong>Three-part explanation</strong>Why this · Why now · What would change the answer. Trust comes from transparency, not magic.</div>
+            <div class="connection-item"><strong>Files unified</strong>Attached prep material surfaces alongside the recommendation.</div>
+          </div>
+          <div class="connection-col">
+            <h4>Surfaces (output)</h4>
+            <div class="connection-item"><strong>Next-thing screen</strong>One sentence, one Start button, one click.</div>
+            <div class="connection-item"><strong><code>plan_today</code> MCP</strong>Same answer, exposed to ChatGPT / Claude / Siri.</div>
+            <div class="connection-item"><strong>Cross-pillar timeline</strong>Audit trail showing all the activity that fed the answer.</div>
+          </div>
+        </div>
+        <div class="connection-flow">
+          The user gives signals via the daily surface → the deterministic ranker compresses them into one decision → that decision shows up in our app <strong>and</strong> in any AI assistant that calls our MCP. <strong>One brain, many voices.</strong>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. CAPTURED SIGNALS -->
+    <section class="block" id="captured">
+      <div class="eyebrow">06 · What we capture</div>
+      <h2>The signals only we capture</h2>
+      <p class="lede">
+        A user connecting GCal + Todoist directly to ChatGPT gives ChatGPT events and tasks. A user using productivity.do for 60 days gives our ranker an entirely different layer.
+      </p>
+
+      <table class="signals">
+        <thead>
+          <tr><th>Signal</th><th>Where the user gives it</th><th>Why it matters for the ranker</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>Project favorited</strong></td><td>Star icon next to a project</td><td>Boosts every task in it.</td></tr>
+          <tr><td><strong>Project pinned</strong></td><td>Pin button (cap 3) on project page</td><td>"These are my top 1-3 right now."</td></tr>
+          <tr><td><strong>Intent line</strong></td><td>Sentence at top of project page</td><td>The "why this matters" used in summaries.</td></tr>
+          <tr><td><strong>Project due date</strong></td><td>Date picker on project page</td><td>5-day deadline outranks no deadline.</td></tr>
+          <tr><td><strong>Project rhythm</strong></td><td>Per-day work hours</td><td>"Creative work happens Mon/Wed/Fri AM."</td></tr>
+          <tr><td><strong>Manual task ordering</strong></td><td>Drag within column</td><td>Beats due date if user expressed preference.</td></tr>
+          <tr><td><strong>Manual project ordering</strong></td><td>Drag in sidebar</td><td>First = primary, last = vestigial.</td></tr>
+          <tr><td><strong>Task priority (P1-P4)</strong></td><td>Picker in task editor</td><td>Direct boost via priority weight.</td></tr>
+          <tr><td><strong>Estimated minutes</strong></td><td>Number field in task editor</td><td>Match tasks to free time slots.</td></tr>
+          <tr><td><strong>Focus blocks</strong></td><td>Per-day windows in settings</td><td>Won't suggest admin in creative blocks.</td></tr>
+          <tr><td><strong>Estimation accuracy</strong></td><td>Implicit — completion timing</td><td>Compounds; recalibrates over weeks.</td></tr>
+          <tr><td><strong>Hidden events</strong></td><td>Right-click → Hide</td><td>Filtered from decision surfaces.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>What we don't capture (deliberately)</h3>
+      <p>
+        Always-on listening, screen recording / OCR, email ingestion, app-tracking, dwell-time analytics, location. <em>The "AI watches everything" approach is contested</em> (Microsoft Recall, Limitless, Rewind all face friction). The "user gives us structured signals via the workflow they already do" approach is uncontested.
+      </p>
+    </section>
+
+    <!-- 7. SAME SHAPE, OPPOSITE INCENTIVES -->
+    <section class="block" id="shape">
+      <div class="eyebrow">07 · A familiar shape, inverted</div>
+      <h2>Same shape as a social media algorithm — opposite incentives</h2>
+      <p class="lede">
+        The mechanism rhymes: weighted scoring over captured signals, ranked output, per-user personalization. Five differences invert the optimization target.
+      </p>
+
+      <div class="cards two">
+        <div class="card">
+          <h4>Inverted incentive</h4>
+          <p>TikTok maximizes time-in-app. We minimize time-to-close. Success = "user opens, clicks Start within 5s, leaves." That's a TikTok failure.</p>
+        </div>
+        <div class="card">
+          <h4>Explicit vs. implicit signals</h4>
+          <p>TikTok captures dwell + scroll + micro-engagement. We capture pins + intent + priority. Implicit drifts to lowest common denominator. Explicit reflects deliberate intent.</p>
+        </div>
+        <div class="card">
+          <h4>Stated vs. revealed preference</h4>
+          <p>TikTok bets revealed beats stated. True in entertainment; poisonous in productivity. A user <em>says</em> they want to ship; they actually scroll. We honor the stated.</p>
+        </div>
+        <div class="card">
+          <h4>Open vs. closed deployment</h4>
+          <p>TikTok's algorithm only runs inside TikTok. Ours runs inside our app AND exposes via MCP to ChatGPT, Claude, Siri. We don't trap; we travel.</p>
+        </div>
+      </div>
+
+      <blockquote class="compact">
+        <strong>The cleaner pitch:</strong> Same shape, opposite incentives. Social media uses your behavior to maximize time spent. We use your stated preferences to minimize it. Opaque and addictive vs. explainable and built to get you out the door.
+      </blockquote>
+    </section>
+
+    <!-- 8. BUILD SEQUENCE -->
+    <section class="block" id="build">
+      <div class="eyebrow">08 · The build path</div>
+      <h2>Build sequence to charter validation</h2>
+      <p class="lede">
+        ~1 week of focused work, plus launch-checklist completion. Realistic timelines for a single founder with AI-leverage — days, not weeks.
+      </p>
+
+      <div class="build-steps">
+        <div class="step">
+          <div class="step-content">
+            <h4>Pre-build · launch-checklist plumbing</h4>
+            <div class="duration">0-2 days</div>
+            <p>Stripe Price IDs, Resend domain, Sentry DSN, Anthropic key, Cloudflare SSL Full(strict). Charter users hit failures if any of these 503.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-content">
+            <h4>Files unified across pillars + MCP workflow tools</h4>
+            <div class="duration">DAY 1-2 · parallel</div>
+            <p>One picker, one storage, threading across events/tasks/notes. Same week: <code>plan_today</code>, <code>triage_inbox</code>, <code>summarize_project</code> wrapping existing pure functions. Documented at <code>/help/api/mcp-workflows</code>.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-content">
+            <h4>"What should I do right now" surface</h4>
+            <div class="duration">DAY 3</div>
+            <p>TodayPanel becomes the primary surface. Three-part explanation per recommendation. One-click Start: focus block + linked resource + attached files. <code>Space</code> hotkey from anywhere. Phone breakpoint becomes default landing.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-content">
+            <h4>Trust-state instrumentation + cross-pillar timeline</h4>
+            <div class="duration">DAY 4</div>
+            <p><code>recommendation_events</code> table capturing accepted/dismissed/manually_overridden/started_but_abandoned/re_ranked. Founder dashboard at <code>/admin/recommendations</code>. Plus the per-day and per-project timeline.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-content">
+            <h4>Polish + onboarding scripts</h4>
+            <div class="duration">DAY 5</div>
+            <p>Welcome email sequence (signup → day 3 → day 7). 5-slide onboarding deck. Daily review cadence: 9am dashboard check.</p>
+          </div>
+        </div>
+        <div class="step validation">
+          <div class="step-content">
+            <h4>Charter validation window</h4>
+            <div class="duration">~30 DAYS · time-bound</div>
+            <p>Ship to 6-10 specific people. Founder-as-PM mode: phone number, daily/weekly check-ins, fast iteration. Monday: review dashboard, ship fixes by EOD. Wednesday: 30-min call with 1-2 charter users. Friday: weekly summary email.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 9. CHARTER RECRUITMENT -->
+    <section class="block" id="charter">
+      <div class="eyebrow">09 · Getting the first users</div>
+      <h2>Charter recruitment plan</h2>
+      <p class="lede">
+        The hardest unsolved problem. Target: 6-10 specific people in 60 days. Personalized outreach, no template, no public launch.
+      </p>
+
+      <h3>The profile (4 of 5)</h3>
+      <ul>
+        <li>Currently uses Google Calendar <strong>and</strong> a task system (Todoist, Asana, Linear, Things)</li>
+        <li>Already uses ChatGPT or Claude for work (Pro tier preferred)</li>
+        <li>Self-describes as "overwhelmed" or "always behind on planning"</li>
+        <li>Has 5+ meetings per week and 20+ active tasks</li>
+        <li>Knows the founder personally or 1 degree separated (so feedback is candid)</li>
+      </ul>
+
+      <h3>NOT good charter user fits</h3>
+      <ul>
+        <li>Already uses a system they love (Things + Apple Notes; Notion-as-OS)</li>
+        <li>Single-tool simplicity preference</li>
+        <li>Doesn't use AI assistants for work</li>
+      </ul>
+
+      <h3>The funnel · 60 days</h3>
+      <div class="funnel">
+        <div class="funnel-step"><div class="funnel-num">30</div><div class="funnel-label">Candidates from network</div></div>
+        <div class="funnel-step"><div class="funnel-num">15</div><div class="funnel-label">Calls scheduled</div></div>
+        <div class="funnel-step"><div class="funnel-num">8</div><div class="funnel-label">Yeses target</div></div>
+        <div class="funnel-step"><div class="funnel-num">6-10</div><div class="funnel-label">Active charter users</div></div>
+      </div>
+
+      <div class="cards two">
+        <div class="card">
+          <h4>Week 1-2 — Build the list</h4>
+          <p>30 candidates from professional network, personal network, public productivity-tool complainers (max 3-5), existing single-user product alumni.</p>
+        </div>
+        <div class="card">
+          <h4>Week 3-4 — Outreach</h4>
+          <p>Personalized message via the channel they actually use (text, email, DM — not LinkedIn). 3 sentences: what we built, why I thought of them specifically, ask for 30 min. No demo links upfront.</p>
+        </div>
+        <div class="card">
+          <h4>Week 5-6 — Onboarding</h4>
+          <p>30-min call. Walk through the surface live. Get them to pin 2 projects + write one intent line on the call. 14-day Pro comp. Founder's phone number. Private group with other charter users.</p>
+        </div>
+        <div class="card">
+          <h4>Week 7+ — Engagement</h4>
+          <p>Daily dashboard review. Wednesday call with 1-2 different charter users each week. Friday email: "What did the product get right? What did it get wrong?"</p>
+        </div>
+      </div>
+
+      <h3>What we explicitly DON'T do</h3>
+      <ul>
+        <li>Public launch announcement (Product Hunt, X) — burns the launch story before ready</li>
+        <li>Cold outreach to email lists — spam shape</li>
+        <li>"Beta access waitlist" — creates pressure to ship before ready</li>
+        <li>Content marketing as recruitment — slow burn, won't yield 6 users in 60 days</li>
+        <li>Discord / community building — too early; <100 users would feel empty</li>
+      </ul>
+    </section>
+
+    <!-- 10. VALIDATION LOOP -->
+    <section class="block" id="validation">
+      <div class="eyebrow">10 · The 30-day learning loop</div>
+      <h2>What "validation" actually means</h2>
+      <p class="lede">
+        We're not testing "is the ranker perfect?" We're testing "can users understand and correct it fast enough to trust it tomorrow?"
+      </p>
+
+      <p>
+        For each recommendation surfaced to a charter user, capture five trust-state signals. Each is a different read on user trust.
+      </p>
+
+      <table class="signals">
+        <thead>
+          <tr><th>Event</th><th>Meaning</th><th>Health</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>Accepted</strong></td><td>Clicked Start, started doing the thing</td><td><span class="pill shipped">Trust building</span></td></tr>
+          <tr><td><strong>Dismissed</strong></td><td>Clicked the x — wrong for this moment</td><td><span class="pill shipped">Healthy disagreement</span></td></tr>
+          <tr><td><strong>Re-ranked</strong></td><td>Asked for a different recommendation</td><td><span class="pill shipped">Healthy disagreement</span></td></tr>
+          <tr><td><strong>Started but abandoned</strong></td><td>Clicked Start, didn't finish</td><td><span class="pill gating">Fragile trust</span></td></tr>
+          <tr><td><strong>Manually overridden</strong></td><td>Did something else from calendar/tasks</td><td><span class="pill risk">Silent disengagement</span></td></tr>
+        </tbody>
+      </table>
+
+      <p>
+        <em>Manually overridden</em> is the worst signal — silent disengagement, user has stopped trusting us enough to even disagree. <em>Accepted with completion</em> is the gold-standard signal.
+      </p>
+
+      <h3>Weekly check-in questions</h3>
+      <ul>
+        <li>"What did the product get right this week?"</li>
+        <li>"What did it get wrong, and how did you correct it?"</li>
+        <li>"If you had to describe what this product does to a colleague, what would you say?" <em>(positioning test)</em></li>
+      </ul>
+    </section>
+
+    <!-- 11. WINNING CHECK -->
+    <section class="block" id="winning">
+      <div class="eyebrow">11 · 90-day check</div>
+      <h2>What "winning" looks like</h2>
+      <p class="lede">
+        Three signals to watch in the 90 days post-launch. If they land, the strategy is working. If they don't, <em>which one DID land</em> tells us what to invest in.
+      </p>
+
+      <div class="cards three">
+        <div class="card">
+          <div class="card-num">SIGNAL 01</div>
+          <h4>Daily habit</h4>
+          <p>Charter users say "I check this every morning." Behavior is the moat, not the data.</p>
+        </div>
+        <div class="card">
+          <div class="card-num">SIGNAL 02</div>
+          <h4>Agent surface works</h4>
+          <p>A charter user, unprompted: "I just told ChatGPT to plan my day and it called you."</p>
+        </div>
+        <div class="card">
+          <div class="card-num">SIGNAL 03</div>
+          <h4>Word-of-mouth</h4>
+          <p>Someone outside the charter group signs up because their colleague uses it.</p>
+        </div>
+      </div>
+
+      <h3>If signals don't land — diagnostic</h3>
+      <ul>
+        <li><strong>Only #1 lands:</strong> behavior moat works, agent surface needs more investment.</li>
+        <li><strong>Only #2 lands:</strong> people use us through ChatGPT, not directly — destination thesis is wrong.</li>
+        <li><strong>Only #3 lands:</strong> social discovery works but daily-decision moment isn't sticky — different product.</li>
+        <li><strong>None land:</strong> thesis is wrong. Re-evaluate.</li>
+      </ul>
+    </section>
+
+    <!-- 12. RISKS -->
+    <section class="block" id="risks">
+      <div class="eyebrow">12 · What could go wrong</div>
+      <h2>Risks, ranked</h2>
+      <p class="lede">
+        Honest list. The one most likely to kill the company isn't the technical one.
+      </p>
+
+      <div class="risks">
+        <div class="risk-row kill">
+          <div class="severity">Kills the co.</div>
+          <p><strong>Users don't actually want time-to-close.</strong> The deepest risk. The whole strategy assumes users prefer "see the answer, click Start, leave." But the engagement loop is addictive for a reason. If charter users say "this is cool" and don't check it daily, the bet collapses at the level of user need.</p>
+        </div>
+        <div class="risk-row kill">
+          <div class="severity">Kills the co.</div>
+          <p><strong>No charter users care enough to be charter users.</strong> Strategy depends on 6-10 specific people in the network. If we can't recruit them, we have a distribution problem before we have a product problem.</p>
+        </div>
+        <div class="risk-row wound">
+          <div class="severity">Wounds</div>
+          <p><strong>Anthropic / OpenAI ship "plan my day" first-party.</strong> Could land in 2 months, not 5 years. Mitigation: the race is structured-data accumulation, not feature parity. We become a destination they call, not a competitor.</p>
+        </div>
+        <div class="risk-row wound">
+          <div class="severity">Wounds</div>
+          <p><strong>MCP standard fragments.</strong> Today MCP is winning, but young. If Anthropic, OpenAI, Google diverge into proprietary protocols, we'd ship 3-4 versions of the same workflow tools. Annoying, not fatal.</p>
+        </div>
+        <div class="risk-row survive">
+          <div class="severity">Survive</div>
+          <p><strong>AI commoditization erodes single-purpose AI features.</strong> Otter saw this. Mem saw this. Hedge: don't ship features whose moat is "we use AI to do X." Ship features whose moat is "your stuff is here and connected."</p>
+        </div>
+        <div class="risk-row survive">
+          <div class="severity">Survive</div>
+          <p><strong>Big-platform consolidation.</strong> Apple Intelligence routing to Reminders by default. Mitigation: prioritize MCP (cross-platform) over App Intents (Apple-only) for now.</p>
+        </div>
+        <div class="risk-row self">
+          <div class="severity">Self-inflicted</div>
+          <p><strong>Scope creep into Notion-shape.</strong> Custom databases, sub-projects, formulas. Strategy doc encodes the answer: no, even when asked.</p>
+        </div>
+        <div class="risk-row self">
+          <div class="severity">Self-inflicted</div>
+          <p><strong>Adding engagement mechanics.</strong> Streaks, badges, "your week in review." TikTok-shape drift. Reject on sight.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 13. FALSIFIABILITY -->
+    <section class="block" id="falsify">
+      <div class="eyebrow">13 · The falsifiability check</div>
+      <h2>What would change my mind</h2>
+      <p class="lede">
+        Strong strategy is falsifiable. Each load-bearing claim has evidence that would force a pivot.
+      </p>
+
+      <div class="cards two">
+        <div class="card">
+          <h4>Abandon "time-to-close" as the metric IF</h4>
+          <p>Charter users explicitly prefer time-in-app · D-active rate &lt;40% despite product working as designed · Multiple users ask for streaks/badges/reactivation emails. <strong>Two of three → wrong metric.</strong></p>
+        </div>
+        <div class="card">
+          <h4>Abandon "destination app" framing IF</h4>
+          <p>Most users access only through ChatGPT MCP calls; the app sees &lt;2 sessions/week. Next-thing surface used once and dismissed. <strong>If true → strip UI, lean into agent backend.</strong></p>
+        </div>
+        <div class="card">
+          <h4>Abandon "surface IS data-capture mechanism" IF</h4>
+          <p>Users don't pin projects, don't write intent lines, don't set estimates. The ranker without those signals produces answers no better than ChatGPT given raw GCal/Todoist. <strong>If true → substrate moat doesn't exist.</strong></p>
+        </div>
+        <div class="card">
+          <h4>Abandon the productivity vertical IF</h4>
+          <p>After 6 months: retention &lt;industry-benchmark D30 for productivity SaaS · No one independently names same weekly pain · Word-of-mouth doesn't fire. <strong>If true → vertical is wrong, pattern might still be right.</strong></p>
+        </div>
+      </div>
+
+      <blockquote class="compact">
+        <strong>Important distinction:</strong> "Users don't want time-to-close" (strategy is wrong) and "users want time-to-close but don't trust this implementation" (execution is the problem) are different problems. Before abandoning the metric, test execution: are recommendations explainable enough? Is Start friction low enough? Trust comes from repeated "yes, that's right" moments — if those aren't happening, fix execution before pivoting strategy.
+      </blockquote>
+    </section>
+
+    <!-- 14. WHAT WE WON'T BUILD -->
+    <section class="block" id="wont">
+      <div class="eyebrow">14 · What we deliberately don't build</div>
+      <h2>What we won't chase</h2>
+      <p class="lede">
+        Each item is a temptation we resist. The list is at least as important as the build list.
+      </p>
+
+      <div class="cards two">
+        <div class="card">
+          <h4>Notion-shape</h4>
+          <p>Custom databases, properties, formulas. Top-level Projects pillar with dashboards. Wiki/docs hierarchy. Insight dashboards as primary surfaces.</p>
+        </div>
+        <div class="card">
+          <h4>Engagement-maxxing</h4>
+          <p>Streak counters. "Your week in review" scrolls. Completion badges. Reactivation emails. Push notifications about peer activity.</p>
+        </div>
+        <div class="card">
+          <h4>Voice-overreach</h4>
+          <p>Always-on listening. Wake words. Multi-step orchestration via voice. Voice without preview-and-confirm.</p>
+        </div>
+        <div class="card">
+          <h4>Aggregator shape</h4>
+          <p>"Universal productivity agent that connects all your apps." Three companies tried (Rube/Composio, Zapier Central, IFTTT AI). All retreated.</p>
+        </div>
+        <div class="card">
+          <h4>Surveillance</h4>
+          <p>Screen recording / OCR / Recall-style. Email ingestion beyond opt-in forwarding. App-tracking. Location. Dwell-time analytics.</p>
+        </div>
+        <div class="card">
+          <h4>Premature abstraction</h4>
+          <p>CRDT-based sync. Multi-vertical platform play before any single vertical works. User-authored DSLs, formulas, JS sandboxes.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 15. PROBE QUESTIONS -->
+    <section class="block" id="probes">
+      <div class="eyebrow">15 · Test your understanding</div>
+      <h2>Probe questions</h2>
+      <p class="lede">
+        20 questions to ask yourself (or an AI assistant in voice mode) to make sure the strategy is internalized. If you can answer each, you understand the bet.
+      </p>
+
+      <div class="probes">
+        <div class="probe">Walk me back through the four investments. Why is the order what it is?</div>
+        <div class="probe">Why is the surface the data-capture mechanism, and why does that matter against AWS Bedrock?</div>
+        <div class="probe">What's the difference between CRUD MCP tools and workflow MCP tools?</div>
+        <div class="probe">Explain "same shape as TikTok algorithm, opposite incentives" in plain words.</div>
+        <div class="probe">If Claude ships "plan my day" in 2 months, what happens to us?</div>
+        <div class="probe">Why don't we just become a connector / aggregator?</div>
+        <div class="probe">What signals do we capture that GCal + Todoist alone don't carry?</div>
+        <div class="probe">Why is the ranker pure SQL and not an LLM? What's the strategic reason?</div>
+        <div class="probe">What's the 90-day winning check?</div>
+        <div class="probe">What's the "decision-surface pattern" and which other verticals does it fit?</div>
+        <div class="probe">What's our distribution plan in order, and what do we explicitly NOT do?</div>
+        <div class="probe">What are three temptations the strategy resists, and why?</div>
+        <div class="probe">What's the difference between the founder's edge and a technical-expert team's edge?</div>
+        <div class="probe">Why did Notion's growth NOT slow down, and what does that mean for us?</div>
+        <div class="probe">Why is fast execution alone not enough, and what's the third ingredient?</div>
+        <div class="probe">What's the deepest risk that could kill the company, and what early signals would tell us it's happening?</div>
+        <div class="probe">What evidence would convince me to abandon time-to-close as the metric?</div>
+        <div class="probe">What evidence would convince me to abandon the destination-app framing?</div>
+        <div class="probe">If charter users tell me they want streaks and badges, what should I do — and why?</div>
+        <div class="probe">Which claims here are evidence vs. opinion vs. pattern-matching?</div>
+      </div>
+    </section>
+
+    <!-- 16. REFERENCE DOCS -->
+    <section class="block" id="refs">
+      <div class="eyebrow">16 · Underlying docs</div>
+      <h2>Reference documents</h2>
+      <p class="lede">
+        This page compresses ~15 internal strategy docs. Drill in if you want the full reasoning behind any single section.
+      </p>
+
+      <div class="refs">
+        <div class="ref"><code>productivity-surface-strategy.md</code><span>The strategic anchor. ~30K words. Single source of truth for product decisions.</span></div>
+        <div class="ref"><code>DEVELOPMENT-ROADMAP.md</code><span>The operational sequence. Realistic timelines. Charter recruitment plan in detail.</span></div>
+        <div class="ref"><code>CONVERSATION-BRIEF-2026-05-02.md</code><span>Self-contained briefing for ChatGPT voice mode. Risks, falsifiability, probe questions.</span></div>
+        <div class="ref"><code>perplexity-research-synthesis.md</code><span>Synthesis of 8-part future-of-space research. 3 direction changes, 2 confirmations, 3 ignores.</span></div>
+        <div class="ref"><code>decision-surface-pattern.md</code><span>The pattern productivity.do is one execution of. Generalizes to finance/health/CRM.</span></div>
+        <div class="ref"><code>captured-signals.md</code><span>Concrete inventory of every structured signal the app captures + what's deliberately NOT captured.</span></div>
+        <div class="ref"><code>ai-cost-architecture.md</code><span>Decision moments are pure SQL. LLMs only on three narrow paths. AI cost = 0.8% of revenue at 10K DAU.</span></div>
+        <div class="ref"><code>end-state-vision.md</code><span>The 12-month vision. Customer pitch (1-sentence, 3-sentence, 60s demo). Distribution plan.</span></div>
+        <div class="ref"><code>STRATEGY-INDEX.md</code><span>Navigation index over all strategic docs in <code>docs/internal/</code>.</span></div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- RIGHT TOC -->
+  <aside class="toc">
+    <div class="toc-label">On this page</div>
+    <ul id="toc-list">
+      <li><a href="#thesis">Thesis</a></li>
+      <li><a href="#current">Current state</a></li>
+      <li><a href="#future">Future state</a></li>
+      <li><a href="#investments">Four investments</a></li>
+      <li><a href="#connections">Connections</a></li>
+      <li><a href="#captured">Captured signals</a></li>
+      <li><a href="#shape">Same shape, opposite incentives</a></li>
+      <li><a href="#build">Build sequence</a></li>
+      <li><a href="#charter">Charter recruitment</a></li>
+      <li><a href="#validation">Validation loop</a></li>
+      <li><a href="#winning">Winning check</a></li>
+      <li><a href="#risks">Risks</a></li>
+      <li><a href="#falsify">Falsifiability</a></li>
+      <li><a href="#wont">Won't build</a></li>
+      <li><a href="#probes">Probe questions</a></li>
+      <li><a href="#refs">Reference docs</a></li>
+    </ul>
+  </aside>
+
+</div>
+
+<script>
+  // Active section highlighting via IntersectionObserver
+  const sections = document.querySelectorAll('section.block, header.hero');
+  const navLinks = document.querySelectorAll('nav.sections a');
+  const tocLinks = document.querySelectorAll('aside.toc a');
+
+  function clearActive() {
+    navLinks.forEach(a => a.classList.remove('active'));
+    tocLinks.forEach(a => a.classList.remove('active'));
+  }
+
+  const observer = new IntersectionObserver(entries => {
+    let topMost = null;
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        if (!topMost || entry.boundingClientRect.top < topMost.boundingClientRect.top) {
+          topMost = entry;
+        }
+      }
+    });
+    if (topMost) {
+      const id = topMost.target.id;
+      clearActive();
+      navLinks.forEach(a => {
+        if (a.getAttribute('href') === '#' + id) a.classList.add('active');
+      });
+      tocLinks.forEach(a => {
+        if (a.getAttribute('href') === '#' + id) a.classList.add('active');
+      });
+    }
+  }, { rootMargin: '-20% 0px -60% 0px', threshold: 0 });
+
+  sections.forEach(s => observer.observe(s));
+</script>
+
+</body>
+</html>

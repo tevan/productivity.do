@@ -556,6 +556,14 @@ When planning a feature: read `docs/reference-library/INDEX.md` to pick the most
 
 When proposing actions, follow the convention in `applicable_insights.md`: each action carries a `Status:` line with one of `⏳ Pending` / `🟡 In progress` / `✅ Implemented` / `❌ Skipped`. Edit in place when status changes; don't append siblings.
 
+## Private strategic roadmap at `/roadmap`
+
+User-friendly visualization of the strategy + roadmap, gated to the founder's home IP (69.131.127.243). Self-contained HTML at `backend/views/roadmap.html` — Inter + Fraunces typography, dark mode, sticky left/right nav, IntersectionObserver for active-section highlighting. Single hand-styled page; no Vite build, no SPA dependency. Compresses ~15 internal strategy docs into one navigable page (thesis, current state, four investments, how they connect, captured signals, build sequence, charter recruitment, validation loop, risks, falsifiability).
+
+**Allow list** is `ROADMAP_ALLOWED_IPS` in `backend/server.js` (Set with `69.131.127.243`, `127.0.0.1`, `::1`). Edit if the founder's IP changes. nginx has a public `location = /roadmap` block that bypasses the site-gate; the IP check happens at the Express layer (reads leftmost `X-Forwarded-For` from Cloudflare → nginx → Express). Non-allowed IPs get 403 from Express, not from nginx.
+
+**To remove at public launch:** delete the `app.get('/roadmap', ...)` block in `server.js`, the roadmap import, and the nginx `location = /roadmap` block. The roadmap is for founder-only use; not part of the public product.
+
 ## Pending Setup
 
 **Canonical user-action list: `docs/LAUNCH-CHECKLIST.md`.** Walk through it when prepping for launch — every item there changes prod behavior, costs money, or commits to an external account. Rough summary:

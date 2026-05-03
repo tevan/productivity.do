@@ -216,6 +216,23 @@ app.get('/embed.js', (req, res) => {
   res.send(embedJs);
 });
 
+// Private strategic roadmap — IP-restricted to the founder's home IP.
+// Mounted before requireAuth so it doesn't hit user-session checks.
+// nginx is also configured to allow /roadmap through the site-gate.
+const roadmapHtml = readFileSync(join(__dirname, 'views', 'roadmap.html'), 'utf8');
+const ROADMAP_ALLOWED_IPS = new Set(['69.131.127.243', '127.0.0.1', '::1']);
+app.get('/roadmap', (req, res) => {
+  // Read leftmost X-Forwarded-For (Cloudflare → nginx → Express).
+  const xff = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  const ip = xff || req.ip || '';
+  if (!ROADMAP_ALLOWED_IPS.has(ip)) {
+    return res.status(403).type('text/plain').send('Forbidden');
+  }
+  res.type('html');
+  res.set('Cache-Control', 'private, no-store');
+  res.send(roadmapHtml);
+});
+
 // ---------------------------------------------------------------------------
 // Auth middleware — everything below requires authentication
 // ---------------------------------------------------------------------------
