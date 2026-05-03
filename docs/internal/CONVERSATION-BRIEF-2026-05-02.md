@@ -327,6 +327,187 @@ Later signals: weekly trigger-moment named by 3+ users independently (buyer-pain
 
 ---
 
+## What's evidence vs. what's opinion (read this before pushing back)
+
+The brief mixes two kinds of claims. ChatGPT should pressure-test
+them differently.
+
+**Load-bearing evidence (verify if curious; the strategy depends on
+these being roughly true):**
+
+- Notion is at $500-600M ARR, 50-60% YoY growth, profitable, AI ~50%
+  of revenue. *(Source: Perplexity research citing CNBC, SaaStr,
+  industry analysis through Sept 2025.)*
+- Linear at ~$1.25B valuation, ~50K paying customers, profitable.
+- Rube/Composio announced shutdown of Rube on May 15, 2026.
+  Composio retreating to developer tier.
+- ChatGPT voice = ~19% of engagement; majority is still text.
+- Granola at $125M Series C, $1.5B valuation, 50M+ meetings/year.
+- Glean at $100M ARR in 3 years, ~40% wDAU/MAU.
+- Microsoft Recall paused, then re-shipped opt-in only after
+  backlash (real privacy/security pushback signal).
+- AWS Bedrock + Knowledge Bases, Vertex AI + BigQuery, OpenAI +
+  Snowflake all ship "talk to your data" today (the AI-DB layer
+  *is* commoditizing, not just my prediction).
+
+If any of these are factually wrong, the part of the strategy
+resting on them needs revisiting. ChatGPT can flag any it doubts.
+
+**Strong opinion (testable but not evidenced — pressure-test these):**
+
+- "Time-to-close is the right metric for productivity" — opinion,
+  not fact. Some users may genuinely prefer time-in-app.
+- "The pattern generalizes to finance/health/CRM" — pattern
+  recognition, not proven. We haven't tested any vertical beyond
+  productivity.
+- "Big platforms don't ship opinionated verticals" — true 20-year
+  trend, but Apple/Google/Microsoft could break the pattern.
+- "Linear/Granola/Bear won on taste, not technical advantage" — a
+  reasonable narrative but other readings are possible (timing,
+  network effects, marketing, capital structure).
+- "The founder's product judgment is the moat" — believed but
+  unverifiable except by the product working.
+- "The horizontal aggregator play is unmonetizable" — three data
+  points, not a law. Could change.
+
+**Loose pattern matching (interesting but not load-bearing):**
+
+- "Productivity is the first execution of a category-portable
+  pattern" — useful framing, no commercial proof yet.
+- "Voice = capture + confirm" — the research supports it, but it's
+  about the current state of voice tech, not an eternal truth.
+
+If ChatGPT pushes back, the right test is: *which category does the
+claim live in?* Evidence claims should be checked. Opinions should be
+debated. Pattern-matching should be held loosely.
+
+---
+
+## What could go wrong (the risks, ranked by what would kill the company)
+
+### Most likely to kill the company
+
+**Users don't actually want time-to-close.** This is the deepest
+risk. The whole strategy assumes users prefer "see the answer, click
+Start, leave the app." But the engagement loop is addictive for a
+reason — most successful productivity tools (Notion, Todoist, even
+Things to a degree) keep you *in* the app. If charter users say
+"this is cool" and then don't check it daily, the bet has failed at
+the level of the user need, not the execution.
+
+What would tell us this is happening:
+- Daily-active rate <30% even among charter users.
+- Charter users say they prefer using their existing tools and only
+  open us occasionally.
+- The next-thing surface gets used once and then ignored — users
+  drift back to their calendar grid + manual planning.
+
+If this happens, the strategy is wrong. We'd need to either pivot
+toward a more conventional time-in-app shape, or accept that the
+audience for time-to-close is too small to be a venture-scale
+business.
+
+**No charter users care enough to be charter users.** The strategy
+depends on 6-10 specific people in the founder's network who'd give
+real feedback for 60 days. If we can't recruit them, we have a
+distribution problem before we have a product problem.
+
+### Likely to wound but not kill
+
+**Anthropic / OpenAI ship "plan my day" first-party in 2 months.**
+Already addressed in the brief. We become a destination they call,
+not a competitor.
+
+**The MCP standard fragments.** Today MCP is winning, but it's
+young. If Anthropic, OpenAI, and Google diverge into proprietary
+agent protocols, we'd ship 3-4 versions of the same workflow tools.
+Annoying, not fatal.
+
+**A well-funded team enters the productivity-vertical decision-
+surface space.** Unlikely (the audience for time-to-close is
+neither huge nor obvious to VCs), but possible. If a $20M+ Series A
+team ships a competing decision surface, our solo speed advantage
+narrows.
+
+### Survivable but real
+
+- AI commoditization erodes the value of single-purpose AI features
+  faster than expected.
+- Big-platform consolidation (Apple Intelligence routing to
+  Reminders by default) requires us to ship App Intents earlier
+  than planned.
+- Charter users use us but don't tell anyone — the word-of-mouth
+  loop doesn't fire.
+
+### Self-inflicted (avoidable but tempting)
+
+- Scope creep into Notion-shape (custom databases, sub-projects,
+  formulas) because a charter user asks for it.
+- Adding engagement mechanics (streaks, badges) under the false
+  belief that retention requires them.
+- Building "the universal aggregator" because it sounds like a
+  bigger market.
+- Spending too long on infrastructure (CRDTs, custom sync engines)
+  before product-market fit.
+
+---
+
+## What would change our mind (the falsifiability check)
+
+Strong strategy docs are falsifiable. The 90-day winning check
+covers what we'd want to see. Here's what we'd want to *not* see —
+i.e., what evidence would make us re-evaluate.
+
+**Reasons to abandon "time-to-close" as the metric:**
+- Charter users explicitly say they prefer staying in the app.
+- 90-day daily-active rate <40% among charter users despite the
+  product working as designed.
+- Multiple users say "I'd pay more if you helped me track time
+  spent / showed me a streak / sent me reactivation emails."
+
+If two of three happen, time-to-close is the wrong metric. We'd
+shift to a hybrid model.
+
+**Reasons to abandon "the destination app" framing:**
+- Most users access us only through ChatGPT/Claude MCP calls; the
+  app itself sees <2 sessions/week.
+- The next-thing surface gets used once and dismissed.
+- Charter users reframe us as "an MCP backend, not an app."
+
+If this happens, lean into the agent-backend shape and strip the
+UI down. The contrarian's "ledger, not destination" reading would
+be right.
+
+**Reasons to abandon "the surface is the data-capture mechanism":**
+- Users don't pin projects, don't write intent lines, don't set
+  estimates. They just import GCal + Todoist and use it as a viewer.
+- The ranker without those signals produces answers no better than
+  ChatGPT given raw GCal/Todoist (i.e., generic).
+
+If this happens, the substrate moat doesn't exist. We'd need to
+either redesign the data-capture UX or accept that we're a viewer
+and compete on UI alone.
+
+**Reasons to abandon the productivity vertical entirely:**
+- After 6 months of charter users, retention is below industry
+  benchmark for productivity SaaS (typically 40-60% D30).
+- No one independently names the same weekly pain.
+- Word-of-mouth doesn't fire — users don't tell colleagues.
+
+If this happens, the productivity vertical isn't where we win.
+The pattern might still be right; the vertical isn't.
+
+**Reasons to abandon the pattern entirely:**
+- Adjacent verticals also fail to show the same shape.
+- The "decision-surface per vertical" framing fails to differentiate
+  in the market — users see us as "another productivity app" no
+  matter how we position.
+
+This would take 18+ months and a second-vertical attempt to
+establish. Not a near-term concern.
+
+---
+
 ## Things to talk about with ChatGPT in voice chat
 
 This is a list of probes — questions the founder might ask the assistant to make sure they understand the strategy. The assistant should be able to answer all of these from the brief above.
@@ -346,6 +527,11 @@ This is a list of probes — questions the founder might ask the assistant to ma
 13. *What's the difference between the founder's edge and a technical-expert team's edge?*
 14. *Why did Notion's growth NOT slow down, and what does that mean for us?*
 15. *Why is fast execution alone not enough, and what's the third ingredient?*
+16. *What's the deepest risk that could kill the company, and what early signals would tell us it's happening?*
+17. *What evidence would convince me to abandon time-to-close as the metric?*
+18. *What evidence would convince me to abandon the destination-app framing in favor of pure agent backend?*
+19. *Which claims in this brief are evidence vs. opinion vs. pattern-matching, and how should I weight pushback on each?*
+20. *If charter users tell me they want streaks and badges, what should I do — and why?*
 
 ---
 
