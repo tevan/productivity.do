@@ -16,6 +16,7 @@
   import ConfirmRoot from './lib/components/ConfirmRoot.svelte';
   import ScopeModalRoot from './lib/components/ScopeModalRoot.svelte';
   import UpgradeRoot from './lib/components/UpgradeRoot.svelte';
+  import FounderThoughtsWidget from './lib/components/FounderThoughtsWidget.svelte';
   import ToastRoot from './lib/components/ToastRoot.svelte';
   import NextDaysView from './lib/views/NextDaysView.svelte';
   import WeekView from './lib/views/WeekView.svelte';
@@ -807,6 +808,8 @@
   <UpgradeRoot />
   <!-- Bottom-center toast stack (success / error / undo) -->
   <ToastRoot />
+  <!-- Founder-only inbox widget (gated server-side via /api/founder-thoughts/whoami) -->
+  <FounderThoughtsWidget />
 {/if}
 
 <style>

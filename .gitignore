@@ -21,3 +21,6 @@ docs/reference-library/
 # Scratch / handoff drafts that aren't part of the codebase. Anything that
 # should ship lives in docs/ (internal) or marketing/ (public).
 /tmp/
+
+# Founder's private inbox — appended to by the in-app thoughts widget.
+docs/internal/founder-thoughts.log

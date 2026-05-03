@@ -517,6 +517,22 @@ When adding a new `kind`, update `TIMELINE_KINDS` in `lib/timeline.js`, add a bu
 
 **No new schema.** All four sources already exist. The timeline reads them — it doesn't capture anything new.
 
+## Founder thoughts widget (founder-only)
+
+Bottom-right floating composer that lets the founder capture in-the-moment thoughts (with screenshots) about the product without leaving context. **Not a product feature** — gated to `req.user.id === 1` server-side and `/api/founder-thoughts/whoami` client-side. Designed for the workflow: founder uses the app → notices things → drops thoughts in the inbox → scheduled Claude Code run at 3am processes the queue.
+
+**Files:**
+- `backend/routes/founder-thoughts.js` — POST appends to JSONL, GET returns last N entries, `/whoami` exposes the founder boolean. Multipart-aware (multer) for image attachments. Both `LOG_PATH` (`docs/internal/founder-thoughts.log`) and `ATTACH_DIR` (`data/founder-thoughts/`) are gitignored.
+- `src/lib/components/FounderThoughtsWidget.svelte` — drag-drop, paste-image, click-to-attach, Cmd+Enter to send, Esc to close. Captures URL, path, app-tab, calendar view + date, theme, viewport, online state.
+- Mounted in `App.svelte` next to ConfirmRoot/ToastRoot — self-gates internally so safe to render unconditionally.
+
+**Agent flow** (server-wide pattern):
+- `/opt/scripts/founder-thoughts/list-pending.sh <site-root>` — prints unprocessed JSONL lines on stdout. Filters by ts-not-in `<site>/docs/internal/founder-thoughts.processed`.
+- `/opt/scripts/founder-thoughts/mark-processed.sh <site-root> <ts>` — idempotent append to the processed list. flock-guarded.
+- Symlinked at `/usr/local/bin/founder-thoughts-{list-pending,mark-processed}`. The pattern is documented in `/opt/docs/patterns/founder-thoughts-widget.md` so it can be lifted into other sites on this server.
+
+**Anti-pattern:** don't add edit/delete endpoints. Append-only keeps the shape predictable for the agent. Don't auto-mark-processed on read — a failed agent run shouldn't lose a thought; marking happens after action is taken.
+
 ## Tenancy audit (2026-05-02)
 
 Pre-launch sweep of every authenticated route. The pattern in this codebase is: ownership is verified either by a SELECT with `WHERE id = ? AND user_id = ?` (or a join through an owned parent), then mutation runs. Two defense-in-depth issues were found and fixed: (1) `links.js` DELETE used a separate ownership SELECT then a `DELETE WHERE id = ?` — collapsed into one `DELETE WHERE id = ? AND user_id = ?` so the row count tells the story atomically; (2) `booking-pages.js` PUT verified ownership via `getOwnedPage()` then ran `UPDATE booking_pages WHERE id = ?` — added `AND user_id = ?` for defense-in-depth. Everywhere else the post-write `SELECT * FROM x WHERE id = ?` pattern is safe because either the id came from `lastInsertRowid` (just-created row) or ownership was verified earlier in the handler. **When writing new authenticated routes, the rule is: scope every mutation by user_id directly in SQL, even if you've SELECTed for ownership above.** A separate ownership SELECT + a non-scoped UPDATE/DELETE is one missed code-path away from a tenancy bug.
