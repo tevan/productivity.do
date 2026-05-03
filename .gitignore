@@ -17,3 +17,7 @@ docs/reference-library/
 
 # Claude Code project-local runtime (lock files, scheduled tasks)
 .claude/
+
+# Scratch / handoff drafts that aren't part of the codebase. Anything that
+# should ship lives in docs/ (internal) or marketing/ (public).
+/tmp/

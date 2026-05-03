@@ -207,6 +207,10 @@ Recommendations + pins (protected):
   POST   /api/task-pins                  ({taskId, expiresAt?} — default expiry: end of UTC day)
   DELETE /api/task-pins/:taskId
 
+Timeline (protected):
+  GET    /api/timeline?from&to&types&tz  (cross-pillar feed: revisions + events + files + bookings)
+                                         (default window: last 7d → next 14d; types filter optional)
+
 Files (protected):
   POST /api/files                              (multipart/form-data; field "file"; optional sourceType+sourceId)
   GET  /api/files                              (list — limit query param, default 50, max 200)
@@ -480,6 +484,38 @@ Don't replace the deterministic template generator with an LLM. The whole point 
 - Store: `src/lib/stores/synthesis.svelte.js` — `recommendations` field, `refreshRecommendations()` export.
 - Render: `src/lib/components/TodayPanel.svelte` — `.recs` block between hero/capacity and the existing task lists.
 - Pin toggle: inline star button per recommendation; click triggers `togglePin()` which POSTs/DELETEs against `/api/task-pins` and calls `refreshRecommendations()`.
+
+## Cross-pillar timeline
+
+Build #3 of the testable-product roadmap. Single chronological surface across every captured signal — revisions (notes + tasks), calendar events, files, bookings. Lives at `GET /api/timeline?from&to&types&tz`. Surfaces in TodayPanel as a `#syn-timeline` section between Ledger and Patterns; hotkey `Y` opens TodayPanel; type-filter chips persist in localStorage.
+
+**Architecture:**
+- Pure helper `backend/lib/timeline.js#buildTimelineRow(sourceType, row, nowMs)` transforms each raw DB row into a uniform `TimelineRow` shape: `{id, kind, timestamp, label, sublabel, url, icon, op, future, meta}`. The pure module makes per-source builders trivially testable; the route does the SQL fan-out and the helper does the per-row shaping.
+- Route `backend/routes/timeline.js` queries each source with user_id scoping (revisions, events_cache directly; bookings join through booking_pages.user_id), normalizes via the helper, sorts globally newest-first, groups by day-in-tz.
+- Spec at `timeline.spec.js` covers SQLite-timestamp normalization, per-source field mapping, sort stability, day-bucketing in the caller's tz.
+
+**TIMELINE_KINDS catalog** (stable identifiers — UI branches on `kind`):
+| kind | source | icon | what |
+|---|---|---|---|
+| `note_change` | revisions | 📝 | note created/edited/deleted/restored |
+| `task_change` | revisions | ✓ | task created/edited/deleted/restored |
+| `event` | events_cache | 📅 | scheduled calendar event (past or future) |
+| `file` | files | 🖼/📎 | file uploaded |
+| `booking` | bookings | 🤝 | booking page reservation |
+
+When adding a new `kind`, update `TIMELINE_KINDS` in `lib/timeline.js`, add a builder fn, register it in `BUILDERS`, extend the route's source fan-out, and add a chip label in `TodayPanel.svelte#TIMELINE_KIND_LABELS`. Don't repurpose existing kinds.
+
+**SQLite-timestamp gotcha:** SQLite's `datetime('now')` produces `YYYY-MM-DD HH:MM:SS` with no timezone. The helper's `isoFromSqliteUtc()` treats these as UTC and appends `T...Z` so client `Date()` parses unambiguously. Don't compare these strings against ISO-8601 with `Z` directly — the lexical `T > space` ordering breaks `BETWEEN`. The route converts both bounds to the SQLite shape (`replace('T', ' ').slice(0, 19)`) for revisions/files queries.
+
+**Future events:** `events_cache` has both past and future rows. The helper's `future: true` flag is computed from `nowMs` (passed in for testability). The TodayPanel renders future rows with a hollow dot on the left rail; past rows get a filled dot — the visual reads as a chronological ribbon with "now" implicit between them.
+
+**Why a separate endpoint instead of extending /api/activity:** the existing activity feed (`recentActivity()` in `lib/revisions.js`) is revisions-only and powers Settings → Account → Activity. The timeline is a strict superset — it includes events + files + bookings — and is consumed by a different surface (TodayPanel). Keeping them separate means the activity tab stays narrow and predictable, and the timeline can grow new sources without breaking the activity-tab UI contract.
+
+**Type filter:** `?types=note_change,event` narrows to the listed kinds. Empty/invalid filters fall back to all kinds. The TodayPanel UI persists the user's last filter set in `localStorage.productivity_timeline_filter` so power users don't have to re-toggle on every reload.
+
+**Window default:** last 7 days through next 14 days. The TodayPanel store fetches a narrower ±24h slice for fast loads; the wider default covers the general-case `/api/timeline` consumer (future MCP `recent_activity` workflow tool, future standalone Activity view if we build one).
+
+**No new schema.** All four sources already exist. The timeline reads them — it doesn't capture anything new.
 
 ## Tenancy audit (2026-05-02)
 

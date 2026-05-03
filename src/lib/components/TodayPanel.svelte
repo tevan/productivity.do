@@ -49,6 +49,91 @@
   const observation = $derived(synth.observation);
   const ledger = $derived(synth.ledger);
   const recommendations = $derived(synth.recommendations);
+  const timeline = $derived(synth.timeline);
+
+  // Type filter for the Timeline section. Defaults to all kinds; user
+  // toggles a chip to narrow. Persisted in localStorage so a power user's
+  // preferred filter sticks across reloads.
+  const ALL_TIMELINE_KINDS = ['note_change', 'task_change', 'event', 'file', 'booking'];
+  const TIMELINE_KIND_LABELS = {
+    note_change: 'Notes',
+    task_change: 'Tasks',
+    event:       'Events',
+    file:        'Files',
+    booking:     'Bookings',
+  };
+  let timelineFilter = $state(restoreTimelineFilter());
+  function restoreTimelineFilter() {
+    try {
+      const raw = localStorage.getItem('productivity_timeline_filter');
+      if (!raw) return new Set(ALL_TIMELINE_KINDS);
+      const arr = JSON.parse(raw);
+      if (!Array.isArray(arr) || arr.length === 0) return new Set(ALL_TIMELINE_KINDS);
+      return new Set(arr.filter(k => ALL_TIMELINE_KINDS.includes(k)));
+    } catch { return new Set(ALL_TIMELINE_KINDS); }
+  }
+  function toggleTimelineKind(k) {
+    const next = new Set(timelineFilter);
+    if (next.has(k)) next.delete(k); else next.add(k);
+    if (next.size === 0) {
+      // Empty filter is meaningless — re-enable all so the section never
+      // shows zero items just because of UI confusion.
+      ALL_TIMELINE_KINDS.forEach(x => next.add(x));
+    }
+    timelineFilter = next;
+    try { localStorage.setItem('productivity_timeline_filter', JSON.stringify([...next])); } catch {}
+  }
+  const filteredTimelineGroups = $derived.by(() => {
+    if (!timeline?.groups) return [];
+    return timeline.groups
+      .map(g => ({
+        day: g.day,
+        items: g.items.filter(it => timelineFilter.has(it.kind)),
+      }))
+      .filter(g => g.items.length > 0);
+  });
+
+  function formatTimelineDay(dayStr) {
+    if (!dayStr) return '';
+    const today = new Date();
+    const ymd = today.toISOString().slice(0, 10);
+    if (dayStr === ymd) return 'Today';
+    const yest = new Date(today.getTime() - 86_400_000).toISOString().slice(0, 10);
+    if (dayStr === yest) return 'Yesterday';
+    const tom = new Date(today.getTime() + 86_400_000).toISOString().slice(0, 10);
+    if (dayStr === tom) return 'Tomorrow';
+    try {
+      const d = new Date(dayStr + 'T12:00:00');
+      return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+    } catch { return dayStr; }
+  }
+
+  function formatTimelineTime(iso) {
+    if (!iso) return '';
+    try {
+      const d = new Date(iso);
+      return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    } catch { return ''; }
+  }
+
+  function onTimelineClick(item) {
+    if (item.kind === 'note_change' && item.url) {
+      window.history.pushState({}, '', item.url);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+      requestClose();
+    } else if (item.kind === 'event' && item.meta?.googleEventId && item.timestamp) {
+      // Navigate the calendar to the event's day; the user can scroll/click.
+      const d = new Date(item.timestamp);
+      if (!isNaN(d.getTime())) {
+        setDate(d);
+        setAppView('calendar');
+        requestClose();
+      }
+    } else if (item.kind === 'file' && item.url) {
+      window.open(item.url, '_blank', 'noopener');
+    }
+    // task_change + booking: no current click target; the row is read-only.
+  }
 
   // Pin/unpin a task. Optimistic — the recommendation list refetches
   // immediately so the user sees the new ordering with the explanation.
@@ -311,6 +396,7 @@
       <button class:active={activeSection === 'today'} onclick={() => scrollTo('today')}>Today</button>
       <button class:active={activeSection === 'week'} onclick={() => scrollTo('week')}>Week</button>
       <button class:active={activeSection === 'ledger'} onclick={() => scrollTo('ledger')}>Ledger</button>
+      <button class:active={activeSection === 'timeline'} onclick={() => scrollTo('timeline')}>Timeline</button>
       <button class:active={activeSection === 'patterns'} onclick={() => scrollTo('patterns')}>Patterns</button>
     </nav>
     <div class="head-actions">
@@ -633,6 +719,68 @@
             No time on visible calendars yet. Connect Google Calendar or schedule a few events to see this populate.
           </p>
         {/if}
+      {/if}
+    </section>
+
+    <hr class="seam" />
+
+    <!-- ===== Timeline (cross-pillar chronological feed, ±24h) ===== -->
+    <section id="syn-timeline" class="section section-timeline">
+      <div class="tl-head">
+        <p class="meta">Timeline</p>
+        <div class="tl-filters" role="group" aria-label="Filter timeline by type">
+          {#each ALL_TIMELINE_KINDS as k}
+            <button
+              type="button"
+              class="tl-chip"
+              class:active={timelineFilter.has(k)}
+              onclick={() => toggleTimelineKind(k)}
+            >
+              {TIMELINE_KIND_LABELS[k]}
+              {#if timeline?.counts?.[k] > 0}
+                <span class="tl-count">{timeline.counts[k]}</span>
+              {/if}
+            </button>
+          {/each}
+        </div>
+      </div>
+
+      {#if !timeline && synth.isLoadingTimeline}
+        <div class="skeleton">
+          <div class="sk-line w50"></div>
+          <div class="sk-line w90"></div>
+          <div class="sk-line w70"></div>
+        </div>
+      {:else if filteredTimelineGroups.length === 0}
+        <p class="caption">
+          No activity in the last day. Edit a note, drag an event, or upload a file to start your timeline.
+        </p>
+      {:else}
+        <div class="tl-groups">
+          {#each filteredTimelineGroups as g (g.day)}
+            <div class="tl-group">
+              <div class="tl-day">{formatTimelineDay(g.day)}</div>
+              <ul class="tl-list">
+                {#each g.items as item (item.id)}
+                  <li class="tl-row" class:future={item.future} class:clickable={item.kind === 'note_change' || item.kind === 'event' || item.kind === 'file'}>
+                    <span class="tl-icon" aria-hidden="true">{item.icon}</span>
+                    <button
+                      type="button"
+                      class="tl-body"
+                      onclick={() => onTimelineClick(item)}
+                    >
+                      <span class="tl-label">{item.label}</span>
+                      <span class="tl-meta">
+                        <span class="tl-op">{item.sublabel || item.op}</span>
+                        <span class="tl-time">· {formatTimelineTime(item.timestamp)}</span>
+                      </span>
+                    </button>
+                  </li>
+                {/each}
+              </ul>
+            </div>
+          {/each}
+        </div>
       {/if}
     </section>
 
@@ -1268,6 +1416,132 @@
     text-decoration-color: color-mix(in srgb, var(--text-tertiary) 40%, transparent);
     text-underline-offset: 3px;
   }
+  /* ===== Timeline section ===== */
+  .tl-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .tl-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .tl-chip {
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .tl-chip:hover {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+  }
+  .tl-chip.active {
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .tl-count {
+    font-variant-numeric: tabular-nums;
+    color: var(--text-tertiary, var(--text-secondary));
+    font-size: 10px;
+  }
+  .tl-chip.active .tl-count { color: var(--accent); }
+  .tl-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .tl-day {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-tertiary, var(--text-secondary));
+    margin: 0 0 6px;
+    font-weight: 500;
+  }
+  .tl-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-left: 1px solid var(--border-light, var(--border));
+  }
+  .tl-row {
+    display: grid;
+    grid-template-columns: 28px 1fr;
+    gap: 6px;
+    align-items: start;
+    padding: 4px 0 4px 12px;
+    margin-left: -8px;
+    position: relative;
+  }
+  .tl-row.future { opacity: 0.85; }
+  .tl-row.future::before {
+    /* Subtle indicator that this hasn't happened yet — a hollow dot */
+    content: '';
+    position: absolute;
+    left: -4px; top: 8px;
+    width: 8px; height: 8px;
+    border: 1.5px solid var(--accent);
+    border-radius: 50%;
+    background: var(--surface);
+  }
+  .tl-row:not(.future)::before {
+    content: '';
+    position: absolute;
+    left: -4px; top: 8px;
+    width: 8px; height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+  }
+  .tl-icon {
+    font-size: 14px;
+    line-height: 1.2;
+    text-align: center;
+    align-self: start;
+    margin-top: 1px;
+  }
+  .tl-body {
+    border: none;
+    background: transparent;
+    padding: 0;
+    text-align: left;
+    cursor: default;
+    font: inherit;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+  }
+  .tl-row.clickable .tl-body { cursor: pointer; }
+  .tl-row.clickable .tl-body:hover .tl-label { text-decoration: underline; color: var(--accent); }
+  .tl-label {
+    font-size: 13px;
+    color: var(--text-primary);
+    line-height: 1.35;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tl-meta {
+    font-size: 11px;
+    color: var(--text-tertiary, var(--text-secondary));
+    line-height: 1.3;
+  }
+  .tl-op { text-transform: lowercase; }
+  .tl-time { font-variant-numeric: tabular-nums; }
+
   .ledger-toggle:hover {
     color: var(--text-secondary);
     text-decoration-color: var(--text-secondary);

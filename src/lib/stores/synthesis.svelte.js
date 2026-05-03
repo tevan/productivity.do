@@ -18,8 +18,9 @@ let weekly = $state(null);
 let observation = $state(null);
 let ledger = $state(null);
 let recommendations = $state(null);
-let lastFetched = $state({ today: 0, weekly: 0, observation: 0, ledger: 0, recommendations: 0 });
-let inFlight = $state({ today: false, weekly: false, observation: false, ledger: false, recommendations: false });
+let timeline = $state(null);
+let lastFetched = $state({ today: 0, weekly: 0, observation: 0, ledger: 0, recommendations: 0, timeline: 0 });
+let inFlight = $state({ today: false, weekly: false, observation: false, ledger: false, recommendations: false, timeline: false });
 
 const TTL_MS = 5 * 60_000; // 5 minutes — synthesis isn't real-time
 let prefetchScheduled = false;
@@ -86,6 +87,29 @@ async function fetchLedger(force = false) {
   }
 }
 
+async function fetchTimeline(force = false) {
+  if (inFlight.timeline) return;
+  if (!force && timeline && Date.now() - lastFetched.timeline < TTL_MS) return;
+  inFlight.timeline = true;
+  try {
+    const t = tz();
+    // Default window is the last 24h through next 24h — TodayPanel scope.
+    // The standalone Activity view passes wider bounds via refreshTimeline().
+    const now = Date.now();
+    const from = new Date(now - 24 * 60 * 60_000).toISOString();
+    const to   = new Date(now + 24 * 60 * 60_000).toISOString();
+    const params = new URLSearchParams({ from, to });
+    if (t) params.set('tz', t);
+    const res = await api(`/api/timeline?${params}`);
+    if (res?.ok) {
+      timeline = res;
+      lastFetched.timeline = Date.now();
+    }
+  } catch {} finally {
+    inFlight.timeline = false;
+  }
+}
+
 async function fetchRecommendations(force = false) {
   if (inFlight.recommendations) return;
   if (!force && recommendations && Date.now() - lastFetched.recommendations < TTL_MS) return;
@@ -124,11 +148,13 @@ export function getSynthesis() {
     get observation() { return observation; },
     get ledger() { return ledger; },
     get recommendations() { return recommendations; },
+    get timeline() { return timeline; },
     get isLoadingToday() { return inFlight.today; },
     get isLoadingWeekly() { return inFlight.weekly; },
     get isLoadingObservation() { return inFlight.observation; },
     get isLoadingLedger() { return inFlight.ledger; },
     get isLoadingRecommendations() { return inFlight.recommendations; },
+    get isLoadingTimeline() { return inFlight.timeline; },
   };
 }
 
@@ -138,11 +164,13 @@ export function refreshSynthesis() {
   fetchObservation(true);
   fetchLedger(true);
   fetchRecommendations(true);
+  fetchTimeline(true);
 }
 
 export function refreshToday() { fetchToday(true); }
 export function refreshLedger() { fetchLedger(true); }
 export function refreshRecommendations() { fetchRecommendations(true); }
+export function refreshTimeline() { fetchTimeline(true); }
 export function clearObservation() {
   observation = null;
   fetchObservation(true);
@@ -163,6 +191,7 @@ export function schedulePrefetch(delayMs = 1500) {
     fetchObservation();
     fetchLedger();
     fetchRecommendations();
+    fetchTimeline();
   };
   if (typeof requestIdleCallback === 'function') {
     setTimeout(() => requestIdleCallback(run, { timeout: 4000 }), delayMs);
@@ -178,6 +207,7 @@ export function schedulePrefetch(delayMs = 1500) {
       fetchObservation();
       fetchLedger();
       fetchRecommendations();
+      fetchTimeline();
     }
   }, TTL_MS);
 
@@ -190,6 +220,7 @@ export function schedulePrefetch(delayMs = 1500) {
         if (Date.now() - lastFetched.observation > TTL_MS) fetchObservation();
         if (Date.now() - lastFetched.ledger > TTL_MS) fetchLedger();
         if (Date.now() - lastFetched.recommendations > TTL_MS) fetchRecommendations();
+        if (Date.now() - lastFetched.timeline > TTL_MS) fetchTimeline();
       }
     });
   }
