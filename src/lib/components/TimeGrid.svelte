@@ -22,6 +22,7 @@
     slotKeyAction, eventKeyAction, clampGridFocus,
   } from '../utils/timegridKeyboard.js';
   import { confirmAction } from '../utils/confirmModal.svelte.js';
+  import { chooseRecurrenceScope } from '../utils/chooseScopeModal.svelte.js';
 
   const focusStore = getFocusBlocks();
   const travelStore = getTravelBlocks();
@@ -238,20 +239,33 @@
       return;
     }
     if (action.type === 'delete') {
-      const ok = await confirmAction({
-        title: 'Delete event?',
-        body: `"${event.summary || '(No title)'}" will be removed from your calendar.`,
-        confirmLabel: 'Delete',
-        danger: true,
-      });
-      if (!ok) return;
+      const isRecurring = !!event.recurringEventId || !!(event.recurrence && event.recurrence.length);
+      const title = event.summary || '(No title)';
+      let scope = null;
+      if (isRecurring) {
+        scope = await chooseRecurrenceScope({
+          title: 'Delete recurring event?',
+          body: `"${title}" is part of a recurring series.`,
+          verb: 'Delete',
+          danger: true,
+        });
+        if (!scope) return;  // Cancelled
+      } else {
+        const ok = await confirmAction({
+          title: 'Delete event?',
+          body: `"${title}" will be removed from your calendar.`,
+          confirmLabel: 'Delete',
+          danger: true,
+        });
+        if (!ok) return;
+      }
       announce(`Deleted ${event.summary || 'event'}`);
       // After delete, return focus to the surrounding slot before the
       // chip disappears from the DOM (otherwise focus jumps to <body>).
       const start = new Date(event.start);
       const dayIdx = dates.findIndex(d => isSameDay(d, start));
       if (dayIdx >= 0) focusSlotEl(dayIdx, slotIndexForDate(start));
-      await deleteEvent(event.calendarId, event.id);
+      await deleteEvent(event.calendarId, event.id, scope ? { scope } : undefined);
       return;
     }
     if (action.type === 'move' || action.type === 'resize') {

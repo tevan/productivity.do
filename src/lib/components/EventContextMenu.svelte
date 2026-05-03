@@ -3,6 +3,7 @@
   import { updateEvent, deleteEvent, createEvent, hideEvent } from '../stores/events.svelte.js';
   import { PASTEL_COLORS } from '../utils/colors.js';
   import { confirmAction } from '../utils/confirmModal.svelte.js';
+  import { chooseRecurrenceScope } from '../utils/chooseScopeModal.svelte.js';
   import { getPrefs } from '../stores/prefs.svelte.js';
   import { api } from '../api.js';
   import { tooltip } from '../actions/tooltip.js';
@@ -59,10 +60,26 @@
   async function deleteEv() {
     if (!event) return;
     const prefs = getPrefs();
-    if (prefs.values.confirmDeleteEvent !== false) {
-      if (!await confirmAction({ title: 'Delete event?', body: `"${event.summary || '(No title)'}" will be removed.`, confirmLabel: 'Delete', danger: true })) return;
+    const isRecurring = !!event.recurringEventId || !!(event.recurrence && event.recurrence.length);
+    const title = event.summary || '(No title)';
+
+    if (isRecurring) {
+      // Recurring → ask the user which slice they meant.
+      const scope = await chooseRecurrenceScope({
+        title: 'Delete recurring event?',
+        body: `"${title}" is part of a recurring series.`,
+        verb: 'Delete',
+        danger: true,
+      });
+      if (!scope) return;  // Cancel / Esc / backdrop
+      await deleteEvent(event.calendarId, event.id, { scope });
+    } else {
+      // Non-recurring → keep the simple confirm (respects pref).
+      if (prefs.values.confirmDeleteEvent !== false) {
+        if (!await confirmAction({ title: 'Delete event?', body: `"${title}" will be removed.`, confirmLabel: 'Delete', danger: true })) return;
+      }
+      await deleteEvent(event.calendarId, event.id);
     }
-    await deleteEvent(event.calendarId, event.id);
     onclose();
   }
 

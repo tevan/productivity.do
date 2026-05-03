@@ -15,6 +15,11 @@ import { generatePrep, inputHash, isConfigured as isPrepConfigured } from '../li
 import { createOperation, runOperation } from '../lib/operations.js';
 import { findFreeSlots, expandFocusBlocks } from '../lib/autoSchedule.js';
 import { recordRevision } from '../lib/revisions.js';
+import {
+  computeUntilForFollowing,
+  applyUntilToRecurrenceLines,
+  normalizeScope,
+} from '../lib/recurrence.js';
 
 const router = Router();
 
@@ -749,18 +754,10 @@ router.put('/api/events/:calendarId/:eventId', async (req, res) => {
         const parentId = inst?.recurringEventId;
         if (parentId) {
           const instStart = inst.originalStartTime?.dateTime || inst.originalStartTime?.date;
-          if (instStart) {
-            // UNTIL must be one second before the instance start, in UTC.
-            const untilDt = new Date(new Date(instStart).getTime() - 1000)
-              .toISOString().replace(/[-:.]/g, '').slice(0, 15) + 'Z';
+          const untilDt = computeUntilForFollowing(instStart);
+          if (untilDt) {
             const parent = await gcalGetEvent(userId, calendarId, parentId);
-            const parentRules = (parent?.recurrence || []).map(r => {
-              if (!/^RRULE:/i.test(r)) return r;
-              // Strip any existing UNTIL/COUNT, append our UNTIL.
-              const body = r.replace(/^RRULE:/, '').split(';').filter(p => !/^(UNTIL|COUNT)=/i.test(p));
-              body.push(`UNTIL=${untilDt}`);
-              return `RRULE:${body.join(';')}`;
-            });
+            const parentRules = applyUntilToRecurrenceLines(parent?.recurrence || [], untilDt);
             await gcalUpdateEvent(userId, calendarId, parentId, { recurrence: parentRules });
             // Create a brand-new event from this point with the new recurrence.
             const newRules = expandRecurrence(recurrence);
@@ -857,6 +854,7 @@ router.delete('/api/events/:calendarId/:eventId', async (req, res) => {
     }
 
     const { calendarId, eventId } = req.params;
+    const scope = normalizeScope(req.query.scope);
     const db = getDb();
     // Snapshot for the activity feed before we wipe the cache row.
     const beforeRow = db.prepare(
@@ -873,17 +871,75 @@ router.delete('/api/events/:calendarId/:eventId', async (req, res) => {
       allDay: !!beforeRow.all_day,
     } : null;
 
-    await gcalDeleteEvent(userId, calendarId, eventId);
-    db.prepare('DELETE FROM events_cache WHERE google_event_id = ? AND user_id = ?').run(eventId, userId);
+    // Helper used by every scope branch: drop a row we know by id.
+    // The cache is just that — a cache — so we don't try to find
+    // "all cached instances" of a series here. The next /api/events
+    // GET reconciles from Google as the source of truth.
+    const dropCachedRow = (id) =>
+      db.prepare(
+        'DELETE FROM events_cache WHERE google_event_id = ? AND user_id = ?'
+      ).run(id, userId);
+
+    if (scope === 'series') {
+      // Delete the entire parent series. Resolve the parent id from the
+      // instance we were handed (or use the id directly if it's already
+      // the parent — Google accepts deleting the parent for both).
+      let parentId = eventId;
+      try {
+        const inst = await gcalGetEvent(userId, calendarId, eventId);
+        if (inst?.recurringEventId) parentId = inst.recurringEventId;
+      } catch {}
+      await gcalDeleteEvent(userId, calendarId, parentId);
+      dropCachedRow(parentId);
+      if (parentId !== eventId) dropCachedRow(eventId);
+    } else if (scope === 'following') {
+      // Terminate the parent series at instance-1s, leaving past
+      // instances intact. Mirrors the edit-following path.
+      try {
+        const inst = await gcalGetEvent(userId, calendarId, eventId);
+        const parentId = inst?.recurringEventId;
+        const instStart = inst?.originalStartTime?.dateTime
+          || inst?.originalStartTime?.date
+          || inst?.start?.dateTime
+          || inst?.start?.date;
+        const untilDt = computeUntilForFollowing(instStart);
+        if (parentId && untilDt) {
+          const parent = await gcalGetEvent(userId, calendarId, parentId);
+          const parentRules = applyUntilToRecurrenceLines(parent?.recurrence || [], untilDt);
+          await gcalUpdateEvent(userId, calendarId, parentId, { recurrence: parentRules });
+          dropCachedRow(eventId);
+        } else {
+          // No parent or no instance start — fall back to instance delete.
+          await gcalDeleteEvent(userId, calendarId, eventId);
+          dropCachedRow(eventId);
+        }
+      } catch (err) {
+        console.warn('delete-following failed:', err.message);
+        // Last-resort fallback: at minimum remove the instance the user
+        // clicked on, so the click isn't a no-op.
+        try {
+          await gcalDeleteEvent(userId, calendarId, eventId);
+          dropCachedRow(eventId);
+        } catch {}
+      }
+    } else {
+      // 'instance' — current behavior: delete just this occurrence.
+      await gcalDeleteEvent(userId, calendarId, eventId);
+      dropCachedRow(eventId);
+    }
 
     try {
+      // recordRevision currently accepts { before, after } only — scope is
+      // logged via res.json so the caller knows what happened, and the
+      // scope decision is captured implicitly by the diff (instance vs.
+      // series id, or "following" which doesn't fully wipe the parent).
       recordRevision({
         userId, resource: 'events', resourceId: eventId,
         op: 'delete', before: beforeProj, after: null,
       });
     } catch (e) { console.warn('events recordRevision (delete):', e.message); }
 
-    res.json({ ok: true });
+    res.json({ ok: true, scope });
   } catch (err) {
     console.error('DELETE /api/events error:', err.message);
     res.status(500).json({ ok: false, error: err.message });

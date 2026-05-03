@@ -14,6 +14,7 @@
   import { loadNotes } from './lib/stores/notes.svelte.js';
   import { loadLinks } from './lib/stores/links.svelte.js';
   import ConfirmRoot from './lib/components/ConfirmRoot.svelte';
+  import ScopeModalRoot from './lib/components/ScopeModalRoot.svelte';
   import UpgradeRoot from './lib/components/UpgradeRoot.svelte';
   import ToastRoot from './lib/components/ToastRoot.svelte';
   import NextDaysView from './lib/views/NextDaysView.svelte';
@@ -800,6 +801,8 @@
 
   <!-- Global confirm modal (replaces window.confirm) -->
   <ConfirmRoot />
+  <!-- Recurring-event scope picker (Edit/Delete this/following/series) -->
+  <ScopeModalRoot />
   <!-- Plan-required upgrade modal -->
   <UpgradeRoot />
   <!-- Bottom-center toast stack (success / error / undo) -->

@@ -336,16 +336,43 @@ export async function updateEvent(calendarId, eventId, data, { silent = false } 
  *
  * Returns true on success, false on failure.
  */
-export async function deleteEvent(calendarId, eventId, { silent = false } = {}) {
+export async function deleteEvent(calendarId, eventId, { silent = false, scope = 'instance' } = {}) {
   const removed = events.find(ev => ev.id === eventId);
   const isNative = (calendarId === 'native' || !calendarId);
-  const url = isNative
+  // Scope only applies to Google events; native events have no recurrence
+  // semantics yet. Server validates and falls back to 'instance' on
+  // anything unrecognized, but we belt-and-suspenders here so the URL
+  // is clean for native + non-recurring deletes.
+  const safeScope =
+    !isNative && (scope === 'series' || scope === 'following') ? scope : null;
+  const baseUrl = isNative
     ? `/api/native/events/${eventId}`
     : `/api/events/${calendarId}/${eventId}`;
+  const url = safeScope ? `${baseUrl}?scope=${safeScope}` : baseUrl;
   try {
     const res = await api(url, { method: 'DELETE' });
     if (res.ok) {
-      events = events.filter(ev => ev.id !== eventId);
+      // Optimistic UI strip. For 'series' / 'following' we ALSO strip any
+      // matching cached events in the in-memory store, since the server
+      // wipe might cover instances we hadn't yet refetched. The match
+      // looks for events sharing the same recurringEventId, OR the same
+      // id (the parent itself).
+      if (safeScope === 'series' && removed) {
+        const seriesId = removed.recurringEventId || removed.id;
+        events = events.filter(ev =>
+          ev.recurringEventId !== seriesId && ev.id !== seriesId
+        );
+      } else if (safeScope === 'following' && removed) {
+        const seriesId = removed.recurringEventId;
+        const cutoff = removed.start;
+        events = events.filter(ev =>
+          !(ev.recurringEventId === seriesId && ev.start >= cutoff)
+        );
+        // And the explicit instance, if it's still there.
+        events = events.filter(ev => ev.id !== eventId);
+      } else {
+        events = events.filter(ev => ev.id !== eventId);
+      }
       if (removed) invalidateRangesOverlapping(removed.start, removed.end);
       if (!silent && removed) {
         const title = removed.summary || 'Event';

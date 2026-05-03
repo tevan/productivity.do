@@ -25,11 +25,13 @@ description, attendees, color) is optional.
 ## Recurring events
 
 Editor has a "Repeats" dropdown: Daily, Weekly, Monthly, Yearly, plus
-custom RRULE syntax. When you edit a recurring event, you'll be asked
-whether to apply the change to:
-- This event only
+custom RRULE syntax. When you **edit or delete** a recurring event, you'll
+be asked whether to apply the change to:
+- This event only (default — safest)
 - This and all following events
 - All events in the series
+
+The same prompt appears for keyboard delete and right-click → Delete.
 
 ## Multi-calendar
 
