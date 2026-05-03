@@ -796,6 +796,109 @@ prefer asking via us.
   parity loses to workflow uniqueness. The ranker is what an
   agent calls; the raw data isn't.
 
+## Same shape as a social media algorithm — opposite incentives
+
+A natural question: *"Are we building the equivalent of a social media
+algorithm but for productivity?"* The honest answer is: **same shape,
+opposite incentives.** The mechanism (weighted scoring over captured
+signals) rhymes. The optimization target inverts.
+
+This distinction matters because conflating the two would push us
+toward features that *look* productive but aren't. Notion's response
+to AI is instructive in the opposite direction — they made AI the
+core revenue lever (~50% attach rate, half of $500M+ ARR) without
+ever leaning on streak-counter / engagement-scroll mechanics. They
+won the commercial battle; we should win on a different metric
+(time-to-close), which they don't optimize for.
+
+### Where the analogy holds
+
+| Layer | Social media algorithm | Our ranker |
+|---|---|---|
+| Signals captured | Likes, watch time, follows, dwell, click-throughs | Pins, intent lines, completed tasks, focus blocks, manual ordering |
+| Combination | Weighted scoring + ML | Weighted scoring + deterministic SQL |
+| Output | A ranked feed | A ranked decision list |
+| Personalization | Per-user, drifts over time | Per-user, drifts with declared preferences |
+
+If the conversation stops there, "social media algorithm for
+productivity" is a fair shorthand for non-technical pitches.
+
+### Where the analogy breaks (and why each break matters)
+
+**1. Inverted incentive structure.** Social media optimizes for
+*time-in-app* — the longer you scroll, the more ads served. We
+optimize for *time-to-close* — the faster you see the answer and
+act, the better the product. North-star metric is minutes *saved*,
+not minutes consumed. Ship the next-thing surface; success means
+"user opens, clicks Start within 5s, leaves." A social media product
+would call that a failure. (See `time_to_close_metric.md` memory.)
+
+**2. Explicit vs. implicit signals.** Social media signals are
+mostly implicit (dwell, scroll, micro-engagement) — the user doesn't
+know they're training the algorithm. Our signals are mostly explicit
+(pin, intent line, priority, due date) — the user knows they're
+telling us what matters. Implicit signals drift toward the lowest
+common denominator (cat videos, outrage). Explicit signals reflect
+deliberate intent.
+
+**3. Stated vs. revealed preference.** Social media's philosophical
+bet is that revealed preference (what you watch) beats stated
+preference (what you say you care about). True in entertainment;
+poisonous in productivity. A user *says* they want to ship the
+redesign Friday. They actually scroll Twitter. If we built
+revealed-preference ranking, we'd surface "scroll Twitter" as the
+next thing. **The whole product would be useless.** We deliberately
+ignore some revealed-preference signals (procrastination patterns,
+low-value-task completion) and amplify stated preferences. Our
+algorithm is paternalistic in a useful way — it serves the user's
+better self, not their distractible self.
+
+**4. Deployment is open, not closed.** Social media algorithms are
+inseparable from their app — TikTok's algorithm only runs inside
+TikTok. Our ranker runs inside our app *and* exposes its result via
+MCP to ChatGPT, Claude, Siri. Same algorithm, same answer, wherever
+the user is. We don't trap the user inside our app; we travel with
+them. The inverse of TikTok's strategy.
+
+**5. Deterministic explanation is a feature.** Social media is
+opaque by design — "why am I seeing this?" is a question they don't
+want asked. Our ranker is explainable in one sentence per item: "In
+your 9-11am creative block, your top-pinned project's intent says
+'ship the redesign by Friday' — start there." If we used ML at the
+decision moment, we'd lose that. So we don't.
+
+### The cleaner pitch
+
+> **Same shape, opposite incentives.** Social media uses your
+> behavior to maximize time spent. We use your stated preferences to
+> minimize it. The mechanism is similar — weighted scoring over
+> captured signals — but social media optimizes for "what holds
+> your attention," and we optimize for "what your better self says
+> matters." The first is opaque and addictive by design; ours is
+> explainable and built to get you out the door.
+
+### Anti-temptation lens
+
+When tempted to ship any of the following, ask: *"Are we drifting
+toward TikTok-shape?"* If yes, kill it.
+
+- **Daily streak counters** (engagement-maxxing).
+- **"Your week in review" engagement scrolls** (time-in-app).
+- **"You've completed 12 tasks!" badges** (Goodhart's law on
+  task-counting).
+- **"Days since last login" reactivation emails** (time-in-app
+  proxy).
+- **Push notifications about leaderboard rank or peer activity**
+  (social-media playbook).
+- **Implicit-signal personalization at the decision moment**
+  (drifts toward what holds attention, not what matters).
+
+What's safe and on-strategy:
+- Anything that makes the answer faster, clearer, or more specific.
+- Anything that helps the user leave the app sooner with the right
+  decision made.
+- Anything that improves the explainability of a recommendation.
+
 ## Protocol gaps to track (and small things to bake in now)
 
 The Perplexity research surfaces several protocol-level gaps that no
