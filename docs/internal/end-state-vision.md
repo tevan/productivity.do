@@ -232,6 +232,51 @@ Concrete milestones, in rough order:
    threshold that justifies the next vertical.** Not a number to
    write down today; we'll know it when we see it.
 
+**90-day check.** If signals 1-3 land within 90 days post-launch,
+the strategy is working. If they don't, *which one did* tells us
+which part of the value prop is real:
+- 1 lands but not 2-3 → behavior moat is real, but agent surface
+  isn't paying off yet. Invest harder in the MCP/AI-assistant
+  distribution layer.
+- 2 lands but not 1 → people use us through ChatGPT, not directly.
+  The destination-app thesis is wrong; rework the value prop
+  around being the agent backend.
+- 3 lands but not 1-2 → people use us socially / via the booking
+  widget, but the daily-decision moment isn't sticky. Different
+  product.
+
+If none of 1-3 land in 90 days, the thesis is wrong. Re-evaluate.
+
+## On novelty (the honest framing)
+
+The pattern under this strategy isn't unique. Linear's founders
+have written about the shape; a16z's "agent-native vertical
+winners" thesis is the same idea; Glean / Granola / productivity.do
+are three implementations of one pattern. The decision-surface
+lens is borrowed, and we should say so when asked.
+
+What's *not* borrowed:
+
+- **The execution slot is open.** Nobody has shipped a working
+  personal-productivity-vertical implementation. Granola did
+  meetings, Glean did enterprise search, neither did the
+  personal-productivity surface.
+- **The integration of all four pillars** (calendar + tasks + notes
+  + files) into one decision engine is harder than it looks. We
+  already have all four shipped — the substrate is the bet.
+- **The solo-founder + AI-leverage execution shape** is genuinely
+  novel. Linear was 6 people from day one. Granola raised $20M
+  pre-profitability. We're optimizing for a path neither took.
+
+The honest one-liner if asked "is this novel": *"The lens is
+recognized. The seat is empty. The execution is the bet."*
+
+This matters not for ego but for **defending the pitch**. Smart
+people will ask "isn't this just X?" and the right answer is "yes
+in shape, no in execution, here's the difference" — not "no, this
+is unique." Confidence comes from the execution claim, not the
+novelty claim.
+
 If 1-3 happen within 90 days post-launch, the strategy is working.
 If they don't, the loudest signal is which one *did* happen — that
 tells us which part of the value prop is real.
